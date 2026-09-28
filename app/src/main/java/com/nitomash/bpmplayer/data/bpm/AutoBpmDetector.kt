@@ -17,18 +17,19 @@ class AutoBpmDetector(
     suspend fun detect(uri: Uri, isActive: () -> Boolean = { true }): BpmDetectionResult =
         withContext(Dispatchers.IO) {
             val settings = settingsRepository.current()
+            val label = uri.lastPathSegment?.substringAfterLast('/') ?: uri.toString()
             val startNs = System.nanoTime()
             val pcm = try {
                 audioDecoder.decode(context, uri)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w("BpmDetect", "decode internal error: $uri ${e.message}")
+                Log.w("BpmDetect", "decode internal error: $label ${e.message}")
                 return@withContext BpmDetectionResult.Failure(BpmDetectionFailure.INTERNAL_ERROR)
             }
             val decodeMs = (System.nanoTime() - startNs) / 1_000_000
             if (pcm == null) {
-                Log.w("BpmDetect", "decode failed for $uri")
+                Log.w("BpmDetect", "decode failed for $label")
                 return@withContext BpmDetectionResult.Failure(BpmDetectionFailure.DECODE_FAILED)
             }
             val detectStartNs = System.nanoTime()
@@ -38,13 +39,14 @@ class AutoBpmDetector(
                 minBpm = settings.detectorMinBpm,
                 maxBpm = settings.detectorMaxBpm,
                 isActive = isActive,
+                label = label,
             )
             val detectMs = (System.nanoTime() - detectStartNs) / 1_000_000
             Log.i(
                 "BpmDetect",
-                "decode=${decodeMs}ms detect=${detectMs}ms samples=${pcm.samples.size} " +
+                "result track=$label decode=${decodeMs}ms detect=${detectMs}ms samples=${pcm.samples.size} " +
                     "rate=${pcm.sampleRate} " +
-                    "range=${settings.detectorMinBpm}-${settings.detectorMaxBpm} result=$result",
+                    "range=${settings.detectorMinBpm}-${settings.detectorMaxBpm} bpm=$result",
             )
             result
         }

@@ -91,9 +91,6 @@ interface PlaylistDao {
     @Insert
     suspend fun insertAll(playlistTracks: List<PlaylistTrackEntity>)
 
-    @Query("DELETE FROM playlist_tracks WHERE playlist_id = :playlistId AND track_id IN (:trackIds)")
-    suspend fun deleteTracks(playlistId: Long, trackIds: List<Long>)
-
     @Query("DELETE FROM playlist_tracks WHERE playlist_id = :playlistId")
     suspend fun deleteAllTracks(playlistId: Long)
 
@@ -124,8 +121,18 @@ interface PlaylistDao {
     @Upsert
     suspend fun upsertPlaylistOrder(rows: List<PlaylistOrderEntity>)
 
-    @Query("DELETE FROM playlist_order WHERE playlist_id NOT IN (:keepIds)")
-    suspend fun deletePlaylistOrderExcept(keepIds: List<Long>)
+    @Query("SELECT playlist_id FROM playlist_order")
+    suspend fun getPlaylistOrderIds(): List<Long>
+
+    @Query("DELETE FROM playlist_order WHERE playlist_id IN (:playlistIds)")
+    suspend fun deletePlaylistOrderIdsChunk(playlistIds: List<Long>)
+
+    @Transaction
+    suspend fun deletePlaylistOrderExcept(keepIds: List<Long>) {
+        stalePlaylistIds(getPlaylistOrderIds(), keepIds)
+            .sqlChunks()
+            .forEach { deletePlaylistOrderIdsChunk(it) }
+    }
 
     @Transaction
     suspend fun setPlaylistOrder(playlistIds: List<Long>) {
@@ -136,4 +143,10 @@ interface PlaylistDao {
             distinct.mapIndexed { index, playlistId -> PlaylistOrderEntity(playlistId, index) },
         )
     }
+}
+
+internal fun stalePlaylistIds(existing: List<Long>, keep: List<Long>): List<Long> {
+    if (keep.isEmpty()) return existing
+    val keepSet = keep.toHashSet()
+    return existing.filter { it !in keepSet }
 }

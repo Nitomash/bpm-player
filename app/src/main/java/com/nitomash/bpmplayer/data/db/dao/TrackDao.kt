@@ -23,7 +23,12 @@ interface TrackDao {
     suspend fun getByFolder(folderId: Long): List<TrackEntity>
 
     @Query("DELETE FROM tracks WHERE folder_id = :folderId AND relative_path IN (:paths)")
-    suspend fun deleteByPaths(folderId: Long, paths: List<String>)
+    suspend fun deleteByPathsChunk(folderId: Long, paths: List<String>)
+
+    @Transaction
+    suspend fun deleteByPaths(folderId: Long, paths: List<String>) {
+        paths.sqlChunks().forEach { deleteByPathsChunk(folderId, it) }
+    }
 
     @Query("SELECT * FROM tracks ORDER BY title")
     fun observeAll(): Flow<List<TrackEntity>>
@@ -48,7 +53,11 @@ interface TrackDao {
     }
 
     @Query("SELECT DISTINCT folder_id FROM tracks WHERE id IN (:trackIds)")
-    suspend fun getFolderIdsByIds(trackIds: List<Long>): List<Long>
+    suspend fun getFolderIdsByIdsChunk(trackIds: List<Long>): List<Long>
+
+    @Transaction
+    suspend fun getFolderIdsByIds(trackIds: List<Long>): List<Long> =
+        trackIds.sqlChunks().flatMap { getFolderIdsByIdsChunk(it) }.distinct()
 
     @Update
     suspend fun update(track: TrackEntity)

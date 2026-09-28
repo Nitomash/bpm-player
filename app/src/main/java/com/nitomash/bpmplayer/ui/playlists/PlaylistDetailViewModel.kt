@@ -51,15 +51,12 @@ class PlaylistDetailViewModel @Inject constructor(
         sortMode,
         _reorderIds,
     ) { rows, mode, draft ->
-        val sorted = PlaylistTrackSorter.sort(rows, mode).map { it.track }
-        if (draft == null) {
-            sorted
+        val ordered = if (draft == null) {
+            PlaylistTrackSorter.sort(rows, mode)
         } else {
-            val positions = draft.withIndex().associate { (index, id) -> id to index }
-            sorted.sortedWith(
-                compareBy({ positions[it.id] ?: Int.MAX_VALUE }, { it.id }),
-            )
+            ListReorder.applyDraft(rows, draft) { it.track.id }
         }
+        ordered.map { it.track }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val currentTrackId = playbackSession.currentTrackId

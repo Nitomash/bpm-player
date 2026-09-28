@@ -114,10 +114,6 @@ class FakePlaylistDao : PlaylistDao {
         playlistTracks.forEach { trackStub(it.trackId) }
     }
 
-    override suspend fun deleteTracks(playlistId: Long, trackIds: List<Long>) {
-        rows.removeAll { it.playlistId == playlistId && it.trackId in trackIds }
-    }
-
     override suspend fun deleteAllTracks(playlistId: Long) {
         rows.removeAll { it.playlistId == playlistId }
     }
@@ -132,7 +128,9 @@ class FakePlaylistDao : PlaylistDao {
         playlistOrder.addAll(rows)
     }
 
-    override suspend fun deletePlaylistOrderExcept(keepIds: List<Long>) {
-        playlistOrder.removeAll { it.playlistId !in keepIds }
+    override suspend fun getPlaylistOrderIds(): List<Long> = playlistOrder.map { it.playlistId }
+
+    override suspend fun deletePlaylistOrderIdsChunk(playlistIds: List<Long>) {
+        playlistOrder.removeAll { it.playlistId in playlistIds }
     }
 }

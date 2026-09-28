@@ -2,6 +2,7 @@ package com.nitomash.bpmplayer.data.playlist
 
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaylistTrackSorterTest {
@@ -164,4 +165,71 @@ class PlaylistTrackSorterTest {
             assertEquals(rows, PlaylistTrackSorter.sort(rows, mode))
         }
     }
+
+    @Test
+    fun `blank and whitespace titles collapse to the same key`() {
+        val rows = listOf(
+            row(1, ""),
+            row(2, "   "),
+            row(3, "alpha"),
+        )
+
+        assertEquals(
+            listOf(1L, 2L, 3L),
+            PlaylistTrackSorter.sort(rows, PlaylistTrackSort.TITLE).map { it.track.id },
+        )
+    }
+
+    @Test
+    fun `bpm sorting over a large duplicated input is fully ordered`() {
+        val titles = listOf("alpha", "Beta", " gamma ", "ALPHA")
+        val rows = (0 until 500).map { index ->
+            row(
+                id = index.toLong(),
+                title = titles[index % titles.size],
+                bpm = if (index % 7 == 0) null else (90 + index % 5).toDouble(),
+            )
+        }
+
+        val sorted = PlaylistTrackSorter.sort(rows, PlaylistTrackSort.BPM_ASC)
+        assertEquals(rows.size, sorted.size)
+        assertEquals(rows.map { it.track.id }.toSet(), sorted.map { it.track.id }.toSet())
+
+        var seenNoBpm = false
+        for (i in 1 until sorted.size) {
+            val prevBpm = sorted[i - 1].track.bpm
+            val curBpm = sorted[i].track.bpm
+            if (prevBpm == null) seenNoBpm = true
+            if (seenNoBpm) {
+                assertTrue("track with bpm at $i must not follow one without", curBpm == null)
+            }
+            if (prevBpm != null && curBpm != null) {
+                assertTrue("bpm order broken at $i: $prevBpm then $curBpm", prevBpm <= curBpm)
+            }
+            if (prevBpm != null && prevBpm == curBpm) {
+                assertTrue(
+                    "title order broken at $i: '${sorted[i - 1].track.title}' then '${sorted[i].track.title}'",
+                    titleKey(sorted[i - 1].track.title) <= titleKey(sorted[i].track.title),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `sorting does not modify the input list`() {
+        val rows = listOf(
+            row(1, "Zebra", bpm = 120.0, addedAtMs = 10L),
+            row(2, "  alpha", addedAtMs = 30L),
+            row(3, "Middle", addedAtMs = 20L),
+        )
+        val before = rows.toList()
+
+        PlaylistTrackSort.entries.forEach { mode ->
+            PlaylistTrackSorter.sort(rows, mode)
+        }
+
+        assertEquals(before, rows)
+    }
+
+    private fun titleKey(value: String): String = value.trim().lowercase()
 }

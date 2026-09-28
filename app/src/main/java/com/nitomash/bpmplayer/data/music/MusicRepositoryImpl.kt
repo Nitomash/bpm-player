@@ -70,9 +70,7 @@ class MusicRepositoryImpl @Inject constructor(
         val existingPaths = trackDao.getByFolder(folderId).map { it.relativePath }.toSet()
         val scannedPaths = drafts.map { it.relativePath }.toSet()
         val missingPaths = existingPaths - scannedPaths
-        missingPaths.chunked(BATCH_SIZE).forEach { chunk ->
-            trackDao.deleteByPaths(folderId, chunk)
-        }
+        trackDao.deleteByPaths(folderId, missingPaths.toList())
         importSidecars(Uri.parse(folder.rootUri), folderId, recursive = false)
         Log.i(TAG, "rescanFolder $folderId: ${missingPaths.size} stale tracks removed")
     }

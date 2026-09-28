@@ -48,12 +48,10 @@ class PlaylistListViewModel @Inject constructor(
         listSort,
         _reorderIds,
     ) { summaries, sort, draft ->
-        val sorted = PlaylistListSorter.sort(summaries, sort)
         if (draft == null) {
-            sorted
+            PlaylistListSorter.sort(summaries, sort)
         } else {
-            val positions = draft.withIndex().associate { (index, id) -> id to index }
-            sorted.sortedWith(compareBy({ positions[it.id] ?: Int.MAX_VALUE }, { it.id }))
+            ListReorder.applyDraft(summaries, draft) { it.id }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

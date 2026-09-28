@@ -4,19 +4,20 @@ import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 
 enum class TrackSort { BY_NAME, BY_BPM }
 
-fun sortTracks(tracks: List<TrackEntity>, sort: TrackSort): List<TrackEntity> = when (sort) {
-    TrackSort.BY_NAME -> tracks.sortedBy { titleKey(it.title) }
-    TrackSort.BY_BPM -> tracks.sortedWith { a, b ->
-        when {
-            a.bpm == null && b.bpm == null -> titleKey(a.title).compareTo(titleKey(b.title))
-            a.bpm == null -> 1
-            b.bpm == null -> -1
-            else -> {
-                val byBpm = a.bpm.compareTo(b.bpm)
-                if (byBpm != 0) byBpm else titleKey(a.title).compareTo(titleKey(b.title))
-            }
-        }
+fun sortTracks(tracks: List<TrackEntity>, sort: TrackSort): List<TrackEntity> {
+    if (tracks.size < 2) return tracks
+    val keyed = tracks.map { Keyed(it, titleKey(it.title)) }
+    val sorted = when (sort) {
+        TrackSort.BY_NAME -> keyed.sortedBy { it.titleKey }
+        TrackSort.BY_BPM -> keyed.sortedWith(
+            compareBy<Keyed<TrackEntity>> { if (it.value.bpm == null) 1 else 0 }
+                .thenBy { it.value.bpm }
+                .thenBy { it.titleKey },
+        )
     }
+    return sorted.map { it.value }
 }
+
+private class Keyed<T>(val value: T, val titleKey: String)
 
 private fun titleKey(title: String): String = title.trim().lowercase()

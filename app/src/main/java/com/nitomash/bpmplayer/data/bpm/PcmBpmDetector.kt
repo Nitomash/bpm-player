@@ -1,4 +1,4 @@
-package com.nitomash.bpmplayer.data.bpm
+﻿package com.nitomash.bpmplayer.data.bpm
 
 import be.tarsos.dsp.AudioDispatcher
 import be.tarsos.dsp.AudioEvent
@@ -8,6 +8,9 @@ import be.tarsos.dsp.io.TarsosDSPAudioInputStream
 import be.tarsos.dsp.onsets.ComplexOnsetDetector
 import be.tarsos.dsp.onsets.OnsetHandler
 import kotlinx.coroutines.CancellationException
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 class PcmBpmDetector(
@@ -23,6 +26,7 @@ class PcmBpmDetector(
         sampleRate: Int,
         minBpm: Double = DEFAULT_MIN_BPM,
         maxBpm: Double = DEFAULT_MAX_BPM,
+        label: String = "",
         isActive: () -> Boolean = { true },
     ): BpmDetectionResult {
         if (sampleRate <= 0 || samples.size < MIN_WINDOW_SAMPLES) {
@@ -32,18 +36,19 @@ class PcmBpmDetector(
         val stepSamples = nextWindowStepSeconds * sampleRate
         val baseStart = if (samples.size > windowSamples) samples.size / 3 else 0
         val spanEnd = (baseStart + (maxAttempts - 1) * stepSamples + windowSamples).coerceAtMost(samples.size)
-        if (spanEnd - baseStart < windowSamples / 2) {
+        val spanSamples = spanEnd - baseStart
+        if (spanSamples < windowSamples / 2) {
             return BpmDetectionResult.Failure(BpmDetectionFailure.NO_ONSETS)
         }
 
         val collectStarted = System.nanoTime()
-        val onsets = collectOnsets(samples.copyOfRange(baseStart, spanEnd), sampleRate, isActive)
+        val onsets = collectOnsets(samples, baseStart, spanEnd, sampleRate, isActive)
         val collectMs = nanosToMs(collectStarted)
 
         if (!isActive()) throw CancellationException("BPM detection cancelled")
 
         if (onsets.size < MIN_ONSETS) {
-            onWindowTiming(WindowTiming(0, 0.0, onsets.size, 0, collectMs, 0, 0, 0, null))
+            onWindowTiming(WindowTiming(0, label, 0.0, onsets.size, 0, collectMs, 0, 0, 0, null))
             return BpmDetectionResult.Failure(BpmDetectionFailure.NO_ONSETS)
         }
 
@@ -51,14 +56,18 @@ class PcmBpmDetector(
         for (attempt in 0 until maxAttempts) {
             if (!isActive()) throw CancellationException("BPM detection cancelled")
             val winStart = attempt * stepSamples
-            val winEnd = (winStart + windowSamples).coerceAtMost(spanEnd - baseStart)
-            if (winStart >= spanEnd - baseStart) break
+            if (winStart >= spanSamples) break
+            val winEnd = (winStart + windowSamples).coerceAtMost(spanSamples)
             if (winEnd - winStart < windowSamples / 2) break
             val startSec = winStart.toDouble() / sampleRate
             val endSec = winEnd.toDouble() / sampleRate
-            val windowOnsets = onsets.filter { it >= startSec && it < endSec }
+            val windowOnsets = onsetsInWindow(onsets, startSec, endSec)
             if (windowOnsets.size < MIN_ONSETS) continue
-            val score = evaluate(attempt, windowOnsets, sampleRate, spanEnd - baseStart, collectMs, minBpm, maxBpm, isActive)
+            val strengths = onsetStrengths(samples, windowOnsets, baseStart, sampleRate)
+            val score = evaluate(
+                attempt, label, windowOnsets, strengths, sampleRate, spanSamples, collectMs,
+                minBpm, maxBpm, isActive,
+            )
             if (score != null) {
                 if (best == null || score.quality > best.quality) {
                     best = score
@@ -76,7 +85,9 @@ class PcmBpmDetector(
 
     private fun evaluate(
         attempt: Int,
-        onsets: List<Double>,
+        label: String,
+        onsets: DoubleArray,
+        strengths: DoubleArray,
         sampleRate: Int,
         spanSamples: Int,
         collectMs: Long,
@@ -85,110 +96,185 @@ class PcmBpmDetector(
         isActive: () -> Boolean,
     ): WindowScore? {
         if (!isActive()) throw CancellationException("BPM detection cancelled")
-        val windowSecondsValue = (onsets.lastOrNull() ?: 0.0) - (onsets.firstOrNull() ?: 0.0)
-        val intervals = buildIntervals(onsets.sorted())
-        val buildMs = 0L
+        val windowSecondsValue = onsets[onsets.size - 1] - onsets[0]
+        val buildStarted = System.nanoTime()
+        val intervals = buildIntervals(onsets.sortedArray())
+        val buildMs = nanosToMs(buildStarted)
         if (intervals.size < MIN_VOTES) {
             val windowShare = if (spanSamples > 0) intervalMs(onsets, spanSamples, sampleRate, collectMs) else 0L
-            onWindowTiming(WindowTiming(attempt, windowSecondsValue, onsets.size, intervals.size, windowShare, buildMs, 0, 0, null))
+            onWindowTiming(WindowTiming(attempt, label, windowSecondsValue, onsets.size, intervals.size, windowShare, buildMs, 0, 0, null))
             return null
         }
 
         val scoreStarted = System.nanoTime()
-        val (bestBpm, bestScore) = scoreIntervals(intervals, minBpm, maxBpm)
+        val periodScore = scorePeriods(onsets, strengths, minBpm, maxBpm)
         val scoreMs = nanosToMs(scoreStarted)
 
         val refineStarted = System.nanoTime()
-        val refined = refine(intervals, bestBpm, bestScore, minBpm, maxBpm)
+        val refined = periodScore?.let { refine(intervals, it, minBpm, maxBpm) }
         val refineMs = nanosToMs(refineStarted)
         val windowShare = if (spanSamples > 0) intervalMs(onsets, spanSamples, sampleRate, collectMs) else 0L
-        onWindowTiming(WindowTiming(attempt, windowSecondsValue, onsets.size, intervals.size, windowShare, buildMs, scoreMs, refineMs, refined?.quality))
+        val ranked = periodScore?.top?.map { it.bpm to it.coverage } ?: emptyList()
+        onWindowTiming(
+            WindowTiming(
+                attempt, label, windowSecondsValue, onsets.size, intervals.size, windowShare,
+                buildMs, scoreMs, refineMs, refined?.quality, ranked,
+            ),
+        )
         return refined
     }
 
-    private fun intervalMs(onsets: List<Double>, spanSamples: Int, sampleRate: Int, collectMs: Long): Long {
+    private fun intervalMs(onsets: DoubleArray, spanSamples: Int, sampleRate: Int, collectMs: Long): Long {
         val spanSec = spanSamples.toDouble() / sampleRate
-        val first = onsets.firstOrNull() ?: return 0L
-        val last = onsets.lastOrNull() ?: return 0L
-        return (collectMs * (last - first).coerceAtMost(spanSec) / spanSec).toLong()
+        return (collectMs * (onsets[onsets.size - 1] - onsets[0]).coerceAtMost(spanSec) / spanSec).toLong()
     }
 
-    private fun collectOnsets(samples: FloatArray, sampleRate: Int, isActive: () -> Boolean): List<Double> {
-        val onsets = mutableListOf<Double>()
+    private fun collectOnsets(
+        samples: FloatArray,
+        from: Int,
+        to: Int,
+        sampleRate: Int,
+        isActive: () -> Boolean,
+    ): DoubleArray {
+        val collected = DoubleBuffer()
         val detector = ComplexOnsetDetector(bufferSize, onsetThreshold)
-        detector.setHandler(OnsetHandler { time, _ -> onsets += time })
-        val dispatcher = AudioDispatcher(InMemoryPcmStream(samples, sampleRate), bufferSize, bufferSize / 2)
+        detector.setHandler(OnsetHandler { time, _ -> collected.add(time) })
+        val dispatcher = AudioDispatcher(InMemoryPcmStream(samples, from, to - from, sampleRate), bufferSize, bufferSize / 2)
         dispatcher.addAudioProcessor(detector)
         dispatcher.addAudioProcessor(object : AudioProcessor {
             override fun process(audioEvent: AudioEvent): Boolean = isActive()
             override fun processingFinished() {}
         })
         dispatcher.run()
-        return onsets
+        return collected.toArray()
     }
 
-    private fun buildIntervals(sortedOnsets: List<Double>): List<Double> {
-        val intervals = ArrayList<Double>()
+    private fun onsetStrengths(samples: FloatArray, onsets: DoubleArray, from: Int, sampleRate: Int): DoubleArray {
+        val radius = (0.01 * sampleRate).toInt().coerceAtLeast(1)
+        val strengths = DoubleArray(onsets.size)
+        for (i in onsets.indices) {
+            val center = from + (onsets[i] * sampleRate).toInt()
+            val low = (center - radius).coerceAtLeast(0)
+            val high = (center + radius).coerceAtMost(samples.size - 1)
+            var peak = 0.0
+            if (low <= high) {
+                for (j in low..high) {
+                    val value = abs(samples[j]).toDouble()
+                    if (value > peak) peak = value
+                }
+            }
+            strengths[i] = peak
+        }
+        return strengths
+    }
+
+    private fun onsetsInWindow(onsets: DoubleArray, startSec: Double, endSec: Double): DoubleArray {
+        var matched = 0
+        for (time in onsets) {
+            if (time >= startSec && time < endSec) matched++
+        }
+        val window = DoubleArray(matched)
+        var index = 0
+        for (time in onsets) {
+            if (time >= startSec && time < endSec) window[index++] = time
+        }
+        return window
+    }
+
+    private fun buildIntervals(sortedOnsets: DoubleArray): DoubleArray {
+        val intervals = DoubleBuffer()
         for (i in sortedOnsets.indices) {
             for (j in i + 1 until sortedOnsets.size) {
                 val gap = sortedOnsets[j] - sortedOnsets[i]
                 if (gap > MAX_INTERVAL_SECONDS) break
                 if (gap < MIN_INTERVAL_SECONDS) continue
-                intervals += gap
+                intervals.add(gap)
             }
         }
-        return intervals
+        return intervals.toArray()
     }
 
-    private fun scoreIntervals(intervals: List<Double>, minBpm: Double, maxBpm: Double): Pair<Double, Int> {
-        var bestBpm = minBpm
-        var bestScore = 0
+    private fun scorePeriods(
+        onsets: DoubleArray,
+        strengths: DoubleArray,
+        minBpm: Double,
+        maxBpm: Double,
+    ): PeriodScore? {
+        if (onsets.size < MIN_ONSETS) return null
+        val duration = onsets[onsets.size - 1] - onsets[0]
+        if (duration <= 0.0) return null
+        val scored = ArrayList<PeriodScore>(0)
+        var best: PeriodScore? = null
         var bpm = minBpm
         while (bpm <= maxBpm) {
-            val score = scoreBpm(intervals, bpm)
-            if (score > bestScore) {
-                bestScore = score
-                bestBpm = bpm
+            val coverage = coverageAt(onsets, strengths, bpm)
+            if (coverage >= 0f) {
+                val candidate = PeriodScore(bpm, coverage)
+                scored += candidate
+                val current = best
+                if (current == null || coverage > current.coverage) {
+                    best = candidate
+                }
             }
             bpm += BPM_STEP
         }
-        return bestBpm to bestScore
+        val chosen = best ?: return null
+        return chosen.copy(top = rankedTop(scored))
     }
 
+    private fun rankedTop(scored: List<PeriodScore>): List<PeriodScore> =
+        scored.sortedByDescending { it.coverage }.take(TOP_CANDIDATES)
+
+    private fun coverageAt(onsets: DoubleArray, strengths: DoubleArray, bpm: Double): Float {
+        val period = 60.0 / bpm
+        val bins = phaseBins(period)
+        val binWidth = period / bins
+        val sums = DoubleArray(bins)
+        var total = 0.0
+        for (i in onsets.indices) {
+            val phase = onsets[i] - floor(onsets[i] / period) * period
+            var index = (phase / binWidth).toInt()
+            if (index >= bins) index = bins - 1
+            if (index < 0) index = 0
+            sums[index] += strengths[i]
+            total += strengths[i]
+        }
+        if (total <= 0.0) return -1f
+        var captured = 0.0
+        for (i in 0 until bins) {
+            var near = 0.0
+            for (offset in -TOLERANCE_BINS..TOLERANCE_BINS) {
+                near += sums[(i + offset + bins) % bins]
+            }
+            if (near > captured) captured = near
+        }
+        if (captured <= 0.0) return -1f
+        return (captured / total).toFloat()
+    }
+
+    private fun phaseBins(period: Double): Int = ceil(TOLERANCE_BINS / PERIOD_TOLERANCE).toInt()
+
     private fun refine(
-        intervals: List<Double>,
-        bestBpm: Double,
-        bestScore: Int,
+        intervals: DoubleArray,
+        score: PeriodScore,
         minBpm: Double,
         maxBpm: Double,
     ): WindowScore? {
-        if (bestScore == 0) return null
-        val quality = bestScore.toFloat() / intervals.size.toFloat()
-        val period = 60.0 / bestBpm
-        val aligned = mutableListOf<Double>()
+        val period = 60.0 / score.bpm
+        val aligned = DoubleArray(intervals.size)
+        var alignedSize = 0
         for (gap in intervals) {
             val k = (gap / period).roundToInt()
-            if (k in 1..MAX_MULTIPLE && kotlin.math.abs(gap - k * period) <= period * PERIOD_TOLERANCE) {
-                aligned += gap / k
+            if (k in 1..MAX_MULTIPLE && abs(gap - k * period) <= period * PERIOD_TOLERANCE) {
+                aligned[alignedSize++] = gap / k
             }
         }
-        if (aligned.isEmpty()) return null
-        aligned.sort()
-        val precisePeriod = aligned[aligned.size / 2]
+        if (alignedSize == 0) return null
+        val sorted = if (alignedSize == aligned.size) aligned else aligned.copyOf(alignedSize)
+        sorted.sort()
+        val precisePeriod = sorted[sorted.size / 2]
         val preciseBpm = (60.0 / precisePeriod).coerceIn(minBpm, maxBpm)
-        return WindowScore(roundBpm(preciseBpm), quality)
-    }
-
-    private fun scoreBpm(intervals: List<Double>, bpm: Double): Int {
-        val period = 60.0 / bpm
-        var score = 0
-        for (gap in intervals) {
-            val k = (gap / period).roundToInt()
-            if (k in 1..MAX_MULTIPLE && kotlin.math.abs(gap - k * period) <= period * PERIOD_TOLERANCE) {
-                score++
-            }
-        }
-        return score
+        return WindowScore(roundBpm(preciseBpm), score.coverage)
     }
 
     private fun roundBpm(bpm: Double): Double = (bpm * 10).roundToInt() / 10.0
@@ -197,8 +283,15 @@ class PcmBpmDetector(
 
     private data class WindowScore(val bpm: Double, val quality: Float)
 
+    private data class PeriodScore(
+        val bpm: Double,
+        val coverage: Float,
+        val top: List<PeriodScore> = emptyList(),
+    )
+
     data class WindowTiming(
         val attempt: Int,
+        val label: String,
         val windowSeconds: Double,
         val onsetCount: Int,
         val intervalCount: Int,
@@ -207,12 +300,15 @@ class PcmBpmDetector(
         val scoreMs: Long,
         val refineMs: Long,
         val quality: Float?,
+        val topCandidates: List<Pair<Double, Float>> = emptyList(),
     )
 
     companion object {
         const val MIN_WINDOW_SAMPLES = 1024
         const val MIN_ONSETS = 4
         const val MIN_VOTES = 3
+        const val TOLERANCE_BINS = 3
+        const val TOP_CANDIDATES = 8
         const val MIN_ACCEPTABLE_QUALITY = 0.10f
         const val GOOD_QUALITY = 0.55f
         const val MIN_INTERVAL_SECONDS = 0.15
@@ -225,8 +321,26 @@ class PcmBpmDetector(
     }
 }
 
+private class DoubleBuffer(initialCapacity: Int = 64) {
+
+    private var data = DoubleArray(initialCapacity)
+
+    var size = 0
+        private set
+
+    fun add(value: Double) {
+        if (size == data.size) data = data.copyOf(data.size * 2)
+        data[size] = value
+        size++
+    }
+
+    fun toArray(): DoubleArray = if (size == data.size) data else data.copyOf(size)
+}
+
 private class InMemoryPcmStream(
     private val samples: FloatArray,
+    private val from: Int,
+    private val length: Int,
     sampleRate: Int,
 ) : TarsosDSPAudioInputStream {
     private var position = 0
@@ -237,19 +351,19 @@ private class InMemoryPcmStream(
 
     override fun getFormat(): TarsosDSPAudioFormat = format
 
-    override fun getFrameLength(): Long = samples.size.toLong()
+    override fun getFrameLength(): Long = length.toLong()
 
     override fun skip(n: Long): Long {
-        val skipped = n.coerceAtMost((samples.size - position).toLong())
+        val skipped = n.coerceAtMost((length - position).toLong())
         position += skipped.toInt()
         return skipped
     }
 
     override fun read(b: ByteArray, off: Int, len: Int): Int {
-        if (position >= samples.size) return -1
+        if (position >= length) return -1
         var written = 0
-        while (written + 2 <= len && position < samples.size) {
-            val sample = (samples[position].coerceIn(-1f, 1f) * 32767f).roundToInt()
+        while (written + 2 <= len && position < length) {
+            val sample = (samples[from + position].coerceIn(-1f, 1f) * 32767f).roundToInt()
             val low = sample and 0xFF
             val high = (sample shr 8) and 0xFF
             b[off + written] = low.toByte()

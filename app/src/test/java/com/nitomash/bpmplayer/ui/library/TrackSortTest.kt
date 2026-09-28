@@ -3,6 +3,7 @@ package com.nitomash.bpmplayer.ui.library
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.ui.common.filterTracksByTitle
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TrackSortTest {
@@ -119,4 +120,82 @@ class TrackSortTest {
         )
         assertEquals(emptyList<TrackEntity>(), filterTracksByTitle(tracks, "gamma"))
     }
+
+    @Test
+    fun `by name keeps input order when keys are equal`() {
+        val tracks = listOf(
+            track(1, "Same"),
+            track(2, " same "),
+            track(3, "SAME"),
+        )
+        assertEquals(
+            listOf(1L, 2L, 3L),
+            sortTracks(tracks, TrackSort.BY_NAME).map { it.id },
+        )
+    }
+
+    @Test
+    fun `by bpm keeps input order when bpm and title are equal`() {
+        val tracks = listOf(
+            track(1, "Same", bpm = 120.0),
+            track(2, " same ", bpm = 120.0),
+            track(3, "SAME", bpm = 120.0),
+        )
+        assertEquals(
+            listOf(1L, 2L, 3L),
+            sortTracks(tracks, TrackSort.BY_BPM).map { it.id },
+        )
+    }
+
+    @Test
+    fun `by bpm over a large duplicated input is fully ordered`() {
+        val titles = listOf("alpha", "Beta", " gamma ", "ALPHA", "delta")
+        val tracks = (0 until 500).map { index ->
+            track(
+                id = index.toLong(),
+                title = titles[index % titles.size],
+                bpm = if (index % 7 == 0) null else (90 + index % 5).toDouble(),
+            )
+        }
+
+        val sorted = sortTracks(tracks, TrackSort.BY_BPM)
+        assertEquals(tracks.size, sorted.size)
+        assertEquals(tracks.map { it.id }.toSet(), sorted.map { it.id }.toSet())
+
+        var seenNoBpm = false
+        for (i in 1 until sorted.size) {
+            val prev = sorted[i - 1]
+            val cur = sorted[i]
+            if (prev.bpm == null) seenNoBpm = true
+            if (seenNoBpm) {
+                assertTrue("track with bpm at $i must not follow one without", cur.bpm == null)
+            }
+            if (prev.bpm != null && cur.bpm != null) {
+                assertTrue("bpm order broken at $i: ${prev.bpm} then ${cur.bpm}", prev.bpm <= cur.bpm)
+            }
+            if (prev.bpm != null && prev.bpm == cur.bpm) {
+                assertTrue(
+                    "title order broken at $i: '${prev.title}' then '${cur.title}'",
+                    titleKey(prev.title) <= titleKey(cur.title),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `sorting does not modify the input list`() {
+        val tracks = listOf(
+            track(1, "Zebra", bpm = 120.0),
+            track(2, "  alpha"),
+            track(3, "Middle"),
+        )
+        val before = tracks.toList()
+
+        sortTracks(tracks, TrackSort.BY_NAME)
+        sortTracks(tracks, TrackSort.BY_BPM)
+
+        assertEquals(before, tracks)
+    }
+
+    private fun titleKey(value: String): String = value.trim().lowercase()
 }
