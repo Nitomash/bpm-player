@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BPM Player</string>
+    <string name="nav_library">Аудиотека</string>
+    <string name="nav_playlists">Плейлисты</string>
+    <string name="nav_player">Плеер</string>
+    <string name="action_back">Назад</string>
+    <string name="library_more">Ещё</string>
+    <string name="library_mass_bpm">Массовое определение BPM</string>
+
+    <string name="playlist_min_bpm">От BPM</string>
+    <string name="playlist_max_bpm">До BPM</string>
+    <string name="playlist_folders_label">Папки</string>
+    <string name="playlist_folders_all">Все</string>
+    <string name="playlist_folders_empty">Нет добавленных папок</string>
+    <string name="playlist_count_label">Количество треков</string>
+    <string name="playlist_count_hint">По умолчанию</string>
+    <string name="playlist_order_label">Порядок</string>
+    <string name="playlist_order_random">Случайно</string>
+    <string name="playlist_order_ascending">По возрастанию</string>
+    <string name="playlist_order_descending">По убыванию</string>
+    <string name="playlist_generate">Сгенерировать</string>
+    <string name="playlist_generator_title">Сгенерировать плейлист</string>
+    <string name="playlist_play">Воспроизвести</string>
+    <string name="playlist_empty">Нет треков с подходящим BPM</string>
+
+    <string name="player_title">Плеер</string>
+    <string name="player_no_track">Нет трека</string>
+    <string name="player_empty_hint">Выберите или сгенерируйте плейлист,\nчтобы включить музыку</string>
+    <string name="player_position">%1$d / %2$d</string>
+    <string name="player_preview_badge">Превью</string>
+    <string name="player_edit_bpm">Редактировать BPM</string>
+    <string name="player_play">Играть</string>
+    <string name="player_pause">Пауза</string>
+    <string name="player_next">Следующий</string>
+    <string name="player_previous">Предыдущий</string>
+    <string name="player_shuffle">Перемешать</string>
+    <string name="player_loop_off">Повтор выключен</string>
+    <string name="player_loop_all">Повтор всего</string>
+    <string name="player_loop_one">Повтор трека</string>
+    <plurals name="playlist_result_count">
+        <item quantity="one">Плейлист: %d трек</item>
+        <item quantity="few">Плейлист: %d трека</item>
+        <item quantity="many">Плейлист: %d треков</item>
+        <item quantity="other">Плейлист: %d треков</item>
+    </plurals>
+
+    <string name="library_add_folder">Добавить папку</string>
+    <string name="library_sort">Сортировать</string>
+    <string name="library_refresh">Обновить</string>
+    <string name="library_collapse">Свернуть папку</string>
+    <string name="library_expand">Развернуть папку</string>
+    <string name="library_sort_by_name">По названию</string>
+    <string name="library_sort_by_bpm">По BPM</string>
+    <string name="library_empty_hint">Аудиотека пуста\nНажмите «+», чтобы добавить папку с музыкой</string>
+    <string name="scanning">Сканирование…</string>
+    <string name="scan_error">Не удалось отсканировать папку</string>
+    <string name="library_search">Поиск по названию</string>
+    <string name="library_search_clear">Очистить поиск</string>
+    <string name="library_search_empty">Ничего не найдено</string>
+    <string name="bpm_unknown">BPM: —</string>
+    <string name="bpm_value">BPM: %1$s</string>
+    <string name="bpm_value_source">BPM: %1$s (%2$s)</string>
+    <string name="bpm_source_manual">вручную</string>
+    <string name="bpm_source_tap">натапано</string>
+    <string name="bpm_source_auto">авто</string>
+    <string name="folder_remove">Удалить из аудиотеки</string>
+    <string name="folder_delete_confirm_title">Удалить папку?</string>
+    <string name="folder_delete_confirm_message">«%1$s» и все её треки будут удалены из аудиотеки. Файлы на устройстве останутся</string>
+    <string name="action_delete_confirm">Удалить</string>
+    <string name="folder_delete_result">Успешно удалено. Метаданные треков сохранены в папке</string>
+    <string name="folder_import_info">Импорт инфо</string>
+    <string name="folder_export_info">Экспорт инфо</string>
+    <string name="library_import_result">Добавлена информация о треках: %1$d</string>
+    <string name="library_export_result">Файл экспортирован</string>
+    <string name="library_export_error">Не удалось сохранить файл</string>
+
+    <string name="editor_play">Играть</string>
+    <string name="editor_pause">Пауза</string>
+    <string name="editor_skip_forward">+15 сек</string>
+    <string name="editor_bpm_value">BPM: %1$s</string>
+    <string name="editor_taps_label">Тапов: %1$d</string>
+    <string name="editor_tap_button">Тап</string>
+    <string name="editor_tap_hint">Тапайте в такт музыке</string>
+    <string name="editor_manual_label">BPM вручную</string>
+    <string name="editor_save">Сохранить</string>
+    <string name="editor_cancel">Отмена</string>
+    <string name="editor_detect_label">Определить BPM</string>
+    <string name="editor_detect_hint_cd">Подсказка об автоопределителе BPM</string>
+    <string name="editor_detect_hint">Автоопределитель может ошибаться в два раза. Также из-за синкопированного, свингующего или слабо выраженного пульса BPM может быть определён неверно. Проверяйте слишком высокие или низкие значения</string>
+    <string name="editor_detect_running">Определяем BPM…</string>
+    <string name="editor_detect_done">Определено: %1$s</string>
+    <string name="editor_detect_error_decode">Не удалось декодировать аудио</string>
+    <string name="editor_detect_error_no_onsets">Бит не найден</string>
+    <string name="editor_detect_error_weak">Бит определён неуверенно</string>
+    <string name="editor_detect_error_internal">Что-то пошло не так</string>
+
+    <string name="mass_title">Определение BPM</string>
+    <string name="mass_setup_title">Массовое определение BPM</string>
+    <string name="mass_scope_label">Определяемые треки</string>
+    <string name="mass_scope_all">Все</string>
+    <string name="mass_scope_undefined">Только неопределённые</string>
+    <string name="mass_next">Далее</string>
+    <string name="mass_detect">Определить</string>
+    <string name="mass_empty">Нет треков для определения</string>
+    <string name="mass_discard_confirm_title">Отменить массовое определение?</string>
+    <string name="mass_discard_confirm_message">Несохранённые результаты будут потеряны</string>
+    <string name="mass_discard_confirm">Отменить</string>
+    <string name="mass_discard_stay">Остаться</string>
+
+    <plurals name="track_count">
+        <item quantity="one">%d трек</item>
+        <item quantity="few">%d трека</item>
+        <item quantity="many">%d треков</item>
+        <item quantity="other">%d треков</item>
+    </plurals>
+
+    <string name="playlist_drawer_open">Открыть плейлисты</string>
+    <string name="playlist_create">Создать плейлист</string>
+    <string name="playlist_new_default">Новый плейлист</string>
+    <string name="playlist_empty_list">Плейлистов пока нет</string>
+    <string name="playlist_delete_button">Удалить плейлист</string>
+    <string name="playlist_delete_confirm_title">Удалить плейлист?</string>
+    <string name="playlist_delete_confirm_message">«%1$s» будет удалён.</string>
+    <string name="playlist_save">Сохранить</string>
+    <string name="playlist_save_result">Плейлист сохранён</string>
+    <string name="playlist_name_range_both">%1$s–%2$s BPM</string>
+    <string name="playlist_name_range_min">от %1$s BPM</string>
+    <string name="playlist_name_range_max">до %1$s BPM</string>
+    <string name="playlist_name_range_any">Любой BPM</string>
+    <string name="playlist_name_full">%1$s · %2$s · %3$s</string>
+
+    <string name="playlist_detail_title">Плейлист</string>
+    <string name="playlist_detail_empty">В плейлисте нет треков\nНажмите «Добавить треки»</string>
+    <string name="playlist_rename_title">Переименовать плейлист</string>
+    <string name="playlist_rename_label">Название</string>
+    <string name="playlist_selected_count">Выбрано: %1$d</string>
+    <string name="playlist_remove_selected_confirm_title">Удалить выбранные треки?</string>
+    <plurals name="playlist_remove_tracks_confirm_message">
+        <item quantity="one">%1$d трек будет удалён из плейлиста</item>
+        <item quantity="few">%1$d трека будут удалены из плейлиста</item>
+        <item quantity="many">%1$d треков будут удалены из плейлиста</item>
+        <item quantity="other">%1$d треков будут удалены из плейлиста</item>
+    </plurals>
+    <string name="playlist_add_tracks">Добавить треки</string>
+    <string name="playlist_add_action">Добавить (%1$d)</string>
+    <string name="playlist_add_empty">Нет треков для добавления</string>
+
+    <string name="playlist_track_menu_remove">Удалить</string>
+    <string name="playlist_track_menu_select">Выделить</string>
+    <string name="playlist_remove_track_confirm_title">Удалить трек?</string>
+    <string name="playlist_remove_track_confirm_message">«%1$s» будет удалён из плейлиста</string>
+
+    <string name="playlist_sort_menu">Сортировка</string>
+    <string name="playlist_sort_custom">Свой порядок</string>
+    <string name="playlist_sort_bpm_asc">По возрастанию BPM</string>
+    <string name="playlist_sort_bpm_desc">По убыванию BPM</string>
+    <string name="playlist_sort_date_added">По дате добавления</string>
+    <string name="playlist_sort_title">По названию</string>
+    <string name="playlist_list_sort_modified">По дате изменения</string>
+    <string name="playlist_reorder_start">Изменить порядок</string>
+    <string name="playlist_reorder_done">Готово</string>
+    <string name="playlist_reorder_hint">Перетащите элементы, чтобы изменить порядок</string>
+    <string name="playlist_reorder_needs_two_tracks">Нужно хотя бы два трека</string>
+    <string name="playlist_drag_handle">Перетащить</string>
+
+    <string name="player_open_playlist">Открыть плейлист</string>
+
+    <string name="settings_title">Настройки</string>
+    <string name="settings_save">Сохранить</string>
+    <string name="settings_detector_section">Определение BPM</string>
+    <string name="settings_detector_hint">В этом диапазоне определитель ищет темп</string>
+    <string name="settings_min_bpm">От BPM</string>
+    <string name="settings_max_bpm">До BPM</string>
+    <string name="settings_bpm_error">От 20 до 300</string>
+    <string name="settings_range_error">Минимальный BPM должен быть меньше максимального</string>
+    <string name="settings_detector_reset">Сбросить</string>
+
+    <string name="about_title">О приложении</string>
+    <string name="about_build_date">Дата сборки: %1$s</string>
+    <string name="about_made_with">Создано с помощью Big Pickle</string>
+    <string name="about_author">@nitomash</string>
+    <string name="about_contact">Связаться с автором:</string>
+    <string name="about_open_telegram">Открыть Telegram</string>
+</resources>
