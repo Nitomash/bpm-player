@@ -52,7 +52,7 @@ class PcmBpmDetector(
             return BpmDetectionResult.Failure(BpmDetectionFailure.NO_ONSETS)
         }
 
-        var best: WindowScore? = null
+var best: WindowScore? = null
         for (attempt in 0 until maxAttempts) {
             if (!isActive()) throw CancellationException("BPM detection cancelled")
             val winStart = attempt * stepSamples
@@ -64,9 +64,10 @@ class PcmBpmDetector(
             val windowOnsets = onsetsInWindow(onsets, startSec, endSec)
             if (windowOnsets.size < MIN_ONSETS) continue
             val strengths = onsetStrengths(samples, windowOnsets, baseStart, sampleRate)
+            val dump = if (attempt == 0 && label.isNotEmpty()) formatOnsets(windowOnsets, strengths) else ""
             val score = evaluate(
                 attempt, label, windowOnsets, strengths, sampleRate, spanSamples, collectMs,
-                minBpm, maxBpm, isActive,
+                minBpm, maxBpm, isActive, dump,
             )
             if (score != null) {
                 if (best == null || score.quality > best.quality) {
@@ -94,6 +95,7 @@ class PcmBpmDetector(
         minBpm: Double,
         maxBpm: Double,
         isActive: () -> Boolean,
+        onsetDump: String = "",
     ): WindowScore? {
         if (!isActive()) throw CancellationException("BPM detection cancelled")
         val windowSecondsValue = onsets[onsets.size - 1] - onsets[0]
@@ -118,7 +120,7 @@ class PcmBpmDetector(
         onWindowTiming(
             WindowTiming(
                 attempt, label, windowSecondsValue, onsets.size, intervals.size, windowShare,
-                buildMs, scoreMs, refineMs, refined?.quality, ranked,
+                buildMs, scoreMs, refineMs, refined?.quality, ranked, onsetDump,
             ),
         )
         return refined
@@ -166,6 +168,17 @@ class PcmBpmDetector(
             strengths[i] = peak
         }
         return strengths
+    }
+
+    private fun formatOnsets(onsets: DoubleArray, strengths: DoubleArray): String {
+        val sb = StringBuilder(onsets.size * 10)
+        for (i in onsets.indices) {
+            if (i > 0) sb.append(',')
+            sb.append((onsets[i] * 1000).roundToInt())
+            sb.append('/')
+            sb.append((strengths[i] * 1000).roundToInt())
+        }
+        return sb.toString()
     }
 
     private fun onsetsInWindow(onsets: DoubleArray, startSec: Double, endSec: Double): DoubleArray {
@@ -301,6 +314,7 @@ class PcmBpmDetector(
         val refineMs: Long,
         val quality: Float?,
         val topCandidates: List<Pair<Double, Float>> = emptyList(),
+        val onsetDump: String = "",
     )
 
     companion object {

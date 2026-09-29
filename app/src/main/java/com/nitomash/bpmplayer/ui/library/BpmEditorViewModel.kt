@@ -84,7 +84,11 @@ class BpmEditorViewModel @Inject constructor(
         _autoDetectState.value = AutoDetectUiState.Detecting
         detectJob = viewModelScope.launch {
             try {
-                val result = autoBpmDetector.detect(Uri.parse(track.accessUri)) {
+                val result = autoBpmDetector.detect(
+                    Uri.parse(track.accessUri),
+                    savedBpm = track.bpm,
+                    savedSource = track.bpmSource,
+                ) {
                     coroutineContext.ensureActive()
                     true
                 }

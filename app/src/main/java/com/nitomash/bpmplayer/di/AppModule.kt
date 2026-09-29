@@ -78,7 +78,8 @@ object AppModule {
             "window #${timing.attempt} track=${timing.label} len=${format1f(timing.windowSeconds)}s onsets=${timing.onsetCount} " +
                 "intervals=${timing.intervalCount} collect=${timing.collectMs}ms build=${timing.buildMs}ms " +
                 "score=${timing.scoreMs}ms refine=${timing.refineMs}ms quality=${timing.quality?.let(::formatQuality) ?: "-"}" +
-                if (timing.topCandidates.isEmpty()) "" else " top=" + timing.topCandidates.joinToString(" ") { "${format1f(it.first)}/${formatQuality(it.second)}" },
+                if (timing.topCandidates.isEmpty()) "" else " top=" + timing.topCandidates.joinToString(" ") { "${format1f(it.first)}/${formatQuality(it.second)}" } +
+                if (timing.onsetDump.isEmpty()) "" else " onsets=${timing.onsetDump}",
         )
     })
 

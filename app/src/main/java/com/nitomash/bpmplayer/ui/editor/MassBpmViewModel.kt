@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.nitomash.bpmplayer.data.bpm.AutoBpmDetector
 import com.nitomash.bpmplayer.data.bpm.BpmDetectionFailure
 import com.nitomash.bpmplayer.data.bpm.BpmDetectionResult
+import com.nitomash.bpmplayer.data.bpm.OctaveCheck
 import com.nitomash.bpmplayer.data.db.entity.BpmSource
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.music.MusicRepository
@@ -110,7 +111,11 @@ class MassBpmViewModel @Inject constructor(
                 currentDetectingId = track.id
                 publish()
                 val result = try {
-                    autoBpmDetector.detect(Uri.parse(track.accessUri)) {
+                    autoBpmDetector.detect(
+                        Uri.parse(track.accessUri),
+                        savedBpm = track.bpm,
+                        savedSource = track.bpmSource,
+                    ) {
                         coroutineContext.ensureActive()
                         true
                     }
@@ -125,7 +130,15 @@ class MassBpmViewModel @Inject constructor(
                 }
                 when (result) {
                     is BpmDetectionResult.Success -> {
-                        pending[track.id] = PendingBpm(result.bpm, BpmSource.AUTO)
+                        val saved = track.bpm
+                        if (saved != null && OctaveCheck.isOctaveOf(result.bpm, saved)) {
+                            android.util.Log.i(
+                                "BpmMassDetect",
+                                "octave guard: keep ${track.title} saved=$saved detected=${result.bpm}",
+                            )
+                        } else {
+                            pending[track.id] = PendingBpm(result.bpm, BpmSource.AUTO)
+                        }
                         failedIds.remove(track.id)
                     }
                     is BpmDetectionResult.Failure -> failedIds += track.id
@@ -206,7 +219,11 @@ class MassBpmViewModel @Inject constructor(
         _autoDetectState.value = AutoDetectUiState.Detecting
         singleDetectJob = viewModelScope.launch {
             try {
-                val result = autoBpmDetector.detect(Uri.parse(target.accessUri)) {
+                val result = autoBpmDetector.detect(
+                    Uri.parse(target.accessUri),
+                    savedBpm = target.bpm,
+                    savedSource = target.bpmSource,
+                ) {
                     coroutineContext.ensureActive()
                     true
                 }

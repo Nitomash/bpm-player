@@ -3,6 +3,7 @@ package com.nitomash.bpmplayer.data.bpm
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.nitomash.bpmplayer.data.db.entity.BpmSource
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -14,7 +15,12 @@ class AutoBpmDetector(
     private val pcmBpmDetector: PcmBpmDetector,
     private val settingsRepository: SettingsRepository,
 ) {
-    suspend fun detect(uri: Uri, isActive: () -> Boolean = { true }): BpmDetectionResult =
+    suspend fun detect(
+        uri: Uri,
+        savedBpm: Double? = null,
+        savedSource: BpmSource? = null,
+        isActive: () -> Boolean = { true },
+    ): BpmDetectionResult =
         withContext(Dispatchers.IO) {
             val settings = settingsRepository.current()
             val label = uri.lastPathSegment?.substringAfterLast('/') ?: uri.toString()
@@ -44,7 +50,9 @@ class AutoBpmDetector(
             val detectMs = (System.nanoTime() - detectStartNs) / 1_000_000
             Log.i(
                 "BpmDetect",
-                "result track=$label decode=${decodeMs}ms detect=${detectMs}ms samples=${pcm.samples.size} " +
+                "result track=$label saved=${savedBpm ?: "-"} src=${savedSource?.name?.lowercase()
+                    ?: "-"} " +
+                    "decode=${decodeMs}ms detect=${detectMs}ms samples=${pcm.samples.size} " +
                     "rate=${pcm.sampleRate} " +
                     "range=${settings.detectorMinBpm}-${settings.detectorMaxBpm} bpm=$result",
             )
