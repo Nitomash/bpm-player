@@ -24,6 +24,7 @@ class BpmAudioDecoder(
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         val startedAt = SystemClock.elapsedRealtime()
+        val summary = DecodeSummary()
         try {
             runCatching { extractor.setDataSource(context, uri, null) }
                 .onFailure { e ->
@@ -236,8 +237,6 @@ class BpmAudioDecoder(
     }
 
     private fun elapsedMs(startedAt: Long): Long = SystemClock.elapsedRealtime() - startedAt
-
-    private val summary = DecodeSummary()
 
     private data class DecodeSummary(
         var mime: String = "",

@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nitomash.bpmplayer.data.bpm.AutoBpmDetector
+import com.nitomash.bpmplayer.data.bpm.BpmDetectionDispatcher
 import com.nitomash.bpmplayer.data.bpm.BpmDetectionFailure
 import com.nitomash.bpmplayer.data.bpm.BpmDetectionResult
 import com.nitomash.bpmplayer.data.bpm.OctaveCheck
@@ -18,6 +19,9 @@ import com.nitomash.bpmplayer.ui.library.AutoDetectUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +30,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
+import kotlin.math.min
 
 data class BatchTrack(
     val trackId: Long,
@@ -82,10 +88,10 @@ class MassBpmViewModel @Inject constructor(
     private val trackById = mutableMapOf<Long, TrackEntity>()
     private val pending = mutableMapOf<Long, PendingBpm>()
     private val failedIds = mutableSetOf<Long>()
-    private var currentDetectingId: Long? = null
+    private val detectingIds = mutableSetOf<Long>()
+    private val completedIds = mutableSetOf<Long>()
     private var batchJob: Job? = null
     private var singleDetectJob: Job? = null
-    private var resumeIndex = 0
 
     init {
         viewModelScope.launch {
@@ -113,56 +119,78 @@ class MassBpmViewModel @Inject constructor(
 
     fun startDetection() {
         if (batchJob?.isActive == true) return
-        val tracks = base.toList()
+        val tracks = base.filter { it.id !in completedIds }
         if (tracks.isEmpty()) return
         _detecting.value = true
         batchJob = viewModelScope.launch {
-            var index = resumeIndex
-            while (index < tracks.size) {
-                val track = tracks[index]
-                resumeIndex = index
-                currentDetectingId = track.id
-                publish()
-                val result = try {
-                    autoBpmDetector.detect(
-                        Uri.parse(track.accessUri),
-                        savedBpm = track.bpm,
-                        savedSource = track.bpmSource,
-                    ) {
-                        coroutineContext.ensureActive()
-                        true
-                    }
-                } catch (e: CancellationException) {
-                    currentDetectingId = null
-                    _detecting.value = false
-                    publish()
-                    throw e
-                } catch (e: Exception) {
-                    android.util.Log.w("BpmMassDetect", "detect crashed for ${track.title}", e)
-                    BpmDetectionResult.Failure(BpmDetectionFailure.DECODE_FAILED)
-                }
-                when (result) {
-                    is BpmDetectionResult.Success -> {
-                        val saved = track.bpm
-                        if (saved != null && OctaveCheck.isOctaveOf(result.bpm, saved)) {
-                            android.util.Log.i(
-                                "BpmMassDetect",
-                                "octave guard: keep ${track.title} saved=$saved detected=${result.bpm}",
-                            )
-                        } else {
-                            pending[track.id] = PendingBpm(result.bpm, BpmSource.AUTO)
+            val queue = ConcurrentLinkedQueue(tracks)
+            val results = Channel<Pair<TrackEntity, BpmDetectionResult>>(tracks.size)
+            try {
+                coroutineScope {
+                    val workers = min(BpmDetectionDispatcher.permits, tracks.size)
+                    repeat(workers) {
+                        launch {
+                            while (true) {
+                                val track = queue.poll() ?: break
+                                results.send(track to detectTrack(track))
+                            }
                         }
-                        failedIds.remove(track.id)
                     }
-                    is BpmDetectionResult.Failure -> failedIds += track.id
+                    repeat(tracks.size) {
+                        val (track, result) = results.receive()
+                        applyResult(track, result)
+                    }
                 }
-                currentDetectingId = null
+                completedIds.clear()
+            } finally {
+                results.close()
+                detectingIds.clear()
+                _detecting.value = false
                 publish()
-                index++
             }
-            resumeIndex = 0
-            _detecting.value = false
         }
+    }
+
+    private suspend fun detectTrack(track: TrackEntity): BpmDetectionResult {
+        detectingIds += track.id
+        publish()
+        val caller = currentCoroutineContext()
+        return try {
+            autoBpmDetector.detect(
+                Uri.parse(track.accessUri),
+                savedBpm = track.bpm,
+                savedSource = track.bpmSource,
+            ) {
+                caller.ensureActive()
+                true
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("BpmMassDetect", "detect crashed for ${track.title}", e)
+            BpmDetectionResult.Failure(BpmDetectionFailure.DECODE_FAILED)
+        }
+    }
+
+    private fun applyResult(track: TrackEntity, result: BpmDetectionResult) {
+        detectingIds -= track.id
+        completedIds += track.id
+        when (result) {
+            is BpmDetectionResult.Success -> {
+                val saved = track.bpm
+                if (saved != null && OctaveCheck.isOctaveOf(result.bpm, saved)) {
+                    android.util.Log.i(
+                        "BpmMassDetect",
+                        "octave guard: keep ${track.title} saved=$saved detected=${result.bpm}",
+                    )
+                } else {
+                    pending[track.id] = PendingBpm(result.bpm, BpmSource.AUTO)
+                }
+                failedIds.remove(track.id)
+            }
+            is BpmDetectionResult.Failure -> failedIds += track.id
+        }
+        publish()
     }
 
     fun cancelDetection() {
@@ -186,6 +214,7 @@ class MassBpmViewModel @Inject constructor(
             affectedFolders.forEach { sidecarSync.requestFlush(it) }
             pending.clear()
             failedIds.clear()
+            completedIds.clear()
             publish()
             _saved.emit(Unit)
         }
@@ -275,7 +304,7 @@ class MassBpmViewModel @Inject constructor(
         baseItems.forEachIndexed { index, baseItem ->
             val p = pending[baseItem.trackId]
             val next = baseItem.copy(
-                status = resolveBatchStatus(baseItem.trackId, currentDetectingId, failedIds, pendingIds),
+                status = resolveBatchStatus(baseItem.trackId, detectingIds, failedIds, pendingIds),
                 bpm = p?.bpm ?: baseItem.bpm,
                 bpmSource = p?.source ?: baseItem.bpmSource,
             )

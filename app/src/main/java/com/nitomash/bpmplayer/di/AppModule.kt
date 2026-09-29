@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.room.Room
 import com.nitomash.bpmplayer.data.bpm.AutoBpmDetector
 import com.nitomash.bpmplayer.data.bpm.BpmAudioDecoder
+import com.nitomash.bpmplayer.data.bpm.BpmDetectionDispatcher
 import com.nitomash.bpmplayer.data.bpm.PcmBpmDetector
 import com.nitomash.bpmplayer.data.db.BpmDatabase
 import com.nitomash.bpmplayer.data.db.dao.FolderDao
@@ -26,6 +27,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CloseableCoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.sync.Semaphore
 import javax.inject.Singleton
 
 @Module
@@ -88,6 +92,16 @@ object AppModule {
     @Singleton
     fun provideBpmAudioDecoder(): BpmAudioDecoder = BpmAudioDecoder()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Provides
+    @Singleton
+    fun provideBpmDispatcher(): CloseableCoroutineDispatcher = BpmDetectionDispatcher.create()
+
+    @Provides
+    @Singleton
+    fun provideBpmSemaphore(): Semaphore = Semaphore(BpmDetectionDispatcher.permits)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Provides
     @Singleton
     fun provideAutoBpmDetector(
@@ -95,7 +109,10 @@ object AppModule {
         audioDecoder: BpmAudioDecoder,
         pcmBpmDetector: PcmBpmDetector,
         settingsRepository: SettingsRepository,
-    ): AutoBpmDetector = AutoBpmDetector(context, audioDecoder, pcmBpmDetector, settingsRepository)
+        dispatcher: CloseableCoroutineDispatcher,
+        semaphore: Semaphore,
+    ): AutoBpmDetector =
+        AutoBpmDetector(context, audioDecoder, pcmBpmDetector, settingsRepository, dispatcher, semaphore)
 
     @Provides
     @Singleton
