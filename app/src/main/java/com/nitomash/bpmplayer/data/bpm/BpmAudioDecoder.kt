@@ -14,7 +14,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeoutOrNull
 
 class BpmAudioDecoder(
-    private val maxDecodeSeconds: Int = 40,
+    private val maxDecodeSeconds: Int = 50,
+    private val startSeconds: Double = 26.7,
     private val decodeTimeoutMs: Long = 60_000,
 ) {
     suspend fun decode(context: Context, uri: Uri): DecodedPcm? = decodeOnIo(context, uri)
@@ -39,7 +40,15 @@ class BpmAudioDecoder(
                 return null
             }
             extractor.selectTrack(trackIndex)
-            Log.i(TAG, "decode: start track=$trackIndex mime=$mime")
+            val trackSeconds = trackDurationSeconds(trackFormat)
+            val effectiveStart = resolveStart(trackSeconds)
+            if (effectiveStart > 0.0) {
+                extractor.seekTo((effectiveStart * 1_000_000.0).toLong(), MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+            }
+            Log.i(
+                TAG,
+                "decode: start track=$trackIndex mime=$mime start=${formatSec(effectiveStart)}s len=${maxDecodeSeconds}s",
+            )
 
             codec = createDecoder(mime)
             val rate = runCatching { trackFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE) }.getOrDefault(0)
@@ -175,6 +184,19 @@ class BpmAudioDecoder(
             runCatching { extractor.release() }
         }
     }
+
+    private fun trackDurationSeconds(format: MediaFormat): Double {
+        val durationUs = runCatching { format.getLong(MediaFormat.KEY_DURATION) }.getOrDefault(-1L)
+        return if (durationUs > 0L) durationUs / 1_000_000.0 else 0.0
+    }
+
+    private fun resolveStart(trackSeconds: Double): Double {
+        if (trackSeconds <= 0.0) return 0.0
+        val latest = (trackSeconds - maxDecodeSeconds).coerceAtLeast(0.0)
+        return startSeconds.coerceIn(0.0, latest)
+    }
+
+    private fun formatSec(value: Double): String = String.format(java.util.Locale.US, "%.1f", value)
 
     private fun createDecoder(mime: String): MediaCodec {
         val software = findPreferredDecoder(mime).firstOrNull()

@@ -15,8 +15,8 @@ import kotlin.math.roundToInt
 
 class PcmBpmDetector(
     private val windowSeconds: Int = 25,
-    private val nextWindowStepSeconds: Int = 10,
-    private val maxAttempts: Int = 3,
+    private val nextWindowStepSeconds: Int = 25,
+    private val maxAttempts: Int = 2,
     private val bufferSize: Int = 512,
     private val onsetThreshold: Double = 0.3,
     private val onWindowTiming: (WindowTiming) -> Unit = {},
@@ -34,7 +34,7 @@ class PcmBpmDetector(
         }
         val windowSamples = windowSeconds * sampleRate
         val stepSamples = nextWindowStepSeconds * sampleRate
-        val baseStart = if (samples.size > windowSamples) samples.size / 3 else 0
+        val baseStart = 0
         val spanEnd = (baseStart + (maxAttempts - 1) * stepSamples + windowSamples).coerceAtMost(samples.size)
         val spanSamples = spanEnd - baseStart
         if (spanSamples < windowSamples / 2) {

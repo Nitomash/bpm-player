@@ -50,6 +50,35 @@ class PcmBpmDetectorTest {
     }
 
     @Test
+    fun decodedSpanYieldsTwoFullNonOverlappingWindows() {
+        val windows = mutableListOf<Pair<Int, Double>>()
+        val probing = PcmBpmDetector(onWindowTiming = { windows.add(it.attempt to it.windowSeconds) })
+        val pcm = noisyClickTrack(bpm = 120.0, seconds = 80, noiseClicks = 900)
+
+        probing.detect(pcm, sampleRate)
+
+        println("80s track windows: $windows")
+        assertEquals("windows=$windows", 2, windows.size)
+        assertEquals(0, windows[0].first)
+        assertEquals(1, windows[1].first)
+        for (i in 0..1) {
+            assertTrue("w$i=${windows[i].second}", windows[i].second > 23.0)
+        }
+    }
+
+    @Test
+    fun sixtySecondTrackRejectsThirdWindowShorterThanHalfWindow() {
+        val windows = mutableListOf<Pair<Int, Double>>()
+        val probing = PcmBpmDetector(onWindowTiming = { windows.add(it.attempt to it.windowSeconds) })
+        val pcm = noisyClickTrack(bpm = 120.0, seconds = 60, noiseClicks = 700)
+
+        probing.detect(pcm, sampleRate)
+
+        println("60s track windows: $windows")
+        assertEquals("windows=$windows", 2, windows.size)
+    }
+
+    @Test
     fun beatStartsAfterSilentFirstThird() {
         val pcm = lateStartClickTrack(bpm = 128.0, seconds = 90, rate = sampleRate)
         val result = detector.detect(pcm, sampleRate)
@@ -220,6 +249,19 @@ class PcmBpmDetectorTest {
                 writeQuietClick(samples, start, clickLength)
             }
             j++
+        }
+        return samples
+    }
+
+    private fun noisyClickTrack(bpm: Double, seconds: Int, noiseClicks: Int): FloatArray {
+        val samples = clickTrack(bpm, seconds)
+        val clickLength = (0.025 * sampleRate).toInt()
+        var seed = 12345L
+        repeat(noiseClicks) {
+            seed = seed * 6364136223846793005L + 1442695040888963407L
+            val position = ((seed ushr 33).toDouble() / Int.MAX_VALUE) * (seconds - 1)
+            val start = (position * sampleRate).toInt()
+            if (start + clickLength < samples.size) writeQuietClick(samples, start, clickLength)
         }
         return samples
     }
