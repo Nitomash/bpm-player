@@ -1,6 +1,5 @@
 package com.nitomash.bpmplayer.ui
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -10,6 +9,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -39,31 +39,18 @@ import com.nitomash.bpmplayer.ui.settings.SettingsViewModel
 
 @Composable
 fun BpmPlayerApp() {
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val settingsState by settingsViewModel.settings.collectAsStateWithLifecycle()
-    val settings = settingsState
-    if (settings == null) {
-        Box(Modifier.fillMaxSize())
-        return
-    }
-
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = backStackEntry?.destination
-    val hideTopBar = listOf(
-        MassBpmViewModel.ROUTE,
-        PlaylistDetailViewModel.ROUTE,
-        AddTracksViewModel.ROUTE,
-        ABOUT_ROUTE,
-        SETTINGS_ROUTE,
-    ).any { route -> currentDestination?.route?.startsWith(route) == true }
+    val currentRoute = backStackEntry?.destination?.route
+    val hideTopBar = remember(currentRoute) { TOP_BAR_HIDDEN_ROUTES.any { currentRoute?.startsWith(it) == true } }
 
     Scaffold(
         bottomBar = {
             if (!hideTopBar) {
                 NavigationBar {
                     TopLevelDestination.entries.forEach { destination ->
-                        val selected = currentDestination?.hierarchy
+                        val selected = backStackEntry?.destination
+                            ?.hierarchy
                             ?.any { it.route == destination.route } == true
                         NavigationBarItem(
                             selected = selected,
@@ -177,8 +164,11 @@ fun BpmPlayerApp() {
                 )
             }
             composable(SETTINGS_ROUTE) {
+                val settingsViewModel: SettingsViewModel = hiltViewModel()
+                val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+                val value = settings ?: return@composable
                 SettingsScreen(
-                    settings = settings,
+                    settings = value,
                     onDetectorRangeChange = settingsViewModel::setDetectorRange,
                     onBack = { navController.popBackStack() },
                 )
@@ -186,3 +176,11 @@ fun BpmPlayerApp() {
         }
     }
 }
+
+private val TOP_BAR_HIDDEN_ROUTES = listOf(
+    MassBpmViewModel.ROUTE,
+    PlaylistDetailViewModel.ROUTE,
+    AddTracksViewModel.ROUTE,
+    ABOUT_ROUTE,
+    SETTINGS_ROUTE,
+)

@@ -17,6 +17,7 @@ import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.data.music.MusicRepositoryImpl
 import com.nitomash.bpmplayer.data.music.SidecarStore
 import com.nitomash.bpmplayer.data.music.SidecarSyncManager
+import com.nitomash.bpmplayer.data.music.TagBatchApplier
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepositoryImpl
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
@@ -101,17 +102,17 @@ object AppModule {
     fun provideMusicRepository(
         folderDao: FolderDao,
         trackDao: TrackDao,
-        tagDao: TagDao,
         trackTagDao: TrackTagDao,
         folderScanner: FolderScanner,
         sidecarStore: SidecarStore,
+        tagBatchApplier: TagBatchApplier,
     ): MusicRepository = MusicRepositoryImpl(
         folderDao = folderDao,
         trackDao = trackDao,
-        tagDao = tagDao,
         trackTagDao = trackTagDao,
         folderScanner = folderScanner,
         sidecarStore = sidecarStore,
+        tagBatchApplier = tagBatchApplier,
     )
 }
 

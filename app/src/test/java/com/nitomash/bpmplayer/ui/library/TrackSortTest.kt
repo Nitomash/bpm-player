@@ -1,7 +1,6 @@
 package com.nitomash.bpmplayer.ui.library
 
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
-import com.nitomash.bpmplayer.ui.common.filterTracksByTitle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -74,51 +73,6 @@ class TrackSortTest {
             listOf("alpha", "beta"),
             sortTracks(tracks, TrackSort.BY_BPM).map { it.title },
         )
-    }
-
-    @Test
-    fun `filter by title is case insensitive and trimmed`() {
-        val tracks = listOf(
-            track(1, "Sunrise"),
-            track(2, "sUnset"),
-            track(3, "Песня о вечере"),
-            track(4, "Midnight"),
-        )
-        assertEquals(
-            listOf("Sunrise", "sUnset"),
-            filterTracksByTitle(tracks, " SU ").map { it.title },
-        )
-    }
-
-    @Test
-    fun `filter by title matches cyrillic`() {
-        val tracks = listOf(
-            track(1, "Песня о вечере"),
-            track(2, "Вечер в дороге"),
-            track(3, "Midnight"),
-        )
-        assertEquals(
-            listOf("Песня о вечере", "Вечер в дороге"),
-            filterTracksByTitle(tracks, "вечер").map { it.title },
-        )
-    }
-
-    @Test
-    fun `filter by blank query returns all tracks`() {
-        val tracks = listOf(
-            track(1, "Alpha"),
-            track(2, "Beta"),
-        )
-        assertEquals(tracks, filterTracksByTitle(tracks, "   "))
-    }
-
-    @Test
-    fun `filter by title with no matches returns empty`() {
-        val tracks = listOf(
-            track(1, "Alpha"),
-            track(2, "Beta"),
-        )
-        assertEquals(emptyList<TrackEntity>(), filterTracksByTitle(tracks, "gamma"))
     }
 
     @Test

@@ -3,14 +3,11 @@ package com.nitomash.bpmplayer.data.music
 import android.net.Uri
 import android.util.Log
 import com.nitomash.bpmplayer.data.db.dao.FolderDao
-import com.nitomash.bpmplayer.data.db.dao.TagDao
 import com.nitomash.bpmplayer.data.db.dao.TrackDao
 import com.nitomash.bpmplayer.data.db.dao.TrackTagDao
 import com.nitomash.bpmplayer.data.db.entity.BpmSource
 import com.nitomash.bpmplayer.data.db.entity.FolderEntity
-import com.nitomash.bpmplayer.data.db.entity.TagEntity
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
-import com.nitomash.bpmplayer.data.db.entity.TrackTagEntity
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,10 +16,10 @@ import javax.inject.Singleton
 class MusicRepositoryImpl @Inject constructor(
     private val folderDao: FolderDao,
     private val trackDao: TrackDao,
-    private val tagDao: TagDao,
     private val trackTagDao: TrackTagDao,
     private val folderScanner: FolderScanner,
     private val sidecarStore: SidecarStore,
+    private val tagBatchApplier: TagBatchApplier,
 ) : MusicRepository {
 
     override fun observeFolders(): Flow<List<FolderEntity>> = folderDao.observeAll()
@@ -133,13 +130,15 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun applySidecarRecords(folderId: Long, records: List<SidecarTrackRecord>) {
         if (records.isEmpty()) return
-        applyPatches(folderId, planImport(trackDao.getByFolder(folderId), records))
+        val tracks = trackDao.getByFolder(folderId)
+        applyPatches(folderId, tracks, planImport(tracks, records))
     }
 
     override suspend fun importSidecarFile(folderId: Long, fileUri: Uri): Int {
         val records = sidecarStore.readFileRecords(fileUri) ?: return 0
-        val patches = planImportByName(trackDao.getByFolder(folderId), records)
-        applyPatches(folderId, patches)
+        val tracks = trackDao.getByFolder(folderId)
+        val patches = planImportByName(tracks, records)
+        applyPatches(folderId, tracks, patches)
         return patches.size
     }
 
@@ -149,37 +148,34 @@ class MusicRepositoryImpl @Inject constructor(
         return sidecarStore.writeContent(fileUri, content)
     }
 
-    private suspend fun applyPatches(folderId: Long, patches: List<SidecarPatch>) {
+    private suspend fun applyPatches(
+        folderId: Long,
+        tracks: List<TrackEntity>,
+        patches: List<SidecarPatch>,
+    ) {
         if (patches.isEmpty()) return
-        val tracksByPath = trackDao.getByFolder(folderId).associateBy { it.id }
+        val byId = tracks.associateBy { it.id }
+        val updated = mutableListOf<TrackEntity>()
+        val tagged = mutableListOf<TaggedTrackTags>()
         for (patch in patches) {
-            val track = tracksByPath[patch.trackId] ?: continue
-            trackDao.update(
-                track.copy(
-                    title = patch.title ?: track.title,
-                    artist = patch.artist ?: track.artist,
-                    durationMs = patch.durationMs ?: track.durationMs,
-                    bpm = patch.bpm ?: track.bpm,
-                    bpmSource = patch.source ?: track.bpmSource,
-                ),
+            val track = byId[patch.trackId] ?: continue
+            val merged = track.copy(
+                title = patch.title ?: track.title,
+                artist = patch.artist ?: track.artist,
+                durationMs = patch.durationMs ?: track.durationMs,
+                bpm = patch.bpm ?: track.bpm,
+                bpmSource = patch.source ?: track.bpmSource,
             )
-            patch.tags?.let { applyTags(track.id, it) }
+            if (merged != track) updated += merged
+            patch.tags?.let { tagged += TaggedTrackTags(patch.trackId, it) }
         }
-        Log.i(TAG, "sidecar import: applied ${patches.size} patches for folder $folderId")
-    }
-
-    private suspend fun applyTags(trackId: Long, tags: List<SidecarTag>) {
-        trackTagDao.deleteForTrack(trackId)
-        if (tags.isEmpty()) return
-        tags.filter { it.name.isNotBlank() && it.rating in 1..5 }
-            .distinctBy { it.name }
-            .forEach { tag ->
-                val tagId = tagDao.getByName(tag.name)?.id
-                    ?: tagDao.insert(TagEntity(name = tag.name)).takeIf { it != -1L }
-                    ?: tagDao.getByName(tag.name)?.id
-                    ?: return@forEach
-                trackTagDao.insertAll(listOf(TrackTagEntity(trackId = trackId, tagId = tagId, rating = tag.rating)))
-            }
+        trackDao.updateAll(updated)
+        val tagRows = tagBatchApplier.apply(folderId, tagged)
+        Log.i(
+            TAG,
+            "sidecar import: applied ${patches.size} patches, ${updated.size} track updates, " +
+                "$tagRows tag rows for folder $folderId",
+        )
     }
 
     private companion object {

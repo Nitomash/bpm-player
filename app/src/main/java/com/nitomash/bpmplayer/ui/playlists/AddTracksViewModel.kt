@@ -7,13 +7,22 @@ import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.player.toPlayerTrack
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
+import com.nitomash.bpmplayer.ui.common.buildIndex
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -35,6 +44,18 @@ class AddTracksViewModel @Inject constructor(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    @OptIn(FlowPreview::class)
+    val filterQuery: StateFlow<String> = _searchQuery
+        .debounce(SEARCH_DEBOUNCE_MS)
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    val visible: StateFlow<List<TrackEntity>> = combine(_candidates, filterQuery) { candidates, query ->
+        buildIndex(candidates).query(query)
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _saved = MutableSharedFlow<Unit>()
     val saved: SharedFlow<Unit> = _saved.asSharedFlow()
@@ -88,6 +109,7 @@ class AddTracksViewModel @Inject constructor(
     companion object {
         const val ROUTE = "playlist_add"
         const val ARG_PLAYLIST_ID = "playlistId"
+        private const val SEARCH_DEBOUNCE_MS = 250L
 
         fun route(playlistId: Long): String = "$ROUTE/$playlistId"
     }

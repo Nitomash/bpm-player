@@ -17,44 +17,35 @@ class SidecarSyncManager @Inject constructor(
     private val sidecarStore: SidecarStore,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val queue = Channel<Long>(Channel.UNLIMITED)
-    private val inflight = mutableSetOf<Long>()
+    private val queue = FlushQueue()
+    private val wakeup = Channel<Unit>(Channel.CONFLATED)
 
     init {
         scope.launch { process() }
     }
 
     fun requestFlush(folderId: Long) {
-        queue.trySend(folderId)
+        if (queue.enqueue(folderId)) wakeup.trySend(Unit)
     }
 
     fun flushAll() {
         scope.launch {
             runCatching { repository.getFolders() }
                 .getOrNull()
-                ?.forEach { folder -> queue.trySend(folder.id) }
+                ?.forEach { folder -> requestFlush(folder.id) }
         }
     }
 
     private suspend fun process() {
-        for (folderId in queue) {
+        while (true) {
+            if (!queue.hasWork) wakeup.receive()
             delay(DEBOUNCE_MS)
-            val batch = linkedSetOf(folderId)
-            while (true) {
-                val next = queue.tryReceive().getOrNull() ?: break
-                batch += next
-            }
-            batch.forEach { id ->
-                if (inflight.add(id)) {
-                    scope.launch {
-                        try {
-                            flushFolder(id)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "flush failed for folder $id", e)
-                        } finally {
-                            inflight.remove(id)
-                        }
-                    }
+            val batch = queue.drain()
+            for (folderId in batch) {
+                try {
+                    flushFolder(folderId)
+                } catch (e: Exception) {
+                    Log.e(TAG, "flush failed for folder $folderId", e)
                 }
             }
         }
@@ -63,8 +54,7 @@ class SidecarSyncManager @Inject constructor(
     private suspend fun flushFolder(folderId: Long) {
         val folder = repository.getFolders().firstOrNull { it.id == folderId } ?: return
         val records = repository.buildSidecarRecords(folderId)
-        val content = SidecarCodec.encodeAll(records)
-        sidecarStore.writeSidecar(Uri.parse(folder.rootUri), folder.displayName, content)
+        sidecarStore.writeSidecar(Uri.parse(folder.rootUri), folder.displayName, records)
     }
 
     private companion object {

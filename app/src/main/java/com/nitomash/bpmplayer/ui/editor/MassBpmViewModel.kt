@@ -28,8 +28,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class BatchTrackStatus { IDLE, DETECTING, DETECTED, FAILED }
-
 data class BatchTrack(
     val trackId: Long,
     val folderId: Long,
@@ -79,7 +77,9 @@ class MassBpmViewModel @Inject constructor(
     val isPlaying: StateFlow<Boolean> = playbackSession.isPlaying
 
     private val base = mutableListOf<TrackEntity>()
+    private val baseItems = mutableListOf<BatchTrack>()
     private val folderNames = mutableMapOf<Long, String>()
+    private val trackById = mutableMapOf<Long, TrackEntity>()
     private val pending = mutableMapOf<Long, PendingBpm>()
     private val failedIds = mutableSetOf<Long>()
     private var currentDetectingId: Long? = null
@@ -94,6 +94,19 @@ class MassBpmViewModel @Inject constructor(
             val tracks = folders.flatMap { folder -> repository.getByFolder(folder.id) }
                 .filter { allTracks || it.bpm == null }
             base += tracks
+            trackById.putAll(tracks.associateBy { it.id })
+            baseItems += tracks.map { track ->
+                BatchTrack(
+                    trackId = track.id,
+                    folderId = track.folderId,
+                    folderName = folderNames[track.folderId].orEmpty(),
+                    title = track.title,
+                    accessUri = track.accessUri,
+                    bpm = track.bpm,
+                    bpmSource = track.bpmSource,
+                    status = BatchTrackStatus.IDLE,
+                )
+            }
             publish()
         }
     }
@@ -165,7 +178,7 @@ class MassBpmViewModel @Inject constructor(
             val affectedFolders = linkedSetOf<Long>()
             for ((source, entries) in bySource) {
                 val folderIdsHere = entries.mapNotNull { (trackId, _) ->
-                    base.firstOrNull { it.id == trackId }?.folderId
+                    trackById[trackId]?.folderId
                 }
                 affectedFolders += folderIdsHere
                 repository.updateBpmBatch(entries.toMap(), source)
@@ -186,7 +199,7 @@ class MassBpmViewModel @Inject constructor(
 
     fun openTarget(trackId: Long) {
         cancelSingleDetect()
-        val baseTrack = base.firstOrNull { it.id == trackId } ?: return
+        val baseTrack = trackById[trackId] ?: return
         val p = pending[trackId]
         _selectedTarget.value = baseTrack.copy(
             bpm = p?.bpm ?: baseTrack.bpm,
@@ -255,25 +268,26 @@ class MassBpmViewModel @Inject constructor(
 
     private fun publish() {
         _hasChanges.value = pending.isNotEmpty()
-        _items.value = base.map { track ->
-            val p = pending[track.id]
-            val status = when {
-                track.id == currentDetectingId -> BatchTrackStatus.DETECTING
-                track.id in failedIds -> BatchTrackStatus.FAILED
-                p != null -> BatchTrackStatus.DETECTED
-                else -> BatchTrackStatus.IDLE
-            }
-            BatchTrack(
-                trackId = track.id,
-                folderId = track.folderId,
-                folderName = folderNames[track.folderId].orEmpty(),
-                title = track.title,
-                accessUri = track.accessUri,
-                bpm = p?.bpm ?: track.bpm,
-                bpmSource = p?.source ?: track.bpmSource,
-                status = status,
+        val current = _items.value
+        val pendingIds = pending.keys
+        val rebuilt = ArrayList<BatchTrack>(baseItems.size)
+        var changed = current.size != baseItems.size
+        baseItems.forEachIndexed { index, baseItem ->
+            val p = pending[baseItem.trackId]
+            val next = baseItem.copy(
+                status = resolveBatchStatus(baseItem.trackId, currentDetectingId, failedIds, pendingIds),
+                bpm = p?.bpm ?: baseItem.bpm,
+                bpmSource = p?.source ?: baseItem.bpmSource,
             )
+            val previous = current.getOrNull(index)
+            if (previous == next) {
+                rebuilt += previous
+            } else {
+                changed = true
+                rebuilt += next
+            }
         }
+        if (changed) _items.value = rebuilt
     }
 
     override fun onCleared() {

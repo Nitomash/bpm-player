@@ -160,4 +160,30 @@ class SidecarCodecTest {
         val envelope = requireNotNull(SidecarCodec.decode(text))
         assertEquals(1, envelope.records.size)
     }
+
+    @Test
+    fun `encodeTo produces the same text as encodeAll`() {
+        val records = listOf(
+            SidecarTrackRecord(
+                path = "tracks/01 Intro.mp3",
+                title = "Intro\n\"feat.\" \\ backslash",
+                artist = "Артист",
+                durationMs = 212000,
+                bpm = 128.0,
+                source = BpmSource.AUTO,
+                tags = listOf(SidecarTag("warm", 4), SidecarTag("late night", 5)),
+            ),
+            SidecarTrackRecord(path = "b.mp3", bpm = 96.5),
+            SidecarTrackRecord(path = "клуб/💃 c.mp3", title = "Микс", durationMs = 0, tags = emptyList()),
+        )
+
+        val streamed = buildString { SidecarCodec.encodeTo(records, this) }
+
+        assertEquals(SidecarCodec.encodeAll(records), streamed)
+    }
+
+    @Test
+    fun `encodeTo an empty list writes the header only`() {
+        assertEquals(SidecarCodec.encodeAll(emptyList()), buildString { SidecarCodec.encodeTo(emptyList(), this) })
+    }
 }

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.nitomash.bpmplayer.data.db.entity.TrackTagEntity
 
 data class TrackTagRow(
@@ -18,8 +19,14 @@ interface TrackTagDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(items: List<TrackTagEntity>)
 
-    @Query("DELETE FROM track_tags WHERE track_id = :trackId")
-    suspend fun deleteForTrack(trackId: Long)
+    @Query("DELETE FROM track_tags WHERE track_id IN (:trackIds)")
+    suspend fun deleteForTracksChunk(trackIds: List<Long>)
+
+    @Transaction
+    suspend fun applyTagPatch(trackIds: List<Long>, rows: List<TrackTagEntity>) {
+        trackIds.distinct().sqlChunks().forEach { deleteForTracksChunk(it) }
+        rows.sqlChunks().forEach { insertAll(it) }
+    }
 
     @Query(
         "SELECT tt.track_id AS trackId, tg.name AS name, tt.rating AS rating " +

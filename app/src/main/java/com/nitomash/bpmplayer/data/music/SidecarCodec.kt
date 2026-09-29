@@ -9,52 +9,56 @@ data class SidecarEnvelope(
 
 object SidecarCodec {
 
-    fun encodeAll(records: List<SidecarTrackRecord>): String = buildString {
-        append(SIDECAR_MAGIC)
-        append('\n')
+    fun encodeAll(records: List<SidecarTrackRecord>): String = buildString { encodeTo(records, this) }
+
+    fun encodeTo(records: List<SidecarTrackRecord>, out: Appendable) {
+        out.append(SIDECAR_MAGIC)
+        out.append('\n')
         records.forEach { record ->
-            append(encodeRecord(record))
-            append('\n')
+            encodeRecordTo(record, out)
+            out.append('\n')
         }
     }
 
-    fun encodeRecord(record: SidecarTrackRecord): String = buildString {
-        append('{')
-        append("\"path\":")
-        append(Json.encodeString(record.path))
+    fun encodeRecord(record: SidecarTrackRecord): String = buildString { encodeRecordTo(record, this) }
+
+    private fun encodeRecordTo(record: SidecarTrackRecord, out: Appendable) {
+        out.append('{')
+        out.append("\"path\":")
+        out.append(Json.encodeString(record.path))
         record.title?.takeIf { it.isNotEmpty() }?.let {
-            append(",\"title\":")
-            append(Json.encodeString(it))
+            out.append(",\"title\":")
+            out.append(Json.encodeString(it))
         }
         record.artist?.takeIf { it.isNotEmpty() }?.let {
-            append(",\"artist\":")
-            append(Json.encodeString(it))
+            out.append(",\"artist\":")
+            out.append(Json.encodeString(it))
         }
         record.durationMs?.takeIf { it > 0 }?.let {
-            append(",\"duration_ms\":")
-            append(it)
+            out.append(",\"duration_ms\":")
+            out.append(it.toString())
         }
         record.bpm?.let {
-            append(",\"bpm\":")
-            append(formatNumber(it))
+            out.append(",\"bpm\":")
+            out.append(formatNumber(it))
         }
         record.source?.let {
-            append(",\"source\":")
-            append(Json.encodeString(sourceKey(it)))
+            out.append(",\"source\":")
+            out.append(Json.encodeString(sourceKey(it)))
         }
         record.tags?.takeIf { it.isNotEmpty() }?.let { tags ->
-            append(",\"tags\":[")
+            out.append(",\"tags\":[")
             tags.forEachIndexed { index, tag ->
-                if (index > 0) append(',')
-                append("{\"name\":")
-                append(Json.encodeString(tag.name))
-                append(",\"rating\":")
-                append(tag.rating)
-                append('}')
+                if (index > 0) out.append(',')
+                out.append("{\"name\":")
+                out.append(Json.encodeString(tag.name))
+                out.append(",\"rating\":")
+                out.append(tag.rating.toString())
+                out.append('}')
             }
-            append(']')
+            out.append(']')
         }
-        append('}')
+        out.append('}')
     }
 
     fun decode(text: String): SidecarEnvelope? {

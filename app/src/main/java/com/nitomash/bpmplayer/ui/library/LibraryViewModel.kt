@@ -9,6 +9,8 @@ import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.data.music.SidecarSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -16,6 +18,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -55,6 +61,23 @@ class LibraryViewModel @Inject constructor(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    @OptIn(FlowPreview::class)
+    val filterQuery: StateFlow<String> = _searchQuery
+        .debounce(SEARCH_DEBOUNCE_MS)
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    val content: StateFlow<LibraryContent> = combine(
+        folders,
+        tracks,
+        filterQuery,
+        _folderSort,
+    ) { folderList, trackList, query, sortByFolder ->
+        buildLibraryContent(folderList, trackList, query, sortByFolder)
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryContent())
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
@@ -136,5 +159,6 @@ class LibraryViewModel @Inject constructor(
 
     private companion object {
         const val TAG = "BpmLibrary"
+        const val SEARCH_DEBOUNCE_MS = 250L
     }
 }

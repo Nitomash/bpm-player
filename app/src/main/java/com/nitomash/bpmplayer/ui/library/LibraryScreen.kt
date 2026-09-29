@@ -57,7 +57,6 @@ import com.nitomash.bpmplayer.data.music.SIDECAR_MIME
 import com.nitomash.bpmplayer.data.music.safeFileName
 import com.nitomash.bpmplayer.ui.common.SearchField
 import com.nitomash.bpmplayer.ui.common.TrackRow
-import com.nitomash.bpmplayer.ui.common.filterTracksByTitle
 import com.nitomash.bpmplayer.ui.editor.BpmEditorDialog
 import com.nitomash.bpmplayer.ui.editor.MassBpmScope
 import com.nitomash.bpmplayer.ui.editor.MassBpmSetupDialog
@@ -73,7 +72,7 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
 ) {
     val folders by viewModel.folders.collectAsStateWithLifecycle()
-    val tracks by viewModel.tracks.collectAsStateWithLifecycle()
+    val content by viewModel.content.collectAsStateWithLifecycle()
     val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
     val selectedTrack by editorViewModel.selectedTrack.collectAsStateWithLifecycle()
     val isPlaying by editorViewModel.isPlaying.collectAsStateWithLifecycle()
@@ -81,6 +80,7 @@ fun LibraryScreen(
     val folderSort by viewModel.folderSort.collectAsStateWithLifecycle()
     val collapsedFolders by viewModel.collapsedFolders.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val filterQuery by viewModel.filterQuery.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     var folderToDelete by remember { mutableStateOf<FolderEntity?>(null) }
@@ -231,20 +231,7 @@ fun LibraryScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
 
-                val visibleTracks = remember(folders, tracks, searchQuery) {
-                    if (searchQuery.isBlank()) tracks else filterTracksByTitle(tracks, searchQuery)
-                }
-                val tracksByFolder = remember(folders, visibleTracks) { visibleTracks.groupBy { it.folderId } }
-                val sortedByFolder = remember(folders, visibleTracks, folderSort) {
-                    tracksByFolder.mapValues { (folderId, list) ->
-                        sortTracks(list, folderSort[folderId] ?: TrackSort.BY_NAME)
-                    }
-                }
-                val visibleFolders = remember(folders, searchQuery, tracksByFolder) {
-                    if (searchQuery.isBlank()) folders else folders.filter { tracksByFolder.containsKey(it.id) }
-                }
-
-                if (visibleFolders.isEmpty()) {
+                if (content.isEmpty) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
@@ -262,12 +249,12 @@ fun LibraryScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        visibleFolders.forEach { folder ->
-                            val collapsed = folder.id in collapsedFolders && searchQuery.isBlank()
+                        content.visibleFolders.forEach { folder ->
+                            val collapsed = folder.id in collapsedFolders && filterQuery.isBlank()
                             item(key = "folder-${folder.id}") {
                                 FolderHeader(
                                     folder = folder,
-                                    trackCount = tracksByFolder[folder.id].orEmpty().size,
+                                    trackCount = content.countOf(folder.id),
                                     sort = folderSort[folder.id] ?: TrackSort.BY_NAME,
                                     expanded = !collapsed,
                                     refreshEnabled = !isScanning,
@@ -289,7 +276,7 @@ fun LibraryScreen(
                             }
                             if (!collapsed) {
                                 items(
-                                    items = sortedByFolder[folder.id].orEmpty(),
+                                    items = content.tracksOf(folder.id),
                                     key = { "track-${it.id}" },
                                 ) { track ->
                                     TrackRow(

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -55,6 +56,8 @@ fun MassBpmScreen(
     val autoDetectState by viewModel.autoDetectState.collectAsStateWithLifecycle()
     val hasChanges by viewModel.hasChanges.collectAsStateWithLifecycle()
     var showDiscardConfirm by remember { mutableStateOf(false) }
+    val groups = remember(items) { items.groupBy { it.folderId } }
+    val openTarget: (Long) -> Unit = remember(viewModel) { viewModel::openTarget }
 
     val requestBack: () -> Unit = {
         if (hasChanges) showDiscardConfirm = true else onDiscard()
@@ -127,33 +130,16 @@ fun MassBpmScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(items.groupBy { it.folderId }.toList(), key = { it.first }) { (_, folderItems) ->
-                    Row(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = folderItems.first().folderName,
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            Text(
-                                text = pluralStringResource(
-                                    R.plurals.track_count,
-                                    folderItems.size,
-                                    folderItems.size,
-                                ),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                groups.forEach { (folderId, folderItems) ->
+                    item(key = "folder-$folderId") {
+                        BatchFolderHeader(folderItems)
                     }
-                    folderItems.forEach { item ->
+                    items(folderItems, key = { it.trackId }) { item ->
                         TrackRow(
                             title = item.title,
                             bpm = item.bpm,
                             bpmSource = item.bpmSource,
-                            onClick = { viewModel.openTarget(item.trackId) },
+                            onClick = { openTarget(item.trackId) },
                             trailing = {
                                 when (item.status) {
                                     BatchTrackStatus.DETECTING -> CircularProgressIndicator(
@@ -210,5 +196,34 @@ fun MassBpmScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun BatchFolderHeader(
+    folderItems: List<BatchTrack>,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = folderItems.first().folderName,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = pluralStringResource(
+                    R.plurals.track_count,
+                    folderItems.size,
+                    folderItems.size,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }

@@ -4,6 +4,8 @@ import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
+import java.io.BufferedWriter
+import java.io.OutputStreamWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -46,7 +48,11 @@ class SidecarStore @Inject constructor(
         }
     }
 
-    suspend fun writeSidecar(treeUri: Uri, folderName: String, content: String) {
+    suspend fun writeSidecar(
+        treeUri: Uri,
+        folderName: String,
+        records: List<SidecarTrackRecord>,
+    ) {
         withContext(Dispatchers.IO) {
             val baseName = sanitizeFileName(folderName)
             val fileName = "$baseName.$SIDECAR_EXTENSION"
@@ -68,8 +74,9 @@ class SidecarStore @Inject constructor(
                         return@withContext
                     }
                 val wrote = contentResolver.openOutputStream(tmpUri, "wt")?.use { output ->
-                    output.write(content.toByteArray(Charsets.UTF_8))
-                    output.flush()
+                    val writer = BufferedWriter(OutputStreamWriter(output, Charsets.UTF_8), WRITE_BUFFER_CHARS)
+                    SidecarCodec.encodeTo(records, writer)
+                    writer.flush()
                     true
                 } ?: false
                 if (!wrote) {
@@ -80,7 +87,7 @@ class SidecarStore @Inject constructor(
                     DocumentsContract.renameDocument(contentResolver, tmpUri, fileName)
                 }.getOrNull()
                 if (renamed == null) Log.w(TAG, "rename failed for $fileName")
-                Log.i(TAG, "writeSidecar done for $folderName (${content.length} bytes)")
+                Log.i(TAG, "writeSidecar done for $folderName (${records.size} records)")
             } catch (e: Exception) {
                 Log.e(TAG, "writeSidecar failed for $folderName", e)
             }
@@ -109,5 +116,6 @@ class SidecarStore @Inject constructor(
 
     private companion object {
         const val TAG = "BpmSidecar"
+        const val WRITE_BUFFER_CHARS = 8 * 1024
     }
 }

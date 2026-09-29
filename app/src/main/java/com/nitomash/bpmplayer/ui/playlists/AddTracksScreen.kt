@@ -26,7 +26,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.ui.common.SearchField
 import com.nitomash.bpmplayer.ui.common.TrackList
-import com.nitomash.bpmplayer.ui.common.filterTracksByTitle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +35,7 @@ fun AddTracksScreen(
     modifier: Modifier = Modifier,
 ) {
     val candidates by viewModel.candidates.collectAsStateWithLifecycle()
+    val visible by viewModel.visible.collectAsStateWithLifecycle()
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
@@ -43,10 +43,6 @@ fun AddTracksScreen(
 
     LaunchedEffect(Unit) {
         viewModel.saved.collect { onBack() }
-    }
-
-    val visible = remember(candidates, searchQuery) {
-        filterTracksByTitle(candidates, searchQuery)
     }
 
     Scaffold(

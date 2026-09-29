@@ -48,9 +48,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import com.nitomash.bpmplayer.R
+import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.ui.editor.BpmEditorDialog
 import com.nitomash.bpmplayer.ui.editor.formatBpm
 import com.nitomash.bpmplayer.ui.library.BpmEditorViewModel
+import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,24 +63,11 @@ fun PlayerScreen(
     onOpenPlaylist: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
-    val isPreview by viewModel.isPreview.collectAsStateWithLifecycle()
-    val currentTitle by viewModel.currentTitle.collectAsStateWithLifecycle()
-    val currentBpm by viewModel.currentBpm.collectAsStateWithLifecycle()
-    val currentTrack by viewModel.currentTrack.collectAsStateWithLifecycle()
-    val currentNumber by viewModel.currentNumber.collectAsStateWithLifecycle()
     val queueSize by viewModel.queueSize.collectAsStateWithLifecycle()
-    val hasPrevious by viewModel.hasPrevious.collectAsStateWithLifecycle()
-    val hasNext by viewModel.hasNext.collectAsStateWithLifecycle()
-    val shuffleEnabled by viewModel.shuffleEnabled.collectAsStateWithLifecycle()
-    val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
-    val positionMs by viewModel.positionMs.collectAsStateWithLifecycle()
-    val durationMs by viewModel.durationMs.collectAsStateWithLifecycle()
+    val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
     val currentPlaylistId by viewModel.currentPlaylistId.collectAsStateWithLifecycle()
     val selectedTrack by editorViewModel.selectedTrack.collectAsStateWithLifecycle()
     val editorAutoDetect by editorViewModel.autoDetectState.collectAsStateWithLifecycle()
-
-    var dragFraction by remember { mutableStateOf<Float?>(null) }
 
     val context = LocalContext.current
     val notificationLauncher = rememberLauncherForActivityResult(
@@ -126,161 +115,33 @@ fun PlayerScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                Text(
-                    text = stringResource(R.string.player_position, currentNumber, queueSize),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                NowPlayingInfo(viewModel)
+                CurrentBpmBadge(
+                    currentTrack = viewModel.currentTrack,
+                    currentBpm = viewModel.currentBpm,
+                    onEditBpm = editorViewModel::show,
                 )
-
-                if (isPreview) {
-                    Text(
-                        text = stringResource(R.string.player_preview_badge),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
-
-                Text(
-                    text = currentTitle ?: stringResource(R.string.player_no_track),
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 16.dp),
+                SeekBarRow(
+                    positionMs = viewModel.positionMs,
+                    durationMs = viewModel.durationMs,
+                    onSeek = viewModel::seekTo,
                 )
-
-                currentTrack?.let { track ->
-                    Row(
-                        modifier = Modifier.padding(top = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = currentBpm?.let { bpm ->
-                                stringResource(R.string.bpm_value, formatBpm(bpm))
-                            } ?: stringResource(R.string.bpm_unknown),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            textAlign = TextAlign.Center,
-                        )
-                        IconButton(onClick = { editorViewModel.show(track) }) {
-                            Icon(
-                                imageVector = Icons.Filled.Settings,
-                                contentDescription = stringResource(R.string.player_edit_bpm),
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                    }
-                }
-
-                val sliderFraction = dragFraction
-                    ?: if (durationMs > 0L) positionMs.toFloat() / durationMs.toFloat() else 0f
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 24.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = formatMillis(positionMs),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Slider(
-                        value = sliderFraction.coerceIn(0f, 1f),
-                        onValueChange = { dragFraction = it },
-                        onValueChangeFinished = {
-                            dragFraction?.let { fraction ->
-                                viewModel.seekTo((fraction * durationMs).toLong())
-                            }
-                            dragFraction = null
-                        },
-                        enabled = durationMs > 0L,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 12.dp),
-                    )
-                    Text(
-                        text = formatMillis(durationMs),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 32.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(
-                    onClick = viewModel::toggleShuffle,
-                    enabled = queueSize > 0,
-                    modifier = Modifier.size(48.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Shuffle,
-                        contentDescription = stringResource(R.string.player_shuffle),
-                        tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                IconButton(
-                    onClick = viewModel::previous,
-                    enabled = hasPrevious,
-                    modifier = Modifier.size(56.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.SkipPrevious,
-                        contentDescription = stringResource(R.string.player_previous),
-                    )
-                }
-                IconButton(
-                    onClick = viewModel::togglePlayback,
-                    enabled = queueSize > 0,
-                    modifier = Modifier.size(72.dp),
-                ) {
-                    if (isPlaying) {
-                        Icon(
-                            imageVector = Icons.Filled.Pause,
-                            contentDescription = stringResource(R.string.editor_pause),
-                            modifier = Modifier.size(40.dp),
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = stringResource(R.string.editor_play),
-                            modifier = Modifier.size(40.dp),
-                        )
-                    }
-                }
-                IconButton(
-                    onClick = viewModel::next,
-                    enabled = hasNext,
-                    modifier = Modifier.size(56.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.SkipNext,
-                        contentDescription = stringResource(R.string.player_next),
-                    )
-                }
-                IconButton(
-                    onClick = viewModel::cycleRepeat,
-                    enabled = queueSize > 0,
-                    modifier = Modifier.size(48.dp),
-                ) {
-                    Icon(
-                        imageVector = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne
-                        else Icons.Filled.Repeat,
-                        contentDescription = stringResource(repeatLabel(repeatMode)),
-                        tint = if (repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            TransportBar(
+                modifier = Modifier.padding(top = 32.dp),
+                isPlaying = viewModel.isPlaying,
+                queueSize = viewModel.queueSize,
+                hasPrevious = viewModel.hasPrevious,
+                hasNext = viewModel.hasNext,
+                shuffleEnabled = viewModel.shuffleEnabled,
+                repeatMode = viewModel.repeatMode,
+                onToggleShuffle = viewModel::toggleShuffle,
+                onPrevious = viewModel::previous,
+                onTogglePlayback = viewModel::togglePlayback,
+                onNext = viewModel::next,
+                onCycleRepeat = viewModel::cycleRepeat,
+            )
         }
     }
 
@@ -299,6 +160,211 @@ fun PlayerScreen(
             onCancelAutoDetect = editorViewModel::cancelAutoDetect,
             onDismiss = editorViewModel::dismiss,
         )
+    }
+}
+
+@Composable
+private fun NowPlayingInfo(viewModel: PlayerViewModel) {
+    val currentNumber by viewModel.currentNumber.collectAsStateWithLifecycle()
+    val queueSize by viewModel.queueSize.collectAsStateWithLifecycle()
+    val isPreview by viewModel.isPreview.collectAsStateWithLifecycle()
+    val currentTitle by viewModel.currentTitle.collectAsStateWithLifecycle()
+
+    Text(
+        text = stringResource(R.string.player_position, currentNumber, queueSize),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    if (isPreview) {
+        Text(
+            text = stringResource(R.string.player_preview_badge),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+
+    Text(
+        text = currentTitle ?: stringResource(R.string.player_no_track),
+        style = MaterialTheme.typography.titleLarge,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 16.dp),
+    )
+}
+
+@Composable
+private fun CurrentBpmBadge(
+    currentTrack: StateFlow<TrackEntity?>,
+    currentBpm: StateFlow<Double?>,
+    onEditBpm: (TrackEntity) -> Unit,
+) {
+    val track by currentTrack.collectAsStateWithLifecycle()
+    val bpm by currentBpm.collectAsStateWithLifecycle()
+
+    track?.let { current ->
+        Row(
+            modifier = Modifier.padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = bpm?.let { value ->
+                    stringResource(R.string.bpm_value, formatBpm(value))
+                } ?: stringResource(R.string.bpm_unknown),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center,
+            )
+            IconButton(onClick = { onEditBpm(current) }) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = stringResource(R.string.player_edit_bpm),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeekBarRow(
+    positionMs: StateFlow<Long>,
+    durationMs: StateFlow<Long>,
+    onSeek: (Long) -> Unit,
+) {
+    val position by positionMs.collectAsStateWithLifecycle()
+    val duration by durationMs.collectAsStateWithLifecycle()
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+
+    val sliderFraction = dragFraction
+        ?: if (duration > 0L) position.toFloat() / duration.toFloat() else 0f
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = formatMillis(position),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Slider(
+            value = sliderFraction.coerceIn(0f, 1f),
+            onValueChange = { dragFraction = it },
+            onValueChangeFinished = {
+                dragFraction?.let { fraction ->
+                    onSeek((fraction * duration).toLong())
+                }
+                dragFraction = null
+            },
+            enabled = duration > 0L,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp),
+        )
+        Text(
+            text = formatMillis(duration),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun TransportBar(
+    isPlaying: StateFlow<Boolean>,
+    queueSize: StateFlow<Int>,
+    hasPrevious: StateFlow<Boolean>,
+    hasNext: StateFlow<Boolean>,
+    shuffleEnabled: StateFlow<Boolean>,
+    repeatMode: StateFlow<Int>,
+    onToggleShuffle: () -> Unit,
+    onPrevious: () -> Unit,
+    onTogglePlayback: () -> Unit,
+    onNext: () -> Unit,
+    onCycleRepeat: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val playing by isPlaying.collectAsStateWithLifecycle()
+    val size by queueSize.collectAsStateWithLifecycle()
+    val previousAvailable by hasPrevious.collectAsStateWithLifecycle()
+    val nextAvailable by hasNext.collectAsStateWithLifecycle()
+    val shuffle by shuffleEnabled.collectAsStateWithLifecycle()
+    val repeat by repeatMode.collectAsStateWithLifecycle()
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = onToggleShuffle,
+            enabled = size > 0,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Shuffle,
+                contentDescription = stringResource(R.string.player_shuffle),
+                tint = if (shuffle) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(
+            onClick = onPrevious,
+            enabled = previousAvailable,
+            modifier = Modifier.size(56.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.SkipPrevious,
+                contentDescription = stringResource(R.string.player_previous),
+            )
+        }
+        IconButton(
+            onClick = onTogglePlayback,
+            enabled = size > 0,
+            modifier = Modifier.size(72.dp),
+        ) {
+            if (playing) {
+                Icon(
+                    imageVector = Icons.Filled.Pause,
+                    contentDescription = stringResource(R.string.editor_pause),
+                    modifier = Modifier.size(40.dp),
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = stringResource(R.string.editor_play),
+                    modifier = Modifier.size(40.dp),
+                )
+            }
+        }
+        IconButton(
+            onClick = onNext,
+            enabled = nextAvailable,
+            modifier = Modifier.size(56.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.SkipNext,
+                contentDescription = stringResource(R.string.player_next),
+            )
+        }
+        IconButton(
+            onClick = onCycleRepeat,
+            enabled = size > 0,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(
+                imageVector = if (repeat == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne
+                else Icons.Filled.Repeat,
+                contentDescription = stringResource(repeatLabel(repeat)),
+                tint = if (repeat != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

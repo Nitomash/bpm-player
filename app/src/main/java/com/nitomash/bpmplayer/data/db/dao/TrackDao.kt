@@ -61,4 +61,9 @@ interface TrackDao {
 
     @Update
     suspend fun update(track: TrackEntity)
+
+    @Transaction
+    suspend fun updateAll(tracks: List<TrackEntity>) {
+        tracks.forEach { update(it) }
+    }
 }
