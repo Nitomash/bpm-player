@@ -8,7 +8,6 @@ import com.nitomash.bpmplayer.data.bpm.AutoBpmDetector
 import com.nitomash.bpmplayer.data.bpm.BpmDetectionDispatcher
 import com.nitomash.bpmplayer.data.bpm.BpmDetectionFailure
 import com.nitomash.bpmplayer.data.bpm.BpmDetectionResult
-import com.nitomash.bpmplayer.data.bpm.OctaveCheck
 import com.nitomash.bpmplayer.data.db.entity.BpmSource
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.music.MusicRepository
@@ -177,15 +176,7 @@ class MassBpmViewModel @Inject constructor(
         completedIds += track.id
         when (result) {
             is BpmDetectionResult.Success -> {
-                val saved = track.bpm
-                if (saved != null && OctaveCheck.isOctaveOf(result.bpm, saved)) {
-                    android.util.Log.i(
-                        "BpmMassDetect",
-                        "octave guard: keep ${track.title} saved=$saved detected=${result.bpm}",
-                    )
-                } else {
-                    pending[track.id] = PendingBpm(result.bpm, BpmSource.AUTO)
-                }
+                pending[track.id] = PendingBpm(result.bpm, BpmSource.AUTO)
                 failedIds.remove(track.id)
             }
             is BpmDetectionResult.Failure -> failedIds += track.id
