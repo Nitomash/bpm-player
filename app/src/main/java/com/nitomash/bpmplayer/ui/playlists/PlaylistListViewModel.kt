@@ -1,6 +1,7 @@
 package com.nitomash.bpmplayer.ui.playlists
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nitomash.bpmplayer.R
@@ -10,14 +11,22 @@ import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSorter
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
+import com.nitomash.bpmplayer.data.playlist.export.XspfExportResult
+import com.nitomash.bpmplayer.data.playlist.export.XspfExporter
+import com.nitomash.bpmplayer.data.playlist.xspf.XspfImportResult
+import com.nitomash.bpmplayer.data.playlist.xspf.XspfImporter
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import com.nitomash.bpmplayer.ui.common.BpmLog
 import com.nitomash.bpmplayer.ui.common.ListReorder
+import com.nitomash.bpmplayer.ui.common.SelectAll
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -30,6 +39,8 @@ class PlaylistListViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     private val settingsRepository: SettingsRepository,
     private val playbackSession: PlaybackSession,
+    private val xspfExporter: XspfExporter,
+    private val xspfImporter: XspfImporter,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -42,6 +53,12 @@ class PlaylistListViewModel @Inject constructor(
 
     private val _reorderSession = MutableStateFlow(0)
     val reorderSession: StateFlow<Int> = _reorderSession.asStateFlow()
+
+    private val _isSelectionMode = MutableStateFlow(false)
+    val isSelectionMode: StateFlow<Boolean> = _isSelectionMode.asStateFlow()
+
+    private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedIds: StateFlow<Set<Long>> = _selectedIds.asStateFlow()
 
     val playlists: StateFlow<List<PlaylistSummary>> = combine(
         playlistRepository.observePlaylists(),
@@ -119,5 +136,90 @@ class PlaylistListViewModel @Inject constructor(
 
     private fun discardReorder() {
         _reorderIds.value = null
+    }
+
+    fun enterSelectionMode(initialSelection: Long? = null) {
+        if (!_isSelectionMode.value) {
+            _selectedIds.value = emptySet()
+        }
+        _isSelectionMode.value = true
+        if (initialSelection != null) {
+            _selectedIds.value = _selectedIds.value + initialSelection
+        }
+    }
+
+    fun exitSelectionMode() {
+        _isSelectionMode.value = false
+        _selectedIds.value = emptySet()
+    }
+
+    fun toggleSelection(id: Long) {
+        if (!_isSelectionMode.value) {
+            enterSelectionMode(id)
+            return
+        }
+        val current = _selectedIds.value
+        _selectedIds.value = if (current.contains(id)) current - id else current + id
+    }
+
+    fun toggleSelectAll() {
+        _selectedIds.value = SelectAll.toggled(playlists.value.map { it.id }, _selectedIds.value)
+    }
+
+    fun deleteSelected() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            ids.forEach { id ->
+                playlistRepository.delete(id)
+                playbackSession.clearPlaylistIdIf(id)
+            }
+            exitSelectionMode()
+        }
+    }
+
+    private val _exportEvents = MutableSharedFlow<XspfExportResult>(extraBufferCapacity = 1)
+    val exportEvents: SharedFlow<XspfExportResult> = _exportEvents.asSharedFlow()
+
+    private val _exporting = MutableStateFlow(false)
+    val exporting: StateFlow<Boolean> = _exporting.asStateFlow()
+
+    fun exportTo(treeUri: Uri, playlistIds: List<Long>) {
+        if (playlistIds.isEmpty() || _exporting.value) return
+        viewModelScope.launch {
+            _exporting.value = true
+            try {
+                val result = xspfExporter.export(treeUri, playlistIds)
+                if (result.succeededCount > 0 && playlistIds.toSet() == _selectedIds.value) {
+                    exitSelectionMode()
+                }
+                _exportEvents.emit(result)
+            } finally {
+                _exporting.value = false
+            }
+        }
+    }
+
+    private val _importEvents = MutableSharedFlow<XspfImportResult>(extraBufferCapacity = 1)
+    val importEvents: SharedFlow<XspfImportResult> = _importEvents.asSharedFlow()
+
+    private val _importing = MutableStateFlow(false)
+    val importing: StateFlow<Boolean> = _importing.asStateFlow()
+
+    fun importPlaylist(documentUri: Uri) {
+        if (_importing.value) return
+        viewModelScope.launch {
+            _importing.value = true
+            try {
+                val result = xspfImporter.import(documentUri)
+                BpmLog.d(
+                    "VM list: imported '${result.playlistName}' " +
+                        "matched=${result.matchedCount}/${result.totalCount} error=${result.error}",
+                )
+                _importEvents.emit(result)
+            } finally {
+                _importing.value = false
+            }
+        }
     }
 }

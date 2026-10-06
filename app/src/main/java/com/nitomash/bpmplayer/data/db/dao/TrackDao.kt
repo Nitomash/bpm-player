@@ -33,6 +33,9 @@ interface TrackDao {
     @Query("SELECT * FROM tracks ORDER BY title")
     fun observeAll(): Flow<List<TrackEntity>>
 
+    @Query("SELECT * FROM tracks")
+    suspend fun getAll(): List<TrackEntity>
+
     @Query("SELECT COUNT(*) FROM tracks")
     suspend fun count(): Int
 

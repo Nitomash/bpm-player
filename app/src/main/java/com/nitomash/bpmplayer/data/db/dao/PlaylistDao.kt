@@ -10,6 +10,7 @@ import com.nitomash.bpmplayer.data.db.entity.PlaylistEntity
 import com.nitomash.bpmplayer.data.db.entity.PlaylistOrderEntity
 import com.nitomash.bpmplayer.data.db.entity.PlaylistTrackEntity
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
+import com.nitomash.bpmplayer.data.playlist.PlaylistNameRow
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackRow
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSort
@@ -43,6 +44,12 @@ interface PlaylistDao {
 
     @Query("SELECT * FROM playlists WHERE id = :playlistId")
     fun observeById(playlistId: Long): Flow<PlaylistEntity?>
+
+    @Query("SELECT * FROM playlists WHERE id = :playlistId")
+    suspend fun getById(playlistId: Long): PlaylistEntity?
+
+    @Query("SELECT id, name FROM playlists WHERE id IN (:playlistIds)")
+    suspend fun getNamesByIds(playlistIds: List<Long>): List<PlaylistNameRow>
 
     @Query("SELECT track_sort_mode FROM playlists WHERE id = :playlistId")
     suspend fun getTrackSortMode(playlistId: Long): PlaylistTrackSort?

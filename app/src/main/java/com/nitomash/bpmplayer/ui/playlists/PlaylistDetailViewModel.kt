@@ -12,6 +12,7 @@ import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSort
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSorter
 import com.nitomash.bpmplayer.ui.common.BpmLog
 import com.nitomash.bpmplayer.ui.common.ListReorder
+import com.nitomash.bpmplayer.ui.common.SelectAll
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -149,6 +150,10 @@ class PlaylistDetailViewModel @Inject constructor(
         } else {
             _selectedIds.value + trackId
         }
+    }
+
+    fun toggleSelectAll() {
+        _selectedIds.value = SelectAll.toggled(tracks.value.map { it.id }, _selectedIds.value)
     }
 
     fun removeSelected() {

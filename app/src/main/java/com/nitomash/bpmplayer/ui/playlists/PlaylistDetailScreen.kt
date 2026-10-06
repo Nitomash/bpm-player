@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -58,6 +59,7 @@ import com.nitomash.bpmplayer.ui.common.ConfirmDialog
 import com.nitomash.bpmplayer.ui.common.ReorderHandle
 import com.nitomash.bpmplayer.ui.common.ReorderRowShape
 import com.nitomash.bpmplayer.ui.common.ReorderableList
+import com.nitomash.bpmplayer.ui.common.SelectAll
 import com.nitomash.bpmplayer.ui.common.TrackList
 import com.nitomash.bpmplayer.ui.common.TrackRow
 import com.nitomash.bpmplayer.ui.common.reorderRowColor
@@ -91,6 +93,7 @@ fun PlaylistDetailScreen(
     val isReorderMode = mode == PlaylistDetailMode.REORDER
     val canReorder = tracks.size > 1
     val reorderState = reorderIds
+    val selectAllLabel = stringResource(R.string.playlist_select_all)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -143,6 +146,13 @@ fun PlaylistDetailScreen(
                 actions = {
                     when {
                         selectionMode -> {
+                            TriStateCheckbox(
+                                state = SelectAll.state(tracks.map { it.id }, selectedIds),
+                                onClick = { viewModel.toggleSelectAll() },
+                                modifier = Modifier.semantics {
+                                    contentDescription = selectAllLabel
+                                },
+                            )
                             IconButton(
                                 onClick = { showRemoveConfirm = true },
                                 enabled = selectedIds.isNotEmpty(),

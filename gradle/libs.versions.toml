@@ -15,6 +15,7 @@ media3 = "1.5.1"
 junit = "4.13.2"
 tarsosDsp = "2.5"
 reorderable = "3.1.0"
+kxml2 = "2.3.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -36,10 +37,12 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
+kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", version.ref = "kotlin" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+net-sf-kxml-kxml2 = { group = "net.sf.kxml", name = "kxml2", version.ref = "kxml2" }
 tarsos-dsp = { group = "be.tarsos.dsp", name = "core", version.ref = "tarsosDsp" }
 sh-calvin-reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 

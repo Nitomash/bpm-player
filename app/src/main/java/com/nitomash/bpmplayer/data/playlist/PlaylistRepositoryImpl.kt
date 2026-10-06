@@ -5,6 +5,7 @@ import com.nitomash.bpmplayer.data.db.entity.PlaylistEntity
 import com.nitomash.bpmplayer.data.db.entity.PlaylistTrackEntity
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,6 +40,9 @@ class PlaylistRepositoryImpl @Inject constructor(
             ),
         )
     }
+
+    override suspend fun getPlaylistNames(): List<String> =
+        playlistDao.observeSummaries().first().map { it.name }
 
     override suspend fun rename(playlistId: Long, name: String) {
         playlistDao.rename(playlistId, name, System.currentTimeMillis())

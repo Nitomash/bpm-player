@@ -1,5 +1,7 @@
 package com.nitomash.bpmplayer.ui.playlists
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -24,12 +26,16 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -50,6 +56,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -79,6 +86,7 @@ import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
+import com.nitomash.bpmplayer.data.playlist.xspf.XspfImportError
 import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
 import com.nitomash.bpmplayer.ui.common.BpmLog
 import com.nitomash.bpmplayer.ui.common.ConfirmDialog
@@ -87,6 +95,7 @@ import com.nitomash.bpmplayer.ui.common.ReorderHandle
 import com.nitomash.bpmplayer.ui.common.ReorderHandleWidth
 import com.nitomash.bpmplayer.ui.common.ReorderRowShape
 import com.nitomash.bpmplayer.ui.common.ReorderableList
+import com.nitomash.bpmplayer.ui.common.SelectAll
 import com.nitomash.bpmplayer.ui.common.reorderRowColor
 import com.nitomash.bpmplayer.ui.common.reorderRowElevation
 import com.nitomash.bpmplayer.ui.editor.formatBpm
@@ -108,6 +117,8 @@ fun PlaylistsScreen(
     val listSort by playlistListViewModel.listSort.collectAsStateWithLifecycle()
     val reorderIds by playlistListViewModel.reorderIds.collectAsStateWithLifecycle()
     val reorderSession by playlistListViewModel.reorderSession.collectAsStateWithLifecycle()
+    val isSelectionMode by playlistListViewModel.isSelectionMode.collectAsStateWithLifecycle()
+    val selectedIds by playlistListViewModel.selectedIds.collectAsStateWithLifecycle()
 
     var minText by rememberSaveable { mutableStateOf("") }
     var maxText by rememberSaveable { mutableStateOf("") }
@@ -123,14 +134,77 @@ fun PlaylistsScreen(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var deleteTarget by remember { mutableStateOf<PlaylistSummary?>(null) }
+    var deleteSelectedTarget by remember { mutableStateOf(false) }
+    var contextMenuFor by remember { mutableStateOf<Long?>(null) }
     var sortMenuOpen by rememberSaveable { mutableStateOf(false) }
 
     val isReorderMode = reorderIds != null
     val reorderState = reorderIds
+    val selectAllLabel = stringResource(R.string.playlist_select_all)
+
+    var exportIds by remember { mutableStateOf<List<Long>?>(null) }
+    val exportFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        val ids = exportIds
+        exportIds = null
+        if (uri != null && ids != null) {
+            playlistListViewModel.exportTo(uri, ids)
+        }
+    }
+
+    val importPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            playlistListViewModel.importPlaylist(uri)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        playlistListViewModel.exportEvents.collect { result ->
+            val message = when {
+                result.files.isEmpty() -> context.getString(R.string.playlist_export_none)
+                result.failedCount > 0 -> context.getString(R.string.playlist_export_partial, result.succeededCount, result.failedCount)
+                else -> context.getString(R.string.playlist_export_done, result.succeededCount)
+            }
+            snackbarHostState.showSnackbar(message)
+            if (result.absoluteTrackCount > 0) {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.playlist_export_absolute_paths, result.absoluteTrackCount),
+                )
+            }
+        }
+    }
+
+    fun requestExport(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        exportIds = ids
+        exportFolderPicker.launch(null)
+    }
 
     LaunchedEffect(Unit) {
         viewModel.savedToPlaylist.collect {
             snackbarHostState.showSnackbar(context.getString(R.string.playlist_save_result))
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        playlistListViewModel.importEvents.collect { result ->
+            val message = when (result.error) {
+                XspfImportError.READ_FAILED -> context.getString(R.string.playlist_import_error_read)
+                XspfImportError.NOT_XSPF -> context.getString(R.string.playlist_import_error_format)
+                XspfImportError.EMPTY_PLAYLIST -> context.getString(R.string.playlist_import_error_empty)
+                XspfImportError.BASE_UNRESOLVED -> context.getString(R.string.playlist_import_error_base)
+                XspfImportError.NO_MATCHES -> context.getString(R.string.playlist_import_error_no_matches)
+                null -> context.getString(R.string.playlist_import_done, result.playlistName, result.matchedCount)
+            }
+            snackbarHostState.showSnackbar(message)
+            if (result.succeeded && result.unmatchedCount > 0) {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.playlist_import_unmatched, result.unmatchedCount),
+                )
+            }
         }
     }
 
@@ -148,10 +222,11 @@ fun PlaylistsScreen(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
+                val isHeaderCompact = isReorderMode || isSelectionMode
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = if (isReorderMode) 0.dp else 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+                        .padding(start = if (isHeaderCompact) 0.dp else 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (isReorderMode) {
@@ -161,21 +236,26 @@ fun PlaylistsScreen(
                                 contentDescription = stringResource(R.string.editor_cancel),
                             )
                         }
+                    } else if (isSelectionMode) {
+                        IconButton(onClick = playlistListViewModel::exitSelectionMode) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.editor_cancel),
+                            )
+                        }
                     }
                     Text(
-                        text = stringResource(
-                            if (isReorderMode) {
-                                R.string.playlist_reorder_hint
-                            } else {
-                                R.string.nav_playlists
-                            },
-                        ),
-                        style = if (isReorderMode) {
+                        text = when {
+                            isReorderMode -> stringResource(R.string.playlist_reorder_hint)
+                            isSelectionMode -> stringResource(R.string.playlist_selected_count, selectedIds.size)
+                            else -> stringResource(R.string.nav_playlists)
+                        },
+                        style = if (isHeaderCompact) {
                             MaterialTheme.typography.bodyMedium
                         } else {
                             MaterialTheme.typography.titleLarge
                         },
-                        color = if (isReorderMode) {
+                        color = if (isHeaderCompact) {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
                             Color.Unspecified
@@ -187,6 +267,30 @@ fun PlaylistsScreen(
                             Icon(
                                 imageVector = Icons.Filled.Check,
                                 contentDescription = stringResource(R.string.playlist_reorder_done),
+                            )
+                        }
+                    } else if (isSelectionMode) {
+                        TriStateCheckbox(
+                            state = SelectAll.state(playlists.map { it.id }, selectedIds),
+                            onClick = { playlistListViewModel.toggleSelectAll() },
+                            modifier = Modifier.semantics {
+                                contentDescription = selectAllLabel
+                            },
+                        )
+                        IconButton(
+                            onClick = {
+                                requestExport(playlists.filter { it.id in selectedIds }.map { it.id })
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.FileUpload,
+                                contentDescription = stringResource(R.string.playlist_menu_export),
+                            )
+                        }
+                        IconButton(onClick = { deleteSelectedTarget = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.action_delete_confirm),
                             )
                         }
                     } else {
@@ -226,6 +330,12 @@ fun PlaylistsScreen(
                                 contentDescription = stringResource(R.string.playlist_create),
                             )
                         }
+                        IconButton(onClick = { importPicker.launch(arrayOf("application/xspf+xml", "application/xml", "text/xml")) }) {
+                            Icon(
+                                imageVector = Icons.Filled.FileDownload,
+                                contentDescription = stringResource(R.string.playlist_import),
+                            )
+                        }
                     }
                 }
                 HorizontalDivider()
@@ -261,19 +371,50 @@ fun PlaylistsScreen(
                     else -> {
                         LazyColumn {
                             items(items = playlists, key = { it.id }) { summary ->
-                                PlaylistDrawerRow(
-                                    summary = summary,
-                                    onClick = {
-                                        closeDrawer()
-                                        onOpenPlaylist(summary.id)
-                                    },
-                                    onLongClick = playlistListViewModel::enterReorder,
-                                    onPlay = {
-                                        closeDrawer()
-                                        playlistListViewModel.play(summary.id, onPlaylistStarted)
-                                    },
-                                    onDelete = { deleteTarget = summary },
-                                )
+                                Box {
+                                    PlaylistDrawerRow(
+                                        summary = summary,
+                                        onClick = {
+                                            closeDrawer()
+                                            onOpenPlaylist(summary.id)
+                                        },
+                                        onLongClick = { contextMenuFor = summary.id },
+                                        onPlay = {
+                                            closeDrawer()
+                                            playlistListViewModel.play(summary.id, onPlaylistStarted)
+                                        },
+                                        onDelete = { deleteTarget = summary },
+                                        isSelectionMode = isSelectionMode,
+                                        isSelected = selectedIds.contains(summary.id),
+                                        onToggleSelected = { playlistListViewModel.toggleSelection(summary.id) },
+                                    )
+                                    DropdownMenu(
+                                        expanded = contextMenuFor == summary.id,
+                                        onDismissRequest = { contextMenuFor = null },
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.playlist_menu_export)) },
+                                            onClick = {
+                                                contextMenuFor = null
+                                                requestExport(listOf(summary.id))
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.playlist_menu_select)) },
+                                            onClick = {
+                                                contextMenuFor = null
+                                                playlistListViewModel.enterSelectionMode(summary.id)
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.playlist_menu_reorder)) },
+                                            onClick = {
+                                                contextMenuFor = null
+                                                playlistListViewModel.enterReorder()
+                                            },
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -472,6 +613,20 @@ fun PlaylistsScreen(
             onDismiss = { deleteTarget = null },
         )
     }
+
+    if (deleteSelectedTarget) {
+        val count = selectedIds.size
+        ConfirmDialog(
+            title = stringResource(R.string.playlist_delete_confirm_title),
+            text = context.getString(R.string.playlist_delete_selected_confirm, count),
+            confirmLabel = stringResource(R.string.action_delete_confirm),
+            onConfirm = {
+                playlistListViewModel.deleteSelected()
+                deleteSelectedTarget = false
+            },
+            onDismiss = { deleteSelectedTarget = false },
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -482,26 +637,43 @@ private fun PlaylistDrawerRow(
     onPlay: () -> Unit,
     onDelete: () -> Unit,
     onLongClick: () -> Unit,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelected: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(onClick = {
+                if (isSelectionMode) {
+                    onToggleSelected()
+                } else {
+                    onClick()
+                }
+            }, onLongClick = onLongClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PlaylistDrawerLabels(summary, Modifier.weight(1f))
-        IconButton(onClick = onPlay) {
-            Icon(
-                imageVector = Icons.Filled.PlayArrow,
-                contentDescription = stringResource(R.string.playlist_play),
+        if (isSelectionMode) {
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = { onToggleSelected() },
             )
         }
-        IconButton(onClick = onDelete) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = stringResource(R.string.playlist_delete_button),
-            )
+        PlaylistDrawerLabels(summary, Modifier.weight(1f))
+        if (!isSelectionMode) {
+            IconButton(onClick = onPlay) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = stringResource(R.string.playlist_play),
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.playlist_delete_button),
+                )
+            }
         }
     }
 }

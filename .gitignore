@@ -10,3 +10,9 @@ captures/
 .kotlin/
 AGENTS.md
 .plans
+
+# ключ подписи и пароли от него
+keystore.properties
+*.jks
+*.keystore
+*.pem

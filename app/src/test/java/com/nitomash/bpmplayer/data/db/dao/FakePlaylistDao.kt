@@ -4,6 +4,7 @@ import com.nitomash.bpmplayer.data.db.entity.PlaylistEntity
 import com.nitomash.bpmplayer.data.db.entity.PlaylistOrderEntity
 import com.nitomash.bpmplayer.data.db.entity.PlaylistTrackEntity
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
+import com.nitomash.bpmplayer.data.playlist.PlaylistNameRow
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackRow
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSort
@@ -55,6 +56,11 @@ class FakePlaylistDao : PlaylistDao {
 
     override fun observeById(playlistId: Long): Flow<PlaylistEntity?> =
         flowOf(playlistOf(playlistId))
+
+    override suspend fun getById(playlistId: Long): PlaylistEntity? = playlistOf(playlistId)
+
+    override suspend fun getNamesByIds(playlistIds: List<Long>): List<PlaylistNameRow> =
+        playlists.filter { it.id in playlistIds }.map { PlaylistNameRow(it.id, it.name) }
 
     override suspend fun getTrackSortMode(playlistId: Long): PlaylistTrackSort? =
         playlistOf(playlistId)?.trackSortMode

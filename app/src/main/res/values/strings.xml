@@ -135,6 +135,7 @@
     <string name="playlist_rename_title">Переименовать плейлист</string>
     <string name="playlist_rename_label">Название</string>
     <string name="playlist_selected_count">Выбрано: %1$d</string>
+    <string name="playlist_select_all">Выделить всё</string>
     <string name="playlist_remove_selected_confirm_title">Удалить выбранные треки?</string>
     <plurals name="playlist_remove_tracks_confirm_message">
         <item quantity="one">%1$d трек будет удалён из плейлиста</item>
@@ -151,6 +152,8 @@
     <string name="playlist_remove_track_confirm_title">Удалить трек?</string>
     <string name="playlist_remove_track_confirm_message">«%1$s» будет удалён из плейлиста</string>
 
+    <string name="playlist_delete_selected_confirm">Удалить выбранные плейлисты (%1$d)?</string>
+
     <string name="playlist_sort_menu">Сортировка</string>
     <string name="playlist_sort_custom">Свой порядок</string>
     <string name="playlist_sort_bpm_asc">По возрастанию BPM</string>
@@ -163,6 +166,21 @@
     <string name="playlist_reorder_hint">Перетащите элементы, чтобы изменить порядок</string>
     <string name="playlist_reorder_needs_two_tracks">Нужно хотя бы два трека</string>
     <string name="playlist_drag_handle">Перетащить</string>
+    <string name="playlist_menu_export">Экспортировать</string>
+    <string name="playlist_menu_select">Выделить</string>
+    <string name="playlist_menu_reorder">Изменить порядок</string>
+    <string name="playlist_export_done">Экспортировано плейлистов: %1$d</string>
+    <string name="playlist_export_partial">Экспортировано: %1$d, с ошибкой: %2$d</string>
+    <string name="playlist_export_none">Нечего экспортировать</string>
+    <string name="playlist_export_absolute_paths">%1$d треков записаны не относительными путями — они лежат на другой памяти или в недоступной папке</string>
+    <string name="playlist_import">Импорт плейлиста</string>
+    <string name="playlist_import_done">Импортирован «%1$s», треков: %2$d</string>
+    <string name="playlist_import_unmatched">%1$d треков не найдено в аудиотеке</string>
+    <string name="playlist_import_error_read">Не удалось прочитать файл</string>
+    <string name="playlist_import_error_format">Это не XSPF-плейлист</string>
+    <string name="playlist_import_error_empty">В плейлисте нет треков</string>
+    <string name="playlist_import_error_base">Не удалось определить папку с плейлистом</string>
+    <string name="playlist_import_error_no_matches">Ни один трек не найден в аудиотеке</string>
 
     <string name="player_open_playlist">Открыть плейлист</string>
 
