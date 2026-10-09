@@ -6,11 +6,16 @@ import androidx.lifecycle.viewModelScope
 import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.db.entity.FolderEntity
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
+import com.nitomash.bpmplayer.data.generation.resolvePlaylistIdsForGeneration
+import com.nitomash.bpmplayer.data.generation.selectTracksByFolders
+import com.nitomash.bpmplayer.data.generation.selectTracksByPlaylists
 import com.nitomash.bpmplayer.data.music.MusicRepository
-import com.nitomash.bpmplayer.data.music.resolveFolderIdsForGeneration
 import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.player.toPlayerTrack
+import com.nitomash.bpmplayer.data.playlist.PlaylistListSorter
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
+import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
+import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import com.nitomash.bpmplayer.domain.playlist.PlaylistGenerator
 import com.nitomash.bpmplayer.domain.playlist.PlaylistNameSpec
 import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
@@ -25,6 +30,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.DateFormat
@@ -35,6 +41,7 @@ import javax.inject.Inject
 class GeneratorViewModel @Inject constructor(
     private val repository: MusicRepository,
     private val playlistRepository: PlaylistRepository,
+    private val settingsRepository: SettingsRepository,
     private val playbackSession: PlaybackSession,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
@@ -62,12 +69,44 @@ class GeneratorViewModel @Inject constructor(
     val folders: StateFlow<List<FolderEntity>> = repository.observeFolders()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun generate(allFolders: Boolean, folderIds: Set<Long>, minText: String, maxText: String, countText: String, order: PlaylistOrder) {
+    val playlists: StateFlow<List<PlaylistSummary>> = combine(
+        playlistRepository.observePlaylists(),
+        settingsRepository.observe(),
+    ) { summaries, settings ->
+        PlaylistListSorter.sort(summaries, settings.playlistListSort)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun generate(
+        scope: GenerationScope,
+        allFolders: Boolean,
+        folderIds: Set<Long>,
+        allPlaylists: Boolean,
+        playlistIds: Set<Long>,
+        minText: String,
+        maxText: String,
+        countText: String,
+        order: PlaylistOrder,
+    ) {
         viewModelScope.launch {
             _generating.value = true
-            val resolvedIds = resolveFolderIdsForGeneration(repository.getFolders(), allFolders, folderIds)
-            val tracks = repository.getTracksWithBpm()
-                .filter { it.folderId in resolvedIds }
+            val tracks = when (scope) {
+                GenerationScope.FOLDERS -> selectTracksByFolders(
+                    allTracks = repository.getTracksWithBpm(),
+                    folders = repository.getFolders(),
+                    allFolders = allFolders,
+                    selectedIds = folderIds,
+                )
+
+                GenerationScope.PLAYLISTS -> {
+                    val ordered = PlaylistListSorter.sort(
+                        playlistRepository.getPlaylists(),
+                        settingsRepository.current().playlistListSort,
+                    )
+                    val resolvedIds = resolvePlaylistIdsForGeneration(ordered, allPlaylists, playlistIds)
+                    val tracksByPlaylist = resolvedIds.associateWith { playlistRepository.getTracksInDisplayOrder(it) }
+                    selectTracksByPlaylists(resolvedIds, tracksByPlaylist)
+                }
+            }
             val candidates = tracks.mapNotNull { track ->
                 track.bpm?.let { bpm -> PlaylistTrack(track.id, bpm) }
             }

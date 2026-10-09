@@ -2,8 +2,10 @@ package com.nitomash.bpmplayer.ui.playlists
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +30,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Menu
@@ -52,6 +56,9 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -91,6 +98,7 @@ import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
 import com.nitomash.bpmplayer.ui.common.BpmLog
 import com.nitomash.bpmplayer.ui.common.ConfirmDialog
 import com.nitomash.bpmplayer.ui.common.FolderMultiSelector
+import com.nitomash.bpmplayer.ui.common.PlaylistMultiSelector
 import com.nitomash.bpmplayer.ui.common.ReorderHandle
 import com.nitomash.bpmplayer.ui.common.ReorderHandleWidth
 import com.nitomash.bpmplayer.ui.common.ReorderRowShape
@@ -124,10 +132,14 @@ fun PlaylistsScreen(
     var maxText by rememberSaveable { mutableStateOf("") }
     var countText by rememberSaveable { mutableStateOf("") }
     var order by rememberSaveable { mutableStateOf(PlaylistOrder.RANDOM) }
+    var generationScope by rememberSaveable { mutableStateOf(GenerationScope.FOLDERS) }
     var allFolders by rememberSaveable { mutableStateOf(true) }
     var selectedFolderIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
+    var allPlaylists by rememberSaveable { mutableStateOf(true) }
+    var selectedPlaylistIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
 
     val folders by viewModel.folders.collectAsStateWithLifecycle()
+    val generationPlaylists by viewModel.playlists.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -473,7 +485,6 @@ fun PlaylistsScreen(
                     value = countText,
                     onValueChange = { countText = it },
                     label = { Text(stringResource(R.string.playlist_count_label)) },
-                    supportingText = { Text(stringResource(R.string.playlist_count_hint)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -513,32 +524,92 @@ fun PlaylistsScreen(
                     }
                 }
 
-                FolderMultiSelector(
-                    folders = folders,
-                    allSelected = allFolders,
-                    selectedIds = selectedFolderIds,
-                    onAllSelected = {
-                        allFolders = true
-                        selectedFolderIds = emptySet()
-                    },
-                    onToggleFolder = { folderId ->
-                        selectedFolderIds = if (folderId in selectedFolderIds) {
-                            selectedFolderIds - folderId
-                        } else {
-                            selectedFolderIds + folderId
+                var advancedExpanded by rememberSaveable { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { advancedExpanded = !advancedExpanded },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.playlist_advanced_settings),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = if (advancedExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = stringResource(
+                            if (advancedExpanded) R.string.library_collapse else R.string.library_expand,
+                        ),
+                    )
+                }
+                AnimatedVisibility(visible = advancedExpanded) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            GenerationScope.entries.forEachIndexed { index, option ->
+                                SegmentedButton(
+                                    selected = generationScope == option,
+                                    onClick = { generationScope = option },
+                                    shape = SegmentedButtonDefaults.itemShape(index, GenerationScope.entries.size),
+                                ) {
+                                    Text(stringResource(generationScopeLabelRes(option)))
+                                }
+                            }
                         }
-                        allFolders = false
-                        if (selectedFolderIds.isEmpty()) {
-                            allFolders = true
+                        when (generationScope) {
+                            GenerationScope.FOLDERS -> FolderMultiSelector(
+                                folders = folders,
+                                allSelected = allFolders,
+                                selectedIds = selectedFolderIds,
+                                onAllSelected = {
+                                    allFolders = true
+                                    selectedFolderIds = emptySet()
+                                },
+                                onToggleFolder = { folderId ->
+                                    selectedFolderIds = if (folderId in selectedFolderIds) {
+                                        selectedFolderIds - folderId
+                                    } else {
+                                        selectedFolderIds + folderId
+                                    }
+                                    allFolders = false
+                                    if (selectedFolderIds.isEmpty()) {
+                                        allFolders = true
+                                    }
+                                },
+                            )
+
+                            GenerationScope.PLAYLISTS -> PlaylistMultiSelector(
+                                playlists = generationPlaylists,
+                                allSelected = allPlaylists,
+                                selectedIds = selectedPlaylistIds,
+                                onAllSelected = {
+                                    allPlaylists = true
+                                    selectedPlaylistIds = emptySet()
+                                },
+                                onTogglePlaylist = { playlistId ->
+                                    selectedPlaylistIds = if (playlistId in selectedPlaylistIds) {
+                                        selectedPlaylistIds - playlistId
+                                    } else {
+                                        selectedPlaylistIds + playlistId
+                                    }
+                                    allPlaylists = false
+                                    if (selectedPlaylistIds.isEmpty()) {
+                                        allPlaylists = true
+                                    }
+                                },
+                            )
                         }
-                    },
-                )
+                    }
+                }
 
                 Button(
                     onClick = {
                         viewModel.generate(
+                            scope = generationScope,
                             allFolders = allFolders,
                             folderIds = selectedFolderIds,
+                            allPlaylists = allPlaylists,
+                            playlistIds = selectedPlaylistIds,
                             minText = minText,
                             maxText = maxText,
                             countText = countText,

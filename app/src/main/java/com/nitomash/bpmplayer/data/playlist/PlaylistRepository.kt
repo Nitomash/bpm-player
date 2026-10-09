@@ -11,6 +11,7 @@ interface PlaylistRepository {
 
     suspend fun getTracksInDisplayOrder(playlistId: Long): List<TrackEntity>
     suspend fun getTracksNotInPlaylist(playlistId: Long): List<TrackEntity>
+    suspend fun getPlaylists(): List<PlaylistSummary>
     suspend fun create(name: String): Long
     suspend fun getPlaylistNames(): List<String>
     suspend fun rename(playlistId: Long, name: String)

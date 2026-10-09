@@ -29,6 +29,9 @@ class PlaylistRepositoryImpl @Inject constructor(
     override suspend fun getTracksNotInPlaylist(playlistId: Long): List<TrackEntity> =
         playlistDao.getTracksNotInPlaylist(playlistId)
 
+    override suspend fun getPlaylists(): List<PlaylistSummary> =
+        playlistDao.observeSummaries().first()
+
     override suspend fun create(name: String): Long {
         val now = System.currentTimeMillis()
         return playlistDao.createPlaylist(

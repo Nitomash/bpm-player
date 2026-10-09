@@ -13,8 +13,12 @@
     <string name="playlist_folders_label">Папки</string>
     <string name="playlist_folders_all">Все</string>
     <string name="playlist_folders_empty">Нет добавленных папок</string>
+    <string name="playlist_source_folders">По папкам</string>
+    <string name="playlist_source_playlists">По плейлистам</string>
+    <string name="playlist_playlists_label">Плейлисты</string>
+    <string name="playlist_playlists_empty">Нет плейлистов</string>
+    <string name="playlist_advanced_settings">Продвинутые настройки</string>
     <string name="playlist_count_label">Количество треков</string>
-    <string name="playlist_count_hint">По умолчанию</string>
     <string name="playlist_order_label">Порядок</string>
     <string name="playlist_order_random">Случайно</string>
     <string name="playlist_order_ascending">По возрастанию</string>
