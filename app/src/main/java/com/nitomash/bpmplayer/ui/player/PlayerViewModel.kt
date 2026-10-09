@@ -6,14 +6,20 @@ import androidx.media3.common.Player
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.data.player.PlaybackSession
+import com.nitomash.bpmplayer.data.playlist.PlaylistListSorter
+import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
+import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
+import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -21,6 +27,8 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     private val playbackSession: PlaybackSession,
     private val musicRepository: MusicRepository,
+    private val playlistRepository: PlaylistRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     val isPlaying = playbackSession.isPlaying
@@ -58,6 +66,24 @@ class PlayerViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = null,
         )
+
+    val playlists: StateFlow<List<PlaylistSummary>> = combine(
+        playlistRepository.observePlaylists(),
+        settingsRepository.observe(),
+    ) { summaries, settings ->
+        PlaylistListSorter.sort(summaries, settings.playlistListSort)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
+    )
+
+    fun addCurrentTrackToPlaylist(playlistId: Long) {
+        val trackId = currentTrackId.value ?: return
+        viewModelScope.launch {
+            playlistRepository.addTracks(playlistId, listOf(trackId))
+        }
+    }
 
     fun togglePlayback() = playbackSession.togglePlayback()
 

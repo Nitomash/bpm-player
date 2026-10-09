@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -22,7 +24,10 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
+import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.ui.editor.BpmEditorDialog
 import com.nitomash.bpmplayer.ui.editor.formatBpm
 import com.nitomash.bpmplayer.ui.library.BpmEditorViewModel
@@ -119,7 +125,9 @@ fun PlayerScreen(
                 CurrentBpmBadge(
                     currentTrack = viewModel.currentTrack,
                     currentBpm = viewModel.currentBpm,
+                    playlists = viewModel.playlists,
                     onEditBpm = editorViewModel::show,
+                    onAddToPlaylist = viewModel::addCurrentTrackToPlaylist,
                 )
                 SeekBarRow(
                     positionMs = viewModel.positionMs,
@@ -200,10 +208,14 @@ private fun NowPlayingInfo(viewModel: PlayerViewModel) {
 private fun CurrentBpmBadge(
     currentTrack: StateFlow<TrackEntity?>,
     currentBpm: StateFlow<Double?>,
+    playlists: StateFlow<List<PlaylistSummary>>,
     onEditBpm: (TrackEntity) -> Unit,
+    onAddToPlaylist: (Long) -> Unit,
 ) {
     val track by currentTrack.collectAsStateWithLifecycle()
     val bpm by currentBpm.collectAsStateWithLifecycle()
+    val playlistItems by playlists.collectAsStateWithLifecycle()
+    var menuOpen by remember { mutableStateOf(false) }
 
     track?.let { current ->
         Row(
@@ -224,6 +236,50 @@ private fun CurrentBpmBadge(
                     contentDescription = stringResource(R.string.player_edit_bpm),
                     modifier = Modifier.size(20.dp),
                 )
+            }
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.player_add_to_playlist),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                ) {
+                    Text(
+                        text = stringResource(R.string.player_add_to_playlist),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    HorizontalDivider()
+                    if (playlistItems.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.playlist_empty_list)) },
+                            onClick = {},
+                            enabled = false,
+                        )
+                    } else {
+                        playlistItems.forEach { playlist ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = playlist.name,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    onAddToPlaylist(playlist.id)
+                                },
+                            )
+                        }
+                    }
+                }
             }
         }
     }
