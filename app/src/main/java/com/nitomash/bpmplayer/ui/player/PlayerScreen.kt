@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,10 +25,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,6 +54,7 @@ import androidx.media3.common.Player
 import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
+import com.nitomash.bpmplayer.ui.common.AddToPlaylistDropdown
 import com.nitomash.bpmplayer.ui.editor.BpmEditorDialog
 import com.nitomash.bpmplayer.ui.editor.formatBpm
 import com.nitomash.bpmplayer.ui.library.BpmEditorViewModel
@@ -126,8 +126,9 @@ fun PlayerScreen(
                     currentTrack = viewModel.currentTrack,
                     currentBpm = viewModel.currentBpm,
                     playlists = viewModel.playlists,
+                    playlistsContainingTrack = viewModel.playlistsContainingCurrentTrack,
                     onEditBpm = editorViewModel::show,
-                    onAddToPlaylist = viewModel::addCurrentTrackToPlaylist,
+                    onToggleInPlaylist = viewModel::toggleCurrentTrackInPlaylist,
                 )
                 SeekBarRow(
                     positionMs = viewModel.positionMs,
@@ -193,15 +194,20 @@ private fun NowPlayingInfo(viewModel: PlayerViewModel) {
         )
     }
 
-    Text(
-        text = currentTitle ?: stringResource(R.string.player_no_track),
-        style = MaterialTheme.typography.titleLarge,
-        maxLines = 1,
-        softWrap = false,
-        overflow = TextOverflow.Ellipsis,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.padding(top = 16.dp),
-    )
+    key(currentTitle) {
+        Text(
+            text = currentTitle ?: stringResource(R.string.player_no_track),
+            style = MaterialTheme.typography.titleLarge,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp)
+                .basicMarquee(repeatDelayMillis = 2000),
+        )
+    }
 }
 
 @Composable
@@ -209,12 +215,14 @@ private fun CurrentBpmBadge(
     currentTrack: StateFlow<TrackEntity?>,
     currentBpm: StateFlow<Double?>,
     playlists: StateFlow<List<PlaylistSummary>>,
+    playlistsContainingTrack: StateFlow<Set<Long>>,
     onEditBpm: (TrackEntity) -> Unit,
-    onAddToPlaylist: (Long) -> Unit,
+    onToggleInPlaylist: (Long) -> Unit,
 ) {
     val track by currentTrack.collectAsStateWithLifecycle()
     val bpm by currentBpm.collectAsStateWithLifecycle()
     val playlistItems by playlists.collectAsStateWithLifecycle()
+    val containing by playlistsContainingTrack.collectAsStateWithLifecycle()
     var menuOpen by remember { mutableStateOf(false) }
 
     track?.let { current ->
@@ -245,41 +253,16 @@ private fun CurrentBpmBadge(
                         modifier = Modifier.size(20.dp),
                     )
                 }
-                DropdownMenu(
+                AddToPlaylistDropdown(
                     expanded = menuOpen,
-                    onDismissRequest = { menuOpen = false },
-                ) {
-                    Text(
-                        text = stringResource(R.string.player_add_to_playlist),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                    HorizontalDivider()
-                    if (playlistItems.isEmpty()) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.playlist_empty_list)) },
-                            onClick = {},
-                            enabled = false,
-                        )
-                    } else {
-                        playlistItems.forEach { playlist ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = playlist.name,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                },
-                                onClick = {
-                                    menuOpen = false
-                                    onAddToPlaylist(playlist.id)
-                                },
-                            )
-                        }
-                    }
-                }
+                    playlists = playlistItems,
+                    containing = containing,
+                    onDismiss = { menuOpen = false },
+                    onToggle = { playlistId ->
+                        menuOpen = false
+                        onToggleInPlaylist(playlistId)
+                    },
+                )
             }
         }
     }

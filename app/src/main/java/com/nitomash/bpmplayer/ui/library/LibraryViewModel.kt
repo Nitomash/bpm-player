@@ -8,8 +8,13 @@ import com.nitomash.bpmplayer.data.db.entity.FolderEntity
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.data.music.SidecarSyncManager
+import com.nitomash.bpmplayer.data.playlist.PlaylistListSorter
+import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
+import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
+import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,15 +26,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val repository: MusicRepository,
     private val sidecarSync: SidecarSyncManager,
+    private val playlistRepository: PlaylistRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     val folders: StateFlow<List<FolderEntity>> = repository.observeFolders()
@@ -79,8 +89,44 @@ class LibraryViewModel @Inject constructor(
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryContent())
 
+    val playlists: StateFlow<List<PlaylistSummary>> = combine(
+        playlistRepository.observePlaylists(),
+        settingsRepository.observe(),
+    ) { summaries, settings ->
+        PlaylistListSorter.sort(summaries, settings.playlistListSort)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _menuTrackId = MutableStateFlow<Long?>(null)
+    val menuTrackId: StateFlow<Long?> = _menuTrackId.asStateFlow()
+
+    val playlistsContainingMenuTrack: StateFlow<Set<Long>> = _menuTrackId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(emptySet())
+            else playlistRepository.observePlaylistIdsContaining(id)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun openPlaylistMenu(trackId: Long) {
+        _menuTrackId.value = trackId
+    }
+
+    fun closePlaylistMenu() {
+        _menuTrackId.value = null
+    }
+
+    fun toggleTrackInPlaylist(trackId: Long, playlistId: Long) {
+        val isMember = playlistId in playlistsContainingMenuTrack.value
+        viewModelScope.launch {
+            if (isMember) {
+                playlistRepository.removeTracks(playlistId, setOf(trackId))
+            } else {
+                playlistRepository.addTracks(playlistId, listOf(trackId))
+            }
+        }
     }
 
     fun setFolderSort(folderId: Long, sort: TrackSort) {

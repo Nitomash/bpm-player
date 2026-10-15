@@ -107,6 +107,9 @@ class FakePlaylistDao : PlaylistDao {
 
     override suspend fun getTracksNotInPlaylist(playlistId: Long): List<TrackEntity> = emptyList()
 
+    override fun observePlaylistIdsForTrack(trackId: Long): Flow<List<Long>> =
+        flowOf(rows.filter { it.trackId == trackId }.map { it.playlistId })
+
     override suspend fun getMaxPosition(playlistId: Long): Int =
         rowsOf(playlistId).maxOfOrNull { it.position } ?: -1
 

@@ -78,10 +78,25 @@ class PlayerViewModel @Inject constructor(
         initialValue = emptyList(),
     )
 
-    fun addCurrentTrackToPlaylist(playlistId: Long) {
+    val playlistsContainingCurrentTrack: StateFlow<Set<Long>> = currentTrackId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(emptySet())
+            else playlistRepository.observePlaylistIdsContaining(id)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptySet(),
+        )
+
+    fun toggleCurrentTrackInPlaylist(playlistId: Long) {
         val trackId = currentTrackId.value ?: return
         viewModelScope.launch {
-            playlistRepository.addTracks(playlistId, listOf(trackId))
+            if (playlistId in playlistsContainingCurrentTrack.value) {
+                playlistRepository.removeTracks(playlistId, setOf(trackId))
+            } else {
+                playlistRepository.addTracks(playlistId, listOf(trackId))
+            }
         }
     }
 

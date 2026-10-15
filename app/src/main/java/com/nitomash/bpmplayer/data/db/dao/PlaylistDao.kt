@@ -89,6 +89,9 @@ interface PlaylistDao {
     )
     suspend fun getTracksNotInPlaylist(playlistId: Long): List<TrackEntity>
 
+    @Query("SELECT playlist_id FROM playlist_tracks WHERE track_id = :trackId")
+    fun observePlaylistIdsForTrack(trackId: Long): Flow<List<Long>>
+
     @Query("SELECT COALESCE(MAX(position), -1) FROM playlist_tracks WHERE playlist_id = :playlistId")
     suspend fun getMaxPosition(playlistId: Long): Int
 

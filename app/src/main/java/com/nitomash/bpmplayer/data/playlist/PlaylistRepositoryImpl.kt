@@ -6,6 +6,7 @@ import com.nitomash.bpmplayer.data.db.entity.PlaylistTrackEntity
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,6 +29,9 @@ class PlaylistRepositoryImpl @Inject constructor(
 
     override suspend fun getTracksNotInPlaylist(playlistId: Long): List<TrackEntity> =
         playlistDao.getTracksNotInPlaylist(playlistId)
+
+    override fun observePlaylistIdsContaining(trackId: Long): Flow<Set<Long>> =
+        playlistDao.observePlaylistIdsForTrack(trackId).map { it.toSet() }
 
     override suspend fun getPlaylists(): List<PlaylistSummary> =
         playlistDao.observeSummaries().first()

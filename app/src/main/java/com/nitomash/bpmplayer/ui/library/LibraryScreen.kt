@@ -55,6 +55,7 @@ import com.nitomash.bpmplayer.data.db.entity.FolderEntity
 import com.nitomash.bpmplayer.data.music.SIDECAR_EXTENSION
 import com.nitomash.bpmplayer.data.music.SIDECAR_MIME
 import com.nitomash.bpmplayer.data.music.safeFileName
+import com.nitomash.bpmplayer.ui.common.AddToPlaylistDropdown
 import com.nitomash.bpmplayer.ui.common.SearchField
 import com.nitomash.bpmplayer.ui.common.TrackRow
 import com.nitomash.bpmplayer.ui.editor.BpmEditorDialog
@@ -81,6 +82,9 @@ fun LibraryScreen(
     val collapsedFolders by viewModel.collapsedFolders.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val filterQuery by viewModel.filterQuery.collectAsStateWithLifecycle()
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val menuTrackId by viewModel.menuTrackId.collectAsStateWithLifecycle()
+    val containing by viewModel.playlistsContainingMenuTrack.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     var folderToDelete by remember { mutableStateOf<FolderEntity?>(null) }
@@ -279,12 +283,25 @@ fun LibraryScreen(
                                     items = content.tracksOf(folder.id),
                                     key = { "track-${it.id}" },
                                 ) { track ->
-                                    TrackRow(
-                                        title = track.title,
-                                        bpm = track.bpm,
-                                        bpmSource = track.bpmSource,
-                                        onClick = { editorViewModel.open(track) },
-                                    )
+                                    Box {
+                                        TrackRow(
+                                            title = track.title,
+                                            bpm = track.bpm,
+                                            bpmSource = track.bpmSource,
+                                            onClick = { editorViewModel.open(track) },
+                                            onLongClick = { viewModel.openPlaylistMenu(track.id) },
+                                        )
+                                        AddToPlaylistDropdown(
+                                            expanded = menuTrackId == track.id,
+                                            playlists = playlists,
+                                            containing = containing,
+                                            onDismiss = viewModel::closePlaylistMenu,
+                                            onToggle = { playlistId ->
+                                                viewModel.toggleTrackInPlaylist(track.id, playlistId)
+                                                viewModel.closePlaylistMenu()
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         }

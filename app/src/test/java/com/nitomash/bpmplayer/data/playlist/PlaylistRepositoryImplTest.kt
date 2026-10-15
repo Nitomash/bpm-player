@@ -3,6 +3,7 @@ package com.nitomash.bpmplayer.data.playlist
 import com.nitomash.bpmplayer.data.db.dao.FakePlaylistDao
 import com.nitomash.bpmplayer.data.db.entity.PlaylistTrackEntity
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -129,6 +130,28 @@ class PlaylistRepositoryImplTest {
             listOf(0 to 10L, 1 to 11L),
             dao.rowsOf(id).map { it.position to it.trackId },
         )
+    }
+
+    @Test
+    fun `playlist ids containing a track report every membership`() = runBlocking {
+        val first = repository.create("Первый")
+        val second = repository.create("Второй")
+        repository.addTracks(first, listOf(10L))
+        repository.addTracks(second, listOf(10L, 20L))
+
+        assertEquals(setOf(first, second), repository.observePlaylistIdsContaining(10L).first())
+        assertEquals(setOf(second), repository.observePlaylistIdsContaining(20L).first())
+        assertTrue(repository.observePlaylistIdsContaining(99L).first().isEmpty())
+    }
+
+    @Test
+    fun `playlist ids containing a track drop it after removal`() = runBlocking {
+        val id = repository.create("Плейлист")
+        repository.addTracks(id, listOf(10L))
+
+        repository.removeTracks(id, setOf(10L))
+
+        assertTrue(repository.observePlaylistIdsContaining(10L).first().isEmpty())
     }
 
     @Test
