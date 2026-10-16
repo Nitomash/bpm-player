@@ -33,7 +33,7 @@ fun AddToPlaylistDropdown(
     ) {
         Text(
             text = stringResource(R.string.player_add_to_playlist),
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )

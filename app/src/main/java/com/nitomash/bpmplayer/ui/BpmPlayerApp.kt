@@ -13,7 +13,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -81,35 +83,37 @@ fun BpmPlayerApp() {
             startDestination = TopLevelDestination.LIBRARY.route,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(TopLevelDestination.LIBRARY.route) {
+            composable(TopLevelDestination.LIBRARY.route) { entry ->
                 LibraryScreen(
                     onOpenMassBpm = { scope, folderIds ->
-                        navController.navigate(MassBpmViewModel.route(scope, folderIds))
+                        if (entry.isForeground()) navController.navigate(MassBpmViewModel.route(scope, folderIds))
                     },
-                    onOpenSettings = { navController.navigate(SETTINGS_ROUTE) },
-                    onOpenAbout = { navController.navigate(ABOUT_ROUTE) },
+                    onOpenSettings = { if (entry.isForeground()) navController.navigate(SETTINGS_ROUTE) },
+                    onOpenAbout = { if (entry.isForeground()) navController.navigate(ABOUT_ROUTE) },
                 )
             }
-            composable(TopLevelDestination.PLAYLISTS.route) {
+            composable(TopLevelDestination.PLAYLISTS.route) { entry ->
                 PlaylistsScreen(
                     onOpenPlaylist = { playlistId ->
-                        navController.navigate(PlaylistDetailViewModel.route(playlistId))
+                        if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId))
                     },
                     onPlaylistStarted = {
-                        navController.navigate(TopLevelDestination.PLAYER.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                        if (entry.isForeground()) {
+                            navController.navigate(TopLevelDestination.PLAYER.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                            launchSingleTop = true
-                            restoreState = true
                         }
                     },
                 )
             }
-            composable(TopLevelDestination.PLAYER.route) {
+            composable(TopLevelDestination.PLAYER.route) { entry ->
                 PlayerScreen(
                     onOpenPlaylist = { playlistId ->
-                        navController.navigate(PlaylistDetailViewModel.route(playlistId))
+                        if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId))
                     },
                 )
             }
@@ -125,10 +129,10 @@ fun BpmPlayerApp() {
                         defaultValue = ""
                     },
                 ),
-            ) {
+            ) { entry ->
                 MassBpmScreen(
-                    onDiscard = { navController.popBackStack() },
-                    onSaved = { navController.popBackStack() },
+                    onDiscard = { if (entry.isForeground()) navController.popBackStack() },
+                    onSaved = { if (entry.isForeground()) navController.popBackStack() },
                 )
             }
             composable(
@@ -138,11 +142,11 @@ fun BpmPlayerApp() {
                         type = NavType.LongType
                     },
                 ),
-            ) {
+            ) { entry ->
                 PlaylistDetailScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { if (entry.isForeground()) navController.popBackStack() },
                     onAddTracks = { playlistId ->
-                        navController.navigate(AddTracksViewModel.route(playlistId))
+                        if (entry.isForeground()) navController.navigate(AddTracksViewModel.route(playlistId))
                     },
                 )
             }
@@ -153,29 +157,32 @@ fun BpmPlayerApp() {
                         type = NavType.LongType
                     },
                 ),
-            ) {
+            ) { entry ->
                 AddTracksScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { if (entry.isForeground()) navController.popBackStack() },
                 )
             }
-            composable(ABOUT_ROUTE) {
+            composable(ABOUT_ROUTE) { entry ->
                 AboutScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { if (entry.isForeground()) navController.popBackStack() },
                 )
             }
-            composable(SETTINGS_ROUTE) {
+            composable(SETTINGS_ROUTE) { entry ->
                 val settingsViewModel: SettingsViewModel = hiltViewModel()
                 val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
                 val value = settings ?: return@composable
                 SettingsScreen(
                     settings = value,
                     onDetectorRangeChange = settingsViewModel::setDetectorRange,
-                    onBack = { navController.popBackStack() },
+                    onBack = { if (entry.isForeground()) navController.popBackStack() },
                 )
             }
         }
     }
 }
+
+private fun NavBackStackEntry.isForeground(): Boolean =
+    lifecycle.currentState == Lifecycle.State.RESUMED
 
 private val TOP_BAR_HIDDEN_ROUTES = listOf(
     MassBpmViewModel.ROUTE,

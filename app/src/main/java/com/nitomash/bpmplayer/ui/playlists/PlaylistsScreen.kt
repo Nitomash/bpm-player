@@ -95,7 +95,6 @@ import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.data.playlist.xspf.XspfImportError
 import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
-import com.nitomash.bpmplayer.ui.common.BpmLog
 import com.nitomash.bpmplayer.ui.common.ConfirmDialog
 import com.nitomash.bpmplayer.ui.common.FolderMultiSelector
 import com.nitomash.bpmplayer.ui.common.PlaylistMultiSelector
