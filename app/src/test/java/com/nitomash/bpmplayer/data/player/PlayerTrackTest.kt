@@ -30,6 +30,7 @@ class PlayerTrackTest {
         assertEquals(track().id, playerTrack.trackId)
         assertEquals(track().accessUri, playerTrack.uri)
         assertEquals(track().title, playerTrack.title)
+        assertEquals(track().durationMs, playerTrack.durationMs)
     }
 
     @Test
@@ -38,5 +39,6 @@ class PlayerTrackTest {
         assertEquals(42L, playerTrack.trackId)
         assertEquals("content://tree/x/y", playerTrack.uri)
         assertEquals("Neon", playerTrack.title)
+        assertEquals(180_000L, playerTrack.durationMs)
     }
 }

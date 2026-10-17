@@ -2,6 +2,7 @@ package com.nitomash.bpmplayer.data.settings
 
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
@@ -12,6 +13,9 @@ object SettingsMapper {
     private val DETECTOR_MIN_BPM_KEY = doublePreferencesKey("detector_min_bpm")
     private val DETECTOR_MAX_BPM_KEY = doublePreferencesKey("detector_max_bpm")
     private val PLAYLIST_LIST_SORT_KEY = intPreferencesKey("playlist_list_sort")
+    private val PLAYBACK_PROCESSING_KEY = booleanPreferencesKey("playback_processing_enabled")
+    private val PLAYBACK_LIMIT_KEY = intPreferencesKey("playback_limit_seconds")
+    private val PLAYBACK_GAP_KEY = intPreferencesKey("playback_gap_seconds")
 
     fun toSettings(prefs: Preferences): AppSettings {
         val defaults = AppSettings()
@@ -25,6 +29,16 @@ object SettingsMapper {
             playlistListSort = prefs[PLAYLIST_LIST_SORT_KEY]
                 ?.let { PlaylistListSort.fromValue(it) }
                 ?: defaults.playlistListSort,
+            playbackProcessingEnabled = prefs[PLAYBACK_PROCESSING_KEY]
+                ?: defaults.playbackProcessingEnabled,
+            playbackLimitSeconds = normalizePlaybackSeconds(
+                prefs[PLAYBACK_LIMIT_KEY] ?: defaults.playbackLimitSeconds,
+                AppSettings.PLAYBACK_LIMIT_MAX,
+            ),
+            playbackGapSeconds = normalizePlaybackSeconds(
+                prefs[PLAYBACK_GAP_KEY] ?: defaults.playbackGapSeconds,
+                AppSettings.PLAYBACK_GAP_MAX,
+            ),
         )
     }
 
@@ -34,7 +48,18 @@ object SettingsMapper {
         prefs[DETECTOR_MIN_BPM_KEY] = range.first
         prefs[DETECTOR_MAX_BPM_KEY] = range.second
         prefs[PLAYLIST_LIST_SORT_KEY] = settings.playlistListSort.value
+        prefs[PLAYBACK_PROCESSING_KEY] = settings.playbackProcessingEnabled
+        prefs[PLAYBACK_LIMIT_KEY] = normalizePlaybackSeconds(
+            settings.playbackLimitSeconds,
+            AppSettings.PLAYBACK_LIMIT_MAX,
+        )
+        prefs[PLAYBACK_GAP_KEY] = normalizePlaybackSeconds(
+            settings.playbackGapSeconds,
+            AppSettings.PLAYBACK_GAP_MAX,
+        )
     }
+
+    fun normalizePlaybackSeconds(value: Int, max: Int): Int = value.coerceIn(0, max)
 
     fun normalizeRange(min: Double, max: Double): Pair<Double, Double> {
         val lowestMin = AppSettings.BPM_LIMIT_MIN

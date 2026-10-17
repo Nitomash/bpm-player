@@ -72,6 +72,7 @@ fun PlayerScreen(
     val queueSize by viewModel.queueSize.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
     val currentPlaylistId by viewModel.currentPlaylistId.collectAsStateWithLifecycle()
+    val appSettings by viewModel.appSettings.collectAsStateWithLifecycle()
     val selectedTrack by editorViewModel.selectedTrack.collectAsStateWithLifecycle()
     val editorAutoDetect by editorViewModel.autoDetectState.collectAsStateWithLifecycle()
 
@@ -150,6 +151,14 @@ fun PlayerScreen(
                 onTogglePlayback = viewModel::togglePlayback,
                 onNext = viewModel::next,
                 onCycleRepeat = viewModel::cycleRepeat,
+            )
+
+            IntervalPlaybackControl(
+                settings = appSettings,
+                onEnabledChange = viewModel::setPlaybackProcessingEnabled,
+                onLimitCommit = viewModel::setPlaybackLimitSeconds,
+                onGapCommit = viewModel::setPlaybackGapSeconds,
+                modifier = Modifier.padding(top = 24.dp),
             )
         }
     }

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class SettingsMapperTest {
@@ -122,5 +123,72 @@ class SettingsMapperTest {
         SettingsMapper.write(prefs, SettingsMapper.toSettings(prefs))
 
         assertEquals(PlaylistListSort.CUSTOM, SettingsMapper.toSettings(prefs).playlistListSort)
+    }
+
+    @Test
+    fun `playback settings default to disabled with 90s limit and 10s gap`() {
+        val settings = SettingsMapper.toSettings(emptyPreferences())
+
+        assertFalse(settings.playbackProcessingEnabled)
+        assertEquals(90, settings.playbackLimitSeconds)
+        assertEquals(10, settings.playbackGapSeconds)
+    }
+
+    @Test
+    fun `playback settings are written and read back`() {
+        val prefs = mutablePreferencesOf()
+
+        SettingsMapper.write(
+            prefs,
+            AppSettings(
+                playbackProcessingEnabled = false,
+                playbackLimitSeconds = 45,
+                playbackGapSeconds = 12,
+            ),
+        )
+
+        val settings = SettingsMapper.toSettings(prefs)
+        assertFalse(settings.playbackProcessingEnabled)
+        assertEquals(45, settings.playbackLimitSeconds)
+        assertEquals(12, settings.playbackGapSeconds)
+    }
+
+    @Test
+    fun `playback seconds are clamped to limits`() {
+        val prefs = mutablePreferencesOf(
+            intPreferencesKey("playback_limit_seconds") to -5,
+            intPreferencesKey("playback_gap_seconds") to 100_000,
+        )
+
+        val settings = SettingsMapper.toSettings(prefs)
+
+        assertEquals(0, settings.playbackLimitSeconds)
+        assertEquals(AppSettings.PLAYBACK_GAP_MAX, settings.playbackGapSeconds)
+    }
+
+    @Test
+    fun `write clamps playback seconds`() {
+        val prefs = mutablePreferencesOf()
+
+        SettingsMapper.write(
+            prefs,
+            AppSettings(playbackLimitSeconds = 999_999, playbackGapSeconds = -1),
+        )
+
+        val settings = SettingsMapper.toSettings(prefs)
+        assertEquals(AppSettings.PLAYBACK_LIMIT_MAX, settings.playbackLimitSeconds)
+        assertEquals(0, settings.playbackGapSeconds)
+    }
+
+    @Test
+    fun `playback flag survives writing other settings`() {
+        val prefs = mutablePreferencesOf()
+        SettingsMapper.write(prefs, AppSettings(playbackProcessingEnabled = false, playbackLimitSeconds = 30))
+
+        SettingsMapper.write(prefs, SettingsMapper.toSettings(prefs).copy(detectorMinBpm = 120.0))
+
+        val settings = SettingsMapper.toSettings(prefs)
+        assertFalse(settings.playbackProcessingEnabled)
+        assertEquals(30, settings.playbackLimitSeconds)
     }
 }

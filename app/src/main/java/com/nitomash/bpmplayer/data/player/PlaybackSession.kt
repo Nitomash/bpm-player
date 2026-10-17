@@ -6,10 +6,12 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,12 +29,16 @@ import javax.inject.Singleton
 @Singleton
 class PlaybackSession @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val settingsRepository: SettingsRepository,
 ) {
     private var controller: MediaController? = null
     private var pendingAction: ((MediaController) -> Unit)? = null
     private var tickerJob: Job? = null
+    private var gapJob: Job? = null
     private var mode: Mode = Mode.Empty
     private var previewSnapshot: QueueSnapshot? = null
+    private var currentQueue: List<PlayerTrack>? = null
+    private var appliedLimits: PlaybackLimits? = null
     @Volatile
     private var stopOnTrackEnd = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -79,6 +85,19 @@ class PlaybackSession @Inject constructor(
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
+    private val _gapActive = MutableStateFlow(false)
+    val gapActive: StateFlow<Boolean> = _gapActive.asStateFlow()
+
+    private val _limits = MutableStateFlow(PlaybackLimits())
+
+    init {
+        scope.launch {
+            settingsRepository.observe().collect { settings ->
+                onLimitsChanged(settings.toPlaybackLimits())
+            }
+        }
+    }
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
@@ -92,6 +111,7 @@ class PlaybackSession @Inject constructor(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val previousTrackId = _currentTrackId.value
+            restoreVolume()
             updateNavigation()
             if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                 if (_currentTrackId.value != previousTrackId) {
@@ -102,6 +122,13 @@ class PlaybackSession @Inject constructor(
                     controller?.pause()
                 }
             }
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (playWhenReady) return
+            if (reason != Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) return
+            Log.i(TAG, "player paused at end of item (mode=$mode, stopOnTrackEnd=$stopOnTrackEnd)")
+            onPlayerPausedAtItemEnd()
         }
 
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
@@ -124,13 +151,19 @@ class PlaybackSession @Inject constructor(
                 restoreQueue()
             }
         }
+
+        override fun onPlayerError(error: PlaybackException) {
+            cancelGap()
+        }
     }
 
     fun openQueue(items: List<PlayerTrack>, playlistId: Long? = null, startIndex: Int = 0) {
         if (items.isEmpty()) return
         val start = startIndex.coerceIn(0, items.lastIndex)
         Log.i(TAG, "openQueue: ${items.size} items")
+        cancelGap()
         mode = Mode.Playlist
+        currentQueue = items
         _isPreview.value = false
         _previewTrackId.value = null
         _currentPlaylistId.value = playlistId
@@ -147,6 +180,7 @@ class PlaybackSession @Inject constructor(
 
     fun previewTrack(track: PlayerTrack) {
         Log.i(TAG, "previewTrack: ${track.title}")
+        cancelGap()
         val snapshot = if (mode == Mode.Preview) previewSnapshot else captureQueue()
         mode = Mode.Preview
         _isPreview.value = true
@@ -195,21 +229,24 @@ class PlaybackSession @Inject constructor(
         _previewTrackId.value = null
         previewSnapshot = null
         pendingAction = null
+        cancelGap()
         if (current == null) return
         if (snapshot == null) {
             Log.i(TAG, "preview ended, nothing to restore, stopping")
+            currentQueue = null
             current.stop()
             current.clearMediaItems()
             return
         }
+        val items = currentQueue?.let(::buildQueueItems) ?: snapshot.items
         Log.i(
             TAG,
-            "preview ended, restoring ${snapshot.items.size} items to ${snapshot.restoreIndex} " +
+            "preview ended, restoring ${items.size} items to ${snapshot.restoreIndex} " +
                 "at ${snapshot.restorePositionMs}ms wasPlaying=${snapshot.wasPlaying}",
         )
         current.setMediaItems(
-            snapshot.items,
-            snapshot.restoreIndex.coerceIn(0, snapshot.items.lastIndex),
+            items,
+            snapshot.restoreIndex.coerceIn(0, items.lastIndex),
             snapshot.restorePositionMs,
         )
         if (current.playbackState == Player.STATE_IDLE) current.prepare()
@@ -261,7 +298,7 @@ class PlaybackSession @Inject constructor(
     private fun applyQueue(player: MediaController, items: List<PlayerTrack>, startIndex: Int) {
         Log.i(TAG, "applying queue of ${items.size} items")
         player.setMediaItems(
-            items.map { it.toMediaItem() },
+            buildQueueItems(items),
             startIndex,
             0L,
         )
@@ -269,12 +306,100 @@ class PlaybackSession @Inject constructor(
         player.play()
     }
 
+    private fun buildQueueItems(items: List<PlayerTrack>): List<MediaItem> =
+        items.map { it.toMediaItem() }
+
+    private fun onLimitsChanged(limits: PlaybackLimits) {
+        val previous = appliedLimits
+        appliedLimits = limits
+        _limits.value = limits
+        Log.i(
+            TAG,
+            "limits changed: enabled=${limits.enabled} limit=${limits.limitSeconds}s " +
+                "gap=${limits.gapSeconds}s mode=$mode",
+        )
+        if (previous != null && previous != limits) {
+            restartCurrentTrack()
+        }
+    }
+
+    private fun restartCurrentTrack() {
+        val current = controller ?: return
+        if (current.mediaItemCount == 0 || current.playbackState == Player.STATE_IDLE) return
+        Log.i(TAG, "interval settings changed, restarting current track from 0")
+        cancelGap()
+        current.pause()
+        current.seekTo(0L)
+        _positionMs.value = 0L
+    }
+
+    private fun onPlayerPausedAtItemEnd() {
+        val current = controller
+        if (mode == Mode.Preview) {
+            restoreQueue()
+            return
+        }
+        if (current == null || !current.hasNextMediaItem()) {
+            Log.i(TAG, "item ended without a next one, not starting a gap (mode=$mode)")
+            return
+        }
+        if (
+            !shouldStartGap(
+                limits = _limits.value,
+                isPlaylistMode = mode == Mode.Playlist,
+                stopOnTrackEnd = stopOnTrackEnd,
+            )
+        ) {
+            return
+        }
+        advanceToNextItem()
+        startGap()
+    }
+
+    private fun advanceToNextItem() {
+        val current = controller ?: return
+        if (
+            !shouldAdvanceToNextItem(
+                hasNext = current.hasNextMediaItem(),
+                positionMs = current.currentPosition,
+                durationMs = current.duration,
+            )
+        ) {
+            return
+        }
+        Log.i(TAG, "moving to next item before the gap")
+        current.seekToNextMediaItem()
+    }
+
+    private fun startGap() {
+        val gapMs = _limits.value.gapSeconds.toLong() * 1000L
+        if (gapMs <= 0L) return
+        Log.i(TAG, "starting gap of ${gapMs}ms")
+        controller?.pause()
+        _gapActive.value = true
+        gapJob?.cancel()
+        gapJob = scope.launch {
+            delay(gapMs)
+            _gapActive.value = false
+            controller?.play()
+        }
+    }
+
+    private fun cancelGap() {
+        gapJob?.cancel()
+        gapJob = null
+        _gapActive.value = false
+        restoreVolume()
+    }
+
     fun pause() {
+        cancelGap()
         controller?.pause()
     }
 
     fun togglePlayback() {
         val current = controller ?: return
+        cancelGap()
         if (current.isPlaying) current.pause() else current.play()
     }
 
@@ -283,6 +408,7 @@ class PlaybackSession @Inject constructor(
         if (current != null) {
             val targetId = if (_isPreview.value) _previewTrackId.value else _currentTrackId.value
             if (current.mediaItemCount > 0 && targetId == track.trackId && !isAtTrackEnd(current)) {
+                cancelGap()
                 if (current.isPlaying) current.pause() else current.play()
                 return
             }
@@ -296,10 +422,12 @@ class PlaybackSession @Inject constructor(
     }
 
     fun next() {
+        cancelGap()
         controller?.seekToNextMediaItem()
     }
 
     fun previous() {
+        cancelGap()
         controller?.seekToPreviousMediaItem()
     }
 
@@ -320,8 +448,11 @@ class PlaybackSession @Inject constructor(
     fun seekTo(positionMs: Long) {
         val current = controller ?: return
         if (current.isPlayingAd) return
+        val wasGapActive = _gapActive.value
+        cancelGap()
         current.seekTo(positionMs)
         _positionMs.value = positionMs.coerceIn(0L, _durationMs.value.coerceAtLeast(positionMs))
+        if (wasGapActive) current.play()
     }
 
     fun skipForward() {
@@ -342,8 +473,71 @@ class PlaybackSession @Inject constructor(
         tickerJob = scope.launch {
             while (isActive) {
                 refreshPosition()
-                delay(TICKER_INTERVAL_MS)
+                enforceClipLimit()
+                val fading = applyClipFade()
+                delay(if (fading) FADE_STEP_MS else TICKER_INTERVAL_MS)
             }
+        }
+    }
+
+    private fun applyClipFade(): Boolean {
+        val current = controller ?: return false
+        val volume = clipFadeVolume(
+            limits = _limits.value,
+            positionMs = current.currentPosition,
+            durationMs = current.duration,
+            isPlaylistMode = mode == Mode.Playlist,
+            stopOnTrackEnd = stopOnTrackEnd,
+        )
+        if (volume == null) {
+            restoreVolume()
+            return false
+        }
+        if (current.volume != volume) current.volume = volume
+        return volume > 0f
+    }
+
+    private fun restoreVolume() {
+        val current = controller ?: return
+        if (current.volume != 1f) current.volume = 1f
+    }
+
+    private fun enforceClipLimit() {
+        val current = controller ?: return
+        val limits = _limits.value
+        val positionMs = current.currentPosition
+        if (
+            !shouldClipNow(
+                limits = limits,
+                positionMs = positionMs,
+                durationMs = current.duration,
+                isPlaylistMode = mode == Mode.Playlist,
+                gapActive = _gapActive.value,
+                stopOnTrackEnd = stopOnTrackEnd,
+                isPlaying = current.isPlaying,
+            )
+        ) {
+            return
+        }
+        val limitMs = limits.limitSeconds.toLong() * SECOND_MS
+        Log.i(TAG, "clip limit reached at ${positionMs}ms (limit ${limitMs}ms), advancing")
+        current.pause()
+        restoreVolume()
+        if (current.hasNextMediaItem()) {
+            current.seekToNextMediaItem()
+            if (
+                shouldStartGap(
+                    limits = limits,
+                    isPlaylistMode = true,
+                    stopOnTrackEnd = false,
+                )
+            ) {
+                startGap()
+            } else {
+                current.play()
+            }
+        } else {
+            current.seekTo(limitMs)
         }
     }
 
@@ -389,7 +583,9 @@ class PlaybackSession @Inject constructor(
 
     private companion object {
         const val TAG = "BpmPlayback"
-        const val TICKER_INTERVAL_MS = 500L
+        const val TICKER_INTERVAL_MS = 250L
+        const val FADE_STEP_MS = 50L
+        const val SECOND_MS = 1000L
         const val SKIP_FORWARD_STEP_MS = 15_000L
         const val TRACK_END_TOLERANCE_MS = 1_000L
     }

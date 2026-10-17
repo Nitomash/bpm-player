@@ -6,7 +6,8 @@ data class PlayerTrack(
     val trackId: Long,
     val uri: String,
     val title: String,
+    val durationMs: Long = 0L,
 )
 
 fun TrackEntity.toPlayerTrack(): PlayerTrack =
-    PlayerTrack(trackId = id, uri = accessUri, title = title)
+    PlayerTrack(trackId = id, uri = accessUri, title = title, durationMs = durationMs)

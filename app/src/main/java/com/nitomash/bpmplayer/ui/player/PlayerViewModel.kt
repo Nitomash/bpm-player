@@ -9,6 +9,7 @@ import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSorter
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
+import com.nitomash.bpmplayer.data.settings.AppSettings
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -44,6 +45,9 @@ class PlayerViewModel @Inject constructor(
     val durationMs = playbackSession.durationMs
     val currentTrackId = playbackSession.currentTrackId
     val currentPlaylistId = playbackSession.currentPlaylistId
+
+    val appSettings: StateFlow<AppSettings> = settingsRepository.observe()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
     val currentBpm: StateFlow<Double?> = currentTrackId
         .flatMapLatest { id ->
@@ -101,6 +105,26 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun togglePlayback() = playbackSession.togglePlayback()
+
+    fun setPlaybackProcessingEnabled(enabled: Boolean) {
+        updateSettings { it.copy(playbackProcessingEnabled = enabled) }
+    }
+
+    fun setPlaybackLimitSeconds(seconds: Int) {
+        updateSettings {
+            it.copy(playbackLimitSeconds = seconds.coerceIn(0, AppSettings.PLAYBACK_LIMIT_MAX))
+        }
+    }
+
+    fun setPlaybackGapSeconds(seconds: Int) {
+        updateSettings {
+            it.copy(playbackGapSeconds = seconds.coerceIn(0, AppSettings.PLAYBACK_GAP_MAX))
+        }
+    }
+
+    private fun updateSettings(transform: (AppSettings) -> AppSettings) {
+        viewModelScope.launch { settingsRepository.update(transform) }
+    }
 
     fun next() = playbackSession.next()
 

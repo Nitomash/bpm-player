@@ -42,6 +42,10 @@
     <string name="player_loop_off">Повтор выключен</string>
     <string name="player_loop_all">Повтор всего</string>
     <string name="player_loop_one">Повтор трека</string>
+    <string name="player_interval_off">Интервальное воспроизведение отключено</string>
+    <string name="player_interval_prefix">Интервал</string>
+    <string name="player_interval_middle">сек трека с паузой</string>
+    <string name="player_interval_end">сек</string>
     <plurals name="playlist_result_count">
         <item quantity="one">Плейлист: %d трек</item>
         <item quantity="few">Плейлист: %d трека</item>
