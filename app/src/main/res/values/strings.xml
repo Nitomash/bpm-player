@@ -204,6 +204,7 @@
     <string name="settings_detector_reset">Сбросить</string>
 
     <string name="about_title">О приложении</string>
+    <string name="about_version">Версия: %1$s</string>
     <string name="about_build_date">Дата сборки: %1$s</string>
     <string name="about_made_with">Создано с помощью Big Pickle</string>
     <string name="about_author">@nitomash</string>

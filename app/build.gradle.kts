@@ -16,6 +16,9 @@ val keystoreProperties = Properties().apply {
 }
 val hasReleaseSigning = keystoreProperties.getProperty("storeFile") != null
 
+val appVersionCode = (property("appVersionCode") as String).toInt()
+val appVersionName = property("appVersionName") as String
+
 android {
     namespace = "com.nitomash.bpmplayer"
     compileSdk = 36
@@ -24,8 +27,8 @@ android {
         applicationId = "com.nitomash.bpmplayer"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         buildConfigField("String", "BUILD_DATE", "\"${LocalDate.now()}\"")
     }
 
@@ -73,7 +76,11 @@ androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
             (output as VariantOutputImpl).outputFileName.set(
-                if (variant.buildType == "release") "bpm-player.apk" else "bpm-player-${variant.name}.apk",
+                if (variant.buildType == "release") {
+                    "bpm-player_v$appVersionName.apk"
+                } else {
+                    "bpm-player-${variant.name}_v$appVersionName.apk"
+                },
             )
         }
     }
