@@ -2,16 +2,23 @@ package com.nitomash.bpmplayer.data.playlist.export
 
 import com.nitomash.bpmplayer.data.db.dao.FolderDao
 import com.nitomash.bpmplayer.data.db.dao.PlaylistDao
+import com.nitomash.bpmplayer.data.db.entity.BpmSource
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSort
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSorter
 import javax.inject.Inject
 import javax.inject.Singleton
 
 data class ExportTrack(
+    val trackId: Long,
     val title: String,
     val fileName: String,
     val relativePath: String,
     val folderRootUri: String,
+    val accessUri: String,
+    val artist: String,
+    val durationMs: Long,
+    val bpm: Double?,
+    val bpmSource: BpmSource?,
 )
 
 data class ExportPlaylist(
@@ -49,10 +56,16 @@ class PlaylistExportSource @Inject constructor(
         return PlaylistTrackSorter.sort(rows, sort).mapNotNull { row ->
             val rootUri = folderRoots[row.track.folderId] ?: return@mapNotNull null
             ExportTrack(
+                trackId = row.track.id,
                 title = row.track.title,
                 fileName = row.track.fileName,
                 relativePath = row.track.relativePath,
                 folderRootUri = rootUri,
+                accessUri = row.track.accessUri,
+                artist = row.track.artist,
+                durationMs = row.track.durationMs,
+                bpm = row.track.bpm,
+                bpmSource = row.track.bpmSource,
             )
         }
     }

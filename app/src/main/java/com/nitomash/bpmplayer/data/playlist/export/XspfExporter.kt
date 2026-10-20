@@ -89,22 +89,7 @@ class XspfExporter @Inject constructor(
     private fun encode(playlist: XspfPlaylist): String = XspfWriter.encode(playlist)
 
     private suspend fun writeDocument(rootUri: Uri, fileName: String, content: String): Boolean =
-        runCatching {
-            val uri = DocumentsContract.createDocument(
-                context.contentResolver,
-                rootUri,
-                XSPF_MIME,
-                fileName,
-            ) ?: return false
-            context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-                output.write(content.toByteArray(Charsets.UTF_8))
-                output.flush()
-            } ?: return false
-            true
-        }.getOrElse {
-            Log.e(TAG, "write failed for $fileName", it)
-            false
-        }
+        SafDocumentWriter.writeText(context.contentResolver, rootUri, fileName, XSPF_MIME, content)
 
     private suspend fun takenNames(targetTreeUri: Uri): List<String> =
         runCatching { scanner.listChildren(targetTreeUri).map { it.second } }

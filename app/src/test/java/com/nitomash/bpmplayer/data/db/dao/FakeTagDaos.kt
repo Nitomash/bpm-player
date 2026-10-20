@@ -78,4 +78,8 @@ class FakeTrackTagDao : TrackTagDao {
         getByFolderCalls++
         return rows.map { row -> TrackTagRow(row.trackId, nameOf(row.tagId), row.rating) }
     }
+
+    override suspend fun getByTrackIdsChunk(trackIds: List<Long>): List<TrackTagRow> =
+        rows.filter { it.trackId in trackIds }
+            .map { row -> TrackTagRow(row.trackId, nameOf(row.tagId), row.rating) }
 }

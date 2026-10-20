@@ -11,6 +11,10 @@ import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSorter
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
+import com.nitomash.bpmplayer.data.playlist.export.BundleExportError
+import com.nitomash.bpmplayer.data.playlist.export.BundleExportProgress
+import com.nitomash.bpmplayer.data.playlist.export.BundleExportResult
+import com.nitomash.bpmplayer.data.playlist.export.PlaylistBundleExporter
 import com.nitomash.bpmplayer.data.playlist.export.XspfExportResult
 import com.nitomash.bpmplayer.data.playlist.export.XspfExporter
 import com.nitomash.bpmplayer.data.playlist.xspf.XspfImportResult
@@ -21,6 +25,7 @@ import com.nitomash.bpmplayer.ui.common.ListReorder
 import com.nitomash.bpmplayer.ui.common.SelectAll
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -41,6 +46,7 @@ class PlaylistListViewModel @Inject constructor(
     private val playbackSession: PlaybackSession,
     private val xspfExporter: XspfExporter,
     private val xspfImporter: XspfImporter,
+    private val bundleExporter: PlaylistBundleExporter,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -197,6 +203,50 @@ class PlaylistListViewModel @Inject constructor(
             } finally {
                 _exporting.value = false
             }
+        }
+    }
+
+    private val _bundleExportProgress = MutableStateFlow<BundleExportProgress?>(null)
+    val bundleExportProgress: StateFlow<BundleExportProgress?> = _bundleExportProgress.asStateFlow()
+
+    private val _bundleExportEvents = MutableSharedFlow<BundleExportResult>(extraBufferCapacity = 1)
+    val bundleExportEvents: SharedFlow<BundleExportResult> = _bundleExportEvents.asSharedFlow()
+
+    private var bundleExportJob: Job? = null
+
+    fun exportWithFiles(treeUri: Uri, playlistId: Long) {
+        if (bundleExportJob?.isActive == true) return
+        bundleExportJob = viewModelScope.launch {
+            try {
+                val result = bundleExporter.export(treeUri, playlistId) { progress ->
+                    _bundleExportProgress.value = progress
+                }
+                BpmLog.d(
+                    "VM list: bundle export '${result.playlistName}' " +
+                        "folder=${result.folderName} copied=${result.copiedCount} error=${result.error}",
+                )
+                _bundleExportEvents.emit(result)
+            } finally {
+                _bundleExportProgress.value = null
+            }
+        }
+    }
+
+    fun cancelBundleExport() {
+        val job = bundleExportJob ?: return
+        bundleExportJob = null
+        val progress = _bundleExportProgress.value
+        _bundleExportProgress.value = null
+        job.cancel()
+        viewModelScope.launch {
+            _bundleExportEvents.emit(
+                BundleExportResult(
+                    playlistName = "",
+                    folderName = null,
+                    copiedCount = progress?.copied ?: 0,
+                    error = BundleExportError.CANCELLED,
+                ),
+            )
         }
     }
 

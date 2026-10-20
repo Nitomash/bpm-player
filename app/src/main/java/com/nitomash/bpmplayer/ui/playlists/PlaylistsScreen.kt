@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
@@ -93,6 +94,8 @@ import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
+import com.nitomash.bpmplayer.data.playlist.export.BundleExportError
+import com.nitomash.bpmplayer.data.playlist.export.BundleExportResult
 import com.nitomash.bpmplayer.data.playlist.xspf.XspfImportError
 import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
 import com.nitomash.bpmplayer.ui.common.ConfirmDialog
@@ -164,6 +167,24 @@ fun PlaylistsScreen(
         }
     }
 
+    var bundleExportId by remember { mutableStateOf<Long?>(null) }
+    val bundleExportFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        val id = bundleExportId
+        bundleExportId = null
+        if (uri != null && id != null) {
+            playlistListViewModel.exportWithFiles(uri, id)
+        }
+    }
+
+    fun requestBundleExport(id: Long) {
+        bundleExportId = id
+        bundleExportFolderPicker.launch(null)
+    }
+
+    val bundleProgress by playlistListViewModel.bundleExportProgress.collectAsStateWithLifecycle()
+
     val importPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -192,6 +213,26 @@ fun PlaylistsScreen(
         if (ids.isEmpty()) return
         exportIds = ids
         exportFolderPicker.launch(null)
+    }
+
+    LaunchedEffect(Unit) {
+        playlistListViewModel.bundleExportEvents.collect { result ->
+            val message = when (result.error) {
+                BundleExportError.EMPTY_PLAYLIST -> context.getString(R.string.bundle_export_error_empty)
+                BundleExportError.FOLDER_CREATE_FAILED -> context.getString(R.string.bundle_export_error_folder)
+                BundleExportError.COPY_FAILED -> context.getString(
+                    R.string.bundle_export_error_copy,
+                    result.failedFileName.orEmpty(),
+                )
+                BundleExportError.WRITE_FAILED -> context.getString(
+                    R.string.bundle_export_error_write,
+                    result.failedFileName.orEmpty(),
+                )
+                BundleExportError.CANCELLED -> context.getString(R.string.bundle_export_cancelled)
+                null -> context.getString(R.string.bundle_export_done, result.playlistName, result.folderName.orEmpty())
+            }
+            snackbarHostState.showSnackbar(message)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -408,6 +449,13 @@ fun PlaylistsScreen(
                                             onClick = {
                                                 contextMenuFor = null
                                                 requestExport(listOf(summary.id))
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.playlist_menu_export_files)) },
+                                            onClick = {
+                                                contextMenuFor = null
+                                                requestBundleExport(summary.id)
                                             },
                                         )
                                         DropdownMenuItem(
@@ -695,6 +743,46 @@ fun PlaylistsScreen(
                 deleteSelectedTarget = false
             },
             onDismiss = { deleteSelectedTarget = false },
+        )
+    }
+
+    bundleProgress?.let { progress ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.bundle_export_title)) },
+            text = {
+                Column {
+                    Text(
+                        text = stringResource(
+                            R.string.bundle_export_progress,
+                            progress.copied,
+                            progress.total,
+                        ),
+                    )
+                    if (progress.currentFileName.isNotEmpty()) {
+                        Text(
+                            text = progress.currentFileName,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = {
+                            if (progress.total == 0) 0f else progress.copied.toFloat() / progress.total
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = playlistListViewModel::cancelBundleExport) {
+                    Text(stringResource(R.string.editor_cancel))
+                }
+            },
         )
     }
 }

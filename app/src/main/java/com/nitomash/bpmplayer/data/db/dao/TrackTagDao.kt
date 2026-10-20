@@ -34,4 +34,14 @@ interface TrackTagDao {
             "WHERE tt.track_id IN (SELECT id FROM tracks WHERE folder_id = :folderId)",
     )
     suspend fun getByFolder(folderId: Long): List<TrackTagRow>
+
+    suspend fun getByTrackIds(trackIds: List<Long>): List<TrackTagRow> =
+        trackIds.distinct().sqlChunks().flatMap { getByTrackIdsChunk(it) }
+
+    @Query(
+        "SELECT tt.track_id AS trackId, tg.name AS name, tt.rating AS rating " +
+            "FROM track_tags tt INNER JOIN tags tg ON tg.id = tt.tag_id " +
+            "WHERE tt.track_id IN (:trackIds)",
+    )
+    suspend fun getByTrackIdsChunk(trackIds: List<Long>): List<TrackTagRow>
 }
