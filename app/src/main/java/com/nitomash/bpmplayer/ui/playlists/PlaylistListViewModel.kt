@@ -26,6 +26,7 @@ import com.nitomash.bpmplayer.ui.common.SelectAll
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
+import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -95,7 +96,12 @@ class PlaylistListViewModel @Inject constructor(
         viewModelScope.launch {
             val tracks = playlistRepository.getTracksInDisplayOrder(playlistId)
             if (tracks.isEmpty()) return@launch
-            playbackSession.openQueue(tracks.map { it.toPlayerTrack() }, playlistId)
+            val startIndex = if (playbackSession.shuffleEnabled.value) {
+                Random.Default.nextInt(tracks.size)
+            } else {
+                0
+            }
+            playbackSession.openQueue(tracks.map { it.toPlayerTrack() }, playlistId, startIndex)
             onStarted()
         }
     }

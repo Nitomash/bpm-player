@@ -4,9 +4,11 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.mutablePreferencesOf
+import androidx.media3.common.Player
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsMapperTest {
@@ -178,6 +180,28 @@ class SettingsMapperTest {
         val settings = SettingsMapper.toSettings(prefs)
         assertEquals(AppSettings.PLAYBACK_LIMIT_MAX, settings.playbackLimitSeconds)
         assertEquals(0, settings.playbackGapSeconds)
+    }
+
+    @Test
+    fun `shuffle and repeat default to disabled off`() {
+        val settings = SettingsMapper.toSettings(emptyPreferences())
+
+        assertFalse(settings.shuffleEnabled)
+        assertEquals(Player.REPEAT_MODE_OFF, settings.repeatMode)
+    }
+
+    @Test
+    fun `shuffle and repeat are written and read back`() {
+        val prefs = mutablePreferencesOf()
+
+        SettingsMapper.write(
+            prefs,
+            AppSettings(shuffleEnabled = true, repeatMode = Player.REPEAT_MODE_ONE),
+        )
+
+        val settings = SettingsMapper.toSettings(prefs)
+        assertTrue(settings.shuffleEnabled)
+        assertEquals(Player.REPEAT_MODE_ONE, settings.repeatMode)
     }
 
     @Test

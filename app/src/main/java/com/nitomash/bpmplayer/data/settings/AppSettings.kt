@@ -1,5 +1,6 @@
 package com.nitomash.bpmplayer.data.settings
 
+import androidx.media3.common.Player
 import com.nitomash.bpmplayer.data.bpm.PcmBpmDetector
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
 
@@ -12,6 +13,8 @@ data class AppSettings(
     val playbackLimitSeconds: Int = 90,
     val playbackGapSeconds: Int = 10,
     val suppressBpmPromptAfterScan: Boolean = false,
+    val shuffleEnabled: Boolean = false,
+    val repeatMode: Int = Player.REPEAT_MODE_OFF,
 ) {
     companion object {
         const val SCHEMA_VERSION = 1

@@ -11,6 +11,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.nitomash.bpmplayer.data.settings.AppSettings
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +40,7 @@ class PlaybackSession @Inject constructor(
     private var previewSnapshot: QueueSnapshot? = null
     private var currentQueue: List<PlayerTrack>? = null
     private var appliedLimits: PlaybackLimits? = null
+    private var latestSettings: AppSettings? = null
     @Volatile
     private var stopOnTrackEnd = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -96,7 +98,9 @@ class PlaybackSession @Inject constructor(
     init {
         scope.launch {
             settingsRepository.observe().collect { settings ->
+                latestSettings = settings
                 onLimitsChanged(settings.toPlaybackLimits())
+                applyPersistedPlaybackState()
             }
         }
     }
@@ -194,7 +198,10 @@ class PlaybackSession @Inject constructor(
         _isGeneratedQueue.value = generated
         previewSnapshot = null
         pendingAction = null
-        startPlayback { player -> applyQueue(player, items, start) }
+        startPlayback { player ->
+            applyPersistedPlaybackState(player)
+            applyQueue(player, items, start)
+        }
     }
 
     fun clearPlaylistIdIf(playlistId: Long) {
@@ -312,6 +319,7 @@ class PlaybackSession @Inject constructor(
                         pendingAction = null
                     }
                     updateNavigation()
+                    applyPersistedPlaybackState()
                     if (built.isPlaying) startTicker()
                 }.onFailure { e ->
                     Log.e(TAG, "controller build failed", e)
@@ -319,6 +327,17 @@ class PlaybackSession @Inject constructor(
             },
             ContextCompat.getMainExecutor(context),
         )
+    }
+
+    private fun applyPersistedPlaybackState(player: MediaController? = null) {
+        val controller = player ?: this.controller ?: return
+        val settings = latestSettings ?: return
+        if (controller.shuffleModeEnabled != settings.shuffleEnabled) {
+            controller.shuffleModeEnabled = settings.shuffleEnabled
+        }
+        if (controller.repeatMode != settings.repeatMode) {
+            controller.repeatMode = settings.repeatMode
+        }
     }
 
     private fun applyQueue(player: MediaController, items: List<PlayerTrack>, startIndex: Int) {
@@ -478,7 +497,9 @@ class PlaybackSession @Inject constructor(
 
     fun toggleShuffle() {
         val current = controller ?: return
-        current.shuffleModeEnabled = !current.shuffleModeEnabled
+        val enabled = !current.shuffleModeEnabled
+        current.shuffleModeEnabled = enabled
+        scope.launch { settingsRepository.update { it.copy(shuffleEnabled = enabled) } }
     }
 
     fun cycleRepeat() {
@@ -488,6 +509,8 @@ class PlaybackSession @Inject constructor(
             Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
             else -> Player.REPEAT_MODE_OFF
         }
+        val mode = current.repeatMode
+        scope.launch { settingsRepository.update { it.copy(repeatMode = mode) } }
     }
 
     fun seekTo(positionMs: Long) {

@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 import java.text.DateFormat
 import java.util.Date
 import javax.inject.Inject
@@ -148,7 +149,12 @@ class GeneratorViewModel @Inject constructor(
     fun openPlayer() {
         val queue = _result.value.map { it.toPlayerTrack() }
         if (queue.isEmpty()) return
-        playbackSession.openQueue(queue, generated = true)
+        val startIndex = if (playbackSession.shuffleEnabled.value) {
+            Random.Default.nextInt(queue.size)
+        } else {
+            0
+        }
+        playbackSession.openQueue(queue, startIndex = startIndex, generated = true)
     }
 
     private fun renderPlaylistName(spec: PlaylistNameSpec, order: PlaylistOrder): String {
