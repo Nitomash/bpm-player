@@ -4,8 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,11 +65,14 @@ import com.nitomash.bpmplayer.ui.common.TrackList
 import com.nitomash.bpmplayer.ui.common.TrackRow
 import com.nitomash.bpmplayer.ui.common.reorderRowColor
 import com.nitomash.bpmplayer.ui.common.reorderRowElevation
+import com.nitomash.bpmplayer.ui.player.PlayerMiniBar
+import com.nitomash.bpmplayer.ui.player.PlayerViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistDetailScreen(
     viewModel: PlaylistDetailViewModel = hiltViewModel(),
+    playerViewModel: PlayerViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
     onAddTracks: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -84,6 +89,8 @@ fun PlaylistDetailScreen(
     val selectionMode by viewModel.selectionMode.collectAsStateWithLifecycle()
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
 
+    val isPlaylistActive by playerViewModel.isPlaylistActive.collectAsStateWithLifecycle()
+
     var renameOpen by rememberSaveable { mutableStateOf(false) }
     var showRemoveConfirm by rememberSaveable { mutableStateOf(false) }
     var sortMenuOpen by rememberSaveable { mutableStateOf(false) }
@@ -96,6 +103,7 @@ fun PlaylistDetailScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -214,6 +222,18 @@ fun PlaylistDetailScreen(
                         }
                     }
                 },
+            )
+        },
+        bottomBar = {
+            PlayerMiniBar(
+                isVisible = isPlaylistActive,
+                isPlaying = playerViewModel.isPlaying,
+                hasNext = playerViewModel.hasNext,
+                hasPrevious = playerViewModel.hasPrevious,
+                onTogglePlayback = playerViewModel::togglePlayback,
+                onNext = playerViewModel::next,
+                onPrevious = playerViewModel::previous,
+                modifier = Modifier.navigationBarsPadding(),
             )
         },
     ) { innerPadding ->

@@ -47,6 +47,15 @@ class PlayerViewModel @Inject constructor(
     val currentPlaylistId = playbackSession.currentPlaylistId
     val isGeneratedQueue = playbackSession.isGeneratedQueue
 
+    val isPlaylistActive: StateFlow<Boolean> = combine(
+        playbackSession.currentPlaylistId,
+        playbackSession.isGeneratedQueue,
+        playbackSession.queueSize,
+        playbackSession.isPreview,
+    ) { playlistId, generated, queueSize, isPreview ->
+        queueSize > 0 && !isPreview && (playlistId != null || generated)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val appSettings: StateFlow<AppSettings> = settingsRepository.observe()
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 

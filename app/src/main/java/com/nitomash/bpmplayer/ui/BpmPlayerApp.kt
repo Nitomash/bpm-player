@@ -1,6 +1,11 @@
 package com.nitomash.bpmplayer.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -29,7 +34,9 @@ import com.nitomash.bpmplayer.ui.about.AboutScreen
 import com.nitomash.bpmplayer.ui.editor.MassBpmScreen
 import com.nitomash.bpmplayer.ui.editor.MassBpmViewModel
 import com.nitomash.bpmplayer.ui.library.LibraryScreen
+import com.nitomash.bpmplayer.ui.player.PlayerMiniBar
 import com.nitomash.bpmplayer.ui.player.PlayerScreen
+import com.nitomash.bpmplayer.ui.player.PlayerViewModel
 import com.nitomash.bpmplayer.ui.playlists.AddTracksScreen
 import com.nitomash.bpmplayer.ui.playlists.AddTracksViewModel
 import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylistScreen
@@ -47,8 +54,10 @@ fun BpmPlayerApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val hideTopBar = remember(currentRoute) { TOP_BAR_HIDDEN_ROUTES.any { currentRoute?.startsWith(it) == true } }
+    val playerViewModel: PlayerViewModel = hiltViewModel()
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (!hideTopBar) {
                 NavigationBar {
@@ -83,34 +92,40 @@ fun BpmPlayerApp() {
         NavHost(
             navController = navController,
             startDestination = TopLevelDestination.LIBRARY.route,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding),
         ) {
             composable(TopLevelDestination.LIBRARY.route) { entry ->
-                LibraryScreen(
-                    onOpenMassBpm = { scope, folderIds ->
-                        if (entry.isForeground()) navController.navigate(MassBpmViewModel.route(scope, folderIds))
-                    },
-                    onOpenSettings = { if (entry.isForeground()) navController.navigate(SETTINGS_ROUTE) },
-                    onOpenAbout = { if (entry.isForeground()) navController.navigate(ABOUT_ROUTE) },
-                )
+                ScreenWithMiniPlayer(playerViewModel) {
+                    LibraryScreen(
+                        onOpenMassBpm = { scope, folderIds ->
+                            if (entry.isForeground()) navController.navigate(MassBpmViewModel.route(scope, folderIds))
+                        },
+                        onOpenSettings = { if (entry.isForeground()) navController.navigate(SETTINGS_ROUTE) },
+                        onOpenAbout = { if (entry.isForeground()) navController.navigate(ABOUT_ROUTE) },
+                    )
+                }
             }
             composable(TopLevelDestination.PLAYLISTS.route) { entry ->
-                PlaylistsScreen(
-                    onOpenPlaylist = { playlistId ->
-                        if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId))
-                    },
-                    onPlaylistStarted = {
-                        if (entry.isForeground()) {
-                            navController.navigate(TopLevelDestination.PLAYER.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                ScreenWithMiniPlayer(playerViewModel) {
+                    PlaylistsScreen(
+                        onOpenPlaylist = { playlistId ->
+                            if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId))
+                        },
+                        onPlaylistStarted = {
+                            if (entry.isForeground()) {
+                                navController.navigate(TopLevelDestination.PLAYER.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
-                        }
-                    },
-                )
+                        },
+                    )
+                }
             }
             composable(TopLevelDestination.PLAYER.route) { entry ->
                 PlayerScreen(
@@ -149,6 +164,7 @@ fun BpmPlayerApp() {
                 ),
             ) { entry ->
                 PlaylistDetailScreen(
+                    playerViewModel = playerViewModel,
                     onBack = { if (entry.isForeground()) navController.popBackStack() },
                     onAddTracks = { playlistId ->
                         if (entry.isForeground()) navController.navigate(AddTracksViewModel.route(playlistId))
@@ -169,6 +185,7 @@ fun BpmPlayerApp() {
             }
             composable(GeneratedPlaylistViewModel.ROUTE) { entry ->
                 GeneratedPlaylistScreen(
+                    playerViewModel = playerViewModel,
                     onBack = { if (entry.isForeground()) navController.popBackStack() },
                 )
             }
@@ -188,6 +205,29 @@ fun BpmPlayerApp() {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ScreenWithMiniPlayer(
+    playerViewModel: PlayerViewModel,
+    content: @Composable () -> Unit,
+) {
+    val isPlaylistActive by playerViewModel.isPlaylistActive.collectAsStateWithLifecycle()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            content()
+        }
+        PlayerMiniBar(
+            isVisible = isPlaylistActive,
+            isPlaying = playerViewModel.isPlaying,
+            hasNext = playerViewModel.hasNext,
+            hasPrevious = playerViewModel.hasPrevious,
+            onTogglePlayback = playerViewModel::togglePlayback,
+            onNext = playerViewModel::next,
+            onPrevious = playerViewModel::previous,
+        )
     }
 }
 

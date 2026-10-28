@@ -1,6 +1,8 @@
 package com.nitomash.bpmplayer.ui.playlists
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,11 +20,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.ui.common.TrackList
+import com.nitomash.bpmplayer.ui.player.PlayerMiniBar
+import com.nitomash.bpmplayer.ui.player.PlayerViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GeneratedPlaylistScreen(
     viewModel: GeneratedPlaylistViewModel = hiltViewModel(),
+    playerViewModel: PlayerViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -30,11 +35,14 @@ fun GeneratedPlaylistScreen(
     val currentTrackId by viewModel.currentTrackId.collectAsStateWithLifecycle()
     val currentPlaylistId by viewModel.currentPlaylistId.collectAsStateWithLifecycle()
     val isPreview by viewModel.isPreview.collectAsStateWithLifecycle()
+    val isPlaylistPlaying by playerViewModel.isPlaylistActive
+        .collectAsStateWithLifecycle(initialValue = false)
 
     val tracks = playlist?.tracks.orEmpty()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.playlist_detail_title)) },
@@ -46,6 +54,18 @@ fun GeneratedPlaylistScreen(
                         )
                     }
                 },
+            )
+        },
+        bottomBar = {
+            PlayerMiniBar(
+                isVisible = isPlaylistPlaying,
+                isPlaying = playerViewModel.isPlaying,
+                hasNext = playerViewModel.hasNext,
+                hasPrevious = playerViewModel.hasPrevious,
+                onTogglePlayback = playerViewModel::togglePlayback,
+                onNext = playerViewModel::next,
+                onPrevious = playerViewModel::previous,
+                modifier = Modifier.navigationBarsPadding(),
             )
         },
     ) { innerPadding ->
