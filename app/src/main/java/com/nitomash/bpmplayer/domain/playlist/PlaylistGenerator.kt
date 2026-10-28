@@ -7,13 +7,14 @@ enum class PlaylistOrder {
     RANDOM,
     ASCENDING,
     DESCENDING,
+    TITLE,
 }
 
 enum class PlaylistSelectionAlgorithm {
     UNIFORM,
 }
 
-data class PlaylistTrack(val trackId: Long, val bpm: Double)
+data class PlaylistTrack(val trackId: Long, val bpm: Double, val title: String = "")
 
 object PlaylistGenerator {
 
@@ -38,6 +39,7 @@ object PlaylistGenerator {
             PlaylistOrder.RANDOM -> selected.shuffled(random)
             PlaylistOrder.ASCENDING -> selected.sortedBy { it.bpm }
             PlaylistOrder.DESCENDING -> selected.sortedByDescending { it.bpm }
+            PlaylistOrder.TITLE -> selected.sortedBy { it.title.trim().lowercase() }
         }
     }
 

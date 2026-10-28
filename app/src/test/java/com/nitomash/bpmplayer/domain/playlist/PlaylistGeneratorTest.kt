@@ -32,6 +32,17 @@ class PlaylistGeneratorTest {
     }
 
     @Test
+    fun `title order sorts case insensitively by title`() {
+        val titled = listOf(
+            PlaylistTrack(1, 100.0, "beta"),
+            PlaylistTrack(2, 120.0, "Alpha"),
+            PlaylistTrack(3, 90.0, " gamma "),
+        )
+        val result = PlaylistGenerator.generate(titled, null, null, 10, PlaylistOrder.TITLE)
+        assertEquals(listOf(2L, 1L, 3L), result.map { it.trackId })
+    }
+
+    @Test
     fun `only min keeps tracks not below it`() {
         val result = PlaylistGenerator.generate(library, 100.0, null, 10, PlaylistOrder.ASCENDING, Random(1))
         assertEquals(setOf(1L, 4L, 2L, 5L), result.map { it.trackId }.toSet())

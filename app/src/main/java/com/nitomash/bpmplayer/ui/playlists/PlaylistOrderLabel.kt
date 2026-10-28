@@ -9,4 +9,5 @@ fun playlistOrderLabelRes(order: PlaylistOrder): Int = when (order) {
     PlaylistOrder.RANDOM -> R.string.playlist_order_random
     PlaylistOrder.ASCENDING -> R.string.playlist_order_ascending
     PlaylistOrder.DESCENDING -> R.string.playlist_order_descending
+    PlaylistOrder.TITLE -> R.string.playlist_order_title
 }

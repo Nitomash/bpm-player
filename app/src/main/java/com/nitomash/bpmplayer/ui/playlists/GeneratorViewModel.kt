@@ -108,7 +108,7 @@ class GeneratorViewModel @Inject constructor(
                 }
             }
             val candidates = tracks.mapNotNull { track ->
-                track.bpm?.let { bpm -> PlaylistTrack(track.id, bpm) }
+                track.bpm?.let { bpm -> PlaylistTrack(track.id, bpm, track.title) }
             }
             val spec = PlaylistNameSpec.parse(minText, maxText, countText)
             val selected = PlaylistGenerator.generate(

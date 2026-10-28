@@ -23,6 +23,7 @@
     <string name="playlist_order_random">Случайно</string>
     <string name="playlist_order_ascending">По возрастанию</string>
     <string name="playlist_order_descending">По убыванию</string>
+    <string name="playlist_order_title">По названию</string>
     <string name="playlist_generate">Сгенерировать</string>
     <string name="playlist_generator_title">Сгенерировать плейлист</string>
     <string name="playlist_play">Воспроизвести</string>
