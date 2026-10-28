@@ -131,6 +131,7 @@ class PlaybackSession @Inject constructor(
             if (playWhenReady) return
             if (reason != Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) return
             Log.i(TAG, "player paused at end of item (mode=$mode, stopOnTrackEnd=$stopOnTrackEnd)")
+            Log.i(TAG, "onPlayerPausedAtItemEnd: mode=$mode stopOnTrackEnd=$stopOnTrackEnd")
             onPlayerPausedAtItemEnd()
         }
 
@@ -150,8 +151,23 @@ class PlaybackSession @Inject constructor(
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            if (playbackState == Player.STATE_ENDED && mode == Mode.Preview) {
+            if (playbackState != Player.STATE_ENDED) return
+            if (mode == Mode.Preview) {
                 restoreQueue()
+                return
+            }
+            if (
+                mode == Mode.Playlist &&
+                _limits.value.enabled &&
+                !stopOnTrackEnd
+            ) {
+                Log.i(TAG, "queue ended with interval playback enabled, restarting from beginning")
+                val current = controller ?: return
+                current.seekTo(0L)
+                current.pause()
+                _positionMs.value = 0L
+                refreshPosition()
+                updateNavigation()
             }
         }
 
@@ -349,7 +365,26 @@ class PlaybackSession @Inject constructor(
             restoreQueue()
             return
         }
-        if (current == null || !current.hasNextMediaItem()) {
+        if (current == null) {
+            return
+        }
+        if (!current.hasNextMediaItem()) {
+            Log.i(TAG, "no next item, shouldStartGap=${shouldStartGap(limits = _limits.value, isPlaylistMode = mode == Mode.Playlist, stopOnTrackEnd = stopOnTrackEnd)}")
+            if (
+                shouldStartGap(
+                    limits = _limits.value,
+                    isPlaylistMode = mode == Mode.Playlist,
+                    stopOnTrackEnd = stopOnTrackEnd,
+                )
+            ) {
+                Log.i(TAG, "last item ended with interval playback enabled, restarting from beginning")
+                current.seekTo(0L)
+                current.pause()
+                _positionMs.value = 0L
+                refreshPosition()
+                updateNavigation()
+                return
+            }
             Log.i(TAG, "item ended without a next one, not starting a gap (mode=$mode)")
             return
         }
@@ -547,7 +582,11 @@ class PlaybackSession @Inject constructor(
                 current.play()
             }
         } else {
-            current.seekTo(limitMs)
+            Log.i(TAG, "clip limit reached at ${positionMs}ms (limit ${limitMs}ms), no next item")
+            current.seekTo(0L)
+            _positionMs.value = 0L
+            refreshPosition()
+            updateNavigation()
         }
     }
 
