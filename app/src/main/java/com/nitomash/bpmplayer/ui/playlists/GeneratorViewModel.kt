@@ -43,6 +43,7 @@ class GeneratorViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     private val settingsRepository: SettingsRepository,
     private val playbackSession: PlaybackSession,
+    private val generatedPlaylistStore: GeneratedPlaylistStore,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -119,19 +120,27 @@ class GeneratorViewModel @Inject constructor(
                 order = order,
             )
             val byId = tracks.associateBy { it.id }
-            _result.value = selected.mapNotNull { byId[it.trackId] }
+            val selectedTracks = selected.mapNotNull { byId[it.trackId] }
+            _result.value = selectedTracks
+            if (selectedTracks.isNotEmpty()) {
+                generatedPlaylistStore.put(
+                    GeneratedPlaylist(
+                        name = renderPlaylistName(spec, order),
+                        tracks = selectedTracks,
+                    ),
+                )
+            }
             _generated.value = true
             _generating.value = false
         }
     }
 
-    fun saveToPlaylist(minText: String, maxText: String, order: PlaylistOrder) {
+    fun saveToPlaylist() {
         viewModelScope.launch {
-            val tracks = _result.value
-            if (tracks.isEmpty()) return@launch
-            val spec = PlaylistNameSpec.parse(minText, maxText, "")
-            val playlistId = playlistRepository.create(renderPlaylistName(spec, order))
-            playlistRepository.addTracks(playlistId, tracks.map { it.id })
+            val generated = generatedPlaylistStore.current.value ?: return@launch
+            if (generated.tracks.isEmpty()) return@launch
+            val playlistId = playlistRepository.create(generated.name)
+            playlistRepository.addTracks(playlistId, generated.tracks.map { it.id })
             _savedToPlaylist.emit(Unit)
         }
     }
@@ -139,7 +148,7 @@ class GeneratorViewModel @Inject constructor(
     fun openPlayer() {
         val queue = _result.value.map { it.toPlayerTrack() }
         if (queue.isEmpty()) return
-        playbackSession.openQueue(queue)
+        playbackSession.openQueue(queue, generated = true)
     }
 
     private fun renderPlaylistName(spec: PlaylistNameSpec, order: PlaylistOrder): String {

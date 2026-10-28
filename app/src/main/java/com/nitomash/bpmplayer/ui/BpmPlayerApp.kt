@@ -32,6 +32,8 @@ import com.nitomash.bpmplayer.ui.library.LibraryScreen
 import com.nitomash.bpmplayer.ui.player.PlayerScreen
 import com.nitomash.bpmplayer.ui.playlists.AddTracksScreen
 import com.nitomash.bpmplayer.ui.playlists.AddTracksViewModel
+import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylistScreen
+import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylistViewModel
 import com.nitomash.bpmplayer.ui.playlists.PlaylistDetailScreen
 import com.nitomash.bpmplayer.ui.playlists.PlaylistDetailViewModel
 import com.nitomash.bpmplayer.ui.playlists.PlaylistsScreen
@@ -115,6 +117,9 @@ fun BpmPlayerApp() {
                     onOpenPlaylist = { playlistId ->
                         if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId))
                     },
+                    onOpenGenerated = {
+                        if (entry.isForeground()) navController.navigate(GeneratedPlaylistViewModel.ROUTE)
+                    },
                 )
             }
             composable(
@@ -162,6 +167,11 @@ fun BpmPlayerApp() {
                     onBack = { if (entry.isForeground()) navController.popBackStack() },
                 )
             }
+            composable(GeneratedPlaylistViewModel.ROUTE) { entry ->
+                GeneratedPlaylistScreen(
+                    onBack = { if (entry.isForeground()) navController.popBackStack() },
+                )
+            }
             composable(ABOUT_ROUTE) { entry ->
                 AboutScreen(
                     onBack = { if (entry.isForeground()) navController.popBackStack() },
@@ -188,6 +198,7 @@ private val TOP_BAR_HIDDEN_ROUTES = listOf(
     MassBpmViewModel.ROUTE,
     PlaylistDetailViewModel.ROUTE,
     AddTracksViewModel.ROUTE,
+    GeneratedPlaylistViewModel.ROUTE,
     ABOUT_ROUTE,
     SETTINGS_ROUTE,
 )

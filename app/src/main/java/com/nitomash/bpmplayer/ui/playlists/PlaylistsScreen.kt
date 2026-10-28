@@ -693,7 +693,7 @@ fun PlaylistsScreen(
                                 modifier = Modifier.weight(1f),
                             )
                             IconButton(onClick = {
-                                viewModel.saveToPlaylist(minText, maxText, order)
+                                viewModel.saveToPlaylist()
                             }) {
                                 Icon(
                                     imageVector = Icons.Filled.Save,

@@ -61,6 +61,9 @@ class PlaybackSession @Inject constructor(
     private val _currentPlaylistId = MutableStateFlow<Long?>(null)
     val currentPlaylistId: StateFlow<Long?> = _currentPlaylistId.asStateFlow()
 
+    private val _isGeneratedQueue = MutableStateFlow(false)
+    val isGeneratedQueue: StateFlow<Boolean> = _isGeneratedQueue.asStateFlow()
+
     private val _currentNumber = MutableStateFlow(0)
     val currentNumber: StateFlow<Int> = _currentNumber.asStateFlow()
 
@@ -157,7 +160,12 @@ class PlaybackSession @Inject constructor(
         }
     }
 
-    fun openQueue(items: List<PlayerTrack>, playlistId: Long? = null, startIndex: Int = 0) {
+    fun openQueue(
+        items: List<PlayerTrack>,
+        playlistId: Long? = null,
+        startIndex: Int = 0,
+        generated: Boolean = false,
+    ) {
         if (items.isEmpty()) return
         val start = startIndex.coerceIn(0, items.lastIndex)
         Log.i(TAG, "openQueue: ${items.size} items")
@@ -167,6 +175,7 @@ class PlaybackSession @Inject constructor(
         _isPreview.value = false
         _previewTrackId.value = null
         _currentPlaylistId.value = playlistId
+        _isGeneratedQueue.value = generated
         previewSnapshot = null
         pendingAction = null
         startPlayback { player -> applyQueue(player, items, start) }
@@ -234,6 +243,7 @@ class PlaybackSession @Inject constructor(
         if (snapshot == null) {
             Log.i(TAG, "preview ended, nothing to restore, stopping")
             currentQueue = null
+            _isGeneratedQueue.value = false
             current.stop()
             current.clearMediaItems()
             return

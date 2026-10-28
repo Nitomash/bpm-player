@@ -67,11 +67,13 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = hiltViewModel(),
     editorViewModel: BpmEditorViewModel = hiltViewModel(),
     onOpenPlaylist: (Long) -> Unit = {},
+    onOpenGenerated: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val queueSize by viewModel.queueSize.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
     val currentPlaylistId by viewModel.currentPlaylistId.collectAsStateWithLifecycle()
+    val isGeneratedQueue by viewModel.isGeneratedQueue.collectAsStateWithLifecycle()
     val appSettings by viewModel.appSettings.collectAsStateWithLifecycle()
     val selectedTrack by editorViewModel.selectedTrack.collectAsStateWithLifecycle()
     val editorAutoDetect by editorViewModel.autoDetectState.collectAsStateWithLifecycle()
@@ -99,6 +101,10 @@ fun PlayerScreen(
                     val playlistId = currentPlaylistId
                     if (playlistId != null) {
                         TextButton(onClick = { onOpenPlaylist(playlistId) }) {
+                            Text(stringResource(R.string.player_open_playlist))
+                        }
+                    } else if (isGeneratedQueue) {
+                        TextButton(onClick = onOpenGenerated) {
                             Text(stringResource(R.string.player_open_playlist))
                         }
                     }

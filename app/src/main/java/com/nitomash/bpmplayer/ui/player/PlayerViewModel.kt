@@ -45,6 +45,7 @@ class PlayerViewModel @Inject constructor(
     val durationMs = playbackSession.durationMs
     val currentTrackId = playbackSession.currentTrackId
     val currentPlaylistId = playbackSession.currentPlaylistId
+    val isGeneratedQueue = playbackSession.isGeneratedQueue
 
     val appSettings: StateFlow<AppSettings> = settingsRepository.observe()
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
