@@ -11,6 +11,7 @@ data class AppSettings(
     val playbackProcessingEnabled: Boolean = false,
     val playbackLimitSeconds: Int = 90,
     val playbackGapSeconds: Int = 10,
+    val suppressBpmPromptAfterScan: Boolean = false,
 ) {
     companion object {
         const val SCHEMA_VERSION = 1

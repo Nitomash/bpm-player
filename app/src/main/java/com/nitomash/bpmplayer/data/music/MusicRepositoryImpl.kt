@@ -34,7 +34,7 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun getByFolder(folderId: Long): List<TrackEntity> = trackDao.getByFolder(folderId)
 
-    override suspend fun addFolder(uri: Uri): Long {
+    override suspend fun addFolder(uri: Uri): FolderScanResult {
         val rootUri = uri.toString()
         Log.i(TAG, "addFolder: $rootUri")
         val displayName = FolderScanner.displayName(uri)
@@ -55,21 +55,29 @@ class MusicRepositoryImpl @Inject constructor(
         Log.i(TAG, "addFolder: ${drafts.size} drafts for folder $folderId")
         insertDrafts(folderId, drafts)
         importSidecars(uri, folderId, recursive = true)
-        Log.i(TAG, "addFolder: done for folder $folderId")
-        return folderId
+        val newUndefined = trackDao.getByFolder(folderId).count { it.bpm == null }
+        Log.i(TAG, "addFolder: done for folder $folderId, $newUndefined undefined")
+        return FolderScanResult(folderId = folderId, newUndefinedTracks = newUndefined)
     }
 
-    override suspend fun rescanFolder(folderId: Long) {
-        val folder = folderDao.getById(folderId) ?: return
+    override suspend fun rescanFolder(folderId: Long): FolderScanResult? {
+        val folder = folderDao.getById(folderId) ?: return null
+        val existingPaths = trackDao.getByFolder(folderId).map { it.relativePath }.toSet()
         val drafts = folderScanner.scan(Uri.parse(folder.rootUri))
         Log.i(TAG, "rescanFolder $folderId: ${drafts.size} drafts")
         insertDrafts(folderId, drafts)
-        val existingPaths = trackDao.getByFolder(folderId).map { it.relativePath }.toSet()
         val scannedPaths = drafts.map { it.relativePath }.toSet()
         val missingPaths = existingPaths - scannedPaths
         trackDao.deleteByPaths(folderId, missingPaths.toList())
         importSidecars(Uri.parse(folder.rootUri), folderId, recursive = false)
-        Log.i(TAG, "rescanFolder $folderId: ${missingPaths.size} stale tracks removed")
+        val newUndefined = trackDao.getByFolder(folderId)
+            .count { it.relativePath !in existingPaths && it.bpm == null }
+        Log.i(
+            TAG,
+            "rescanFolder $folderId: ${missingPaths.size} stale tracks removed, " +
+                "$newUndefined new undefined",
+        )
+        return FolderScanResult(folderId = folderId, newUndefinedTracks = newUndefined)
     }
 
     private suspend fun importSidecars(rootUri: Uri, folderId: Long, recursive: Boolean) {

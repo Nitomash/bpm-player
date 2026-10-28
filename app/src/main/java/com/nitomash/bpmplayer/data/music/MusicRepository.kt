@@ -14,9 +14,9 @@ interface MusicRepository {
     suspend fun getTracksWithBpm(): List<TrackEntity>
     suspend fun getFolders(): List<FolderEntity>
     suspend fun getByFolder(folderId: Long): List<TrackEntity>
-    suspend fun addFolder(uri: Uri): Long
+    suspend fun addFolder(uri: Uri): FolderScanResult
     suspend fun removeFolder(folderId: Long)
-    suspend fun rescanFolder(folderId: Long)
+    suspend fun rescanFolder(folderId: Long): FolderScanResult?
     suspend fun updateBpm(trackId: Long, bpm: Double, source: BpmSource)
     suspend fun updateBpmBatch(updates: Map<Long, Double>, source: BpmSource): Set<Long>
     suspend fun buildSidecarRecords(folderId: Long): List<SidecarTrackRecord>

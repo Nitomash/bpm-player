@@ -141,12 +141,21 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    data class SuggestBpmArgs(
+        val folderIds: Set<Long>,
+        val count: Int,
+    )
+
+    private val _suggestBpmAfterScan = MutableSharedFlow<SuggestBpmArgs>(extraBufferCapacity = 1)
+    val suggestBpmAfterScan: SharedFlow<SuggestBpmArgs> = _suggestBpmAfterScan.asSharedFlow()
+
     fun addFolder(uri: Uri) {
         viewModelScope.launch {
             _isScanning.value = true
             try {
-                val folderId = repository.addFolder(uri)
-                sidecarSync.requestFlush(folderId)
+                val result = repository.addFolder(uri)
+                sidecarSync.requestFlush(result.folderId)
+                suggestBpmIfNeeded(setOf(result.folderId), result.newUndefinedTracks)
             } catch (e: Exception) {
                 Log.e(TAG, "addFolder failed for $uri", e)
                 _error.emit(e.toString())
@@ -167,8 +176,11 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             _isScanning.value = true
             try {
-                repository.rescanFolder(folderId)
+                val result = repository.rescanFolder(folderId)
                 sidecarSync.requestFlush(folderId)
+                if (result != null) {
+                    suggestBpmIfNeeded(setOf(folderId), result.newUndefinedTracks)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "rescanFolder failed for $folderId", e)
                 _error.emit(e.toString())
@@ -184,15 +196,22 @@ class LibraryViewModel @Inject constructor(
             _isScanning.value = true
             try {
                 val folderList = repository.getFolders()
+                val affected = linkedSetOf<Long>()
+                var newUndefined = 0
                 folderList.forEach { folder ->
                     try {
-                        repository.rescanFolder(folder.id)
+                        val result = repository.rescanFolder(folder.id)
                         sidecarSync.requestFlush(folder.id)
+                        if (result != null) {
+                            affected.add(folder.id)
+                            newUndefined += result.newUndefinedTracks
+                        }
                     } catch (e: Exception) {
                         Log.e(TAG, "refreshAll failed for ${folder.id}", e)
                         _error.emit(e.toString())
                     }
                 }
+                suggestBpmIfNeeded(affected, newUndefined)
             } catch (e: Exception) {
                 Log.e(TAG, "refreshAll failed", e)
                 _error.emit(e.toString())
@@ -200,6 +219,14 @@ class LibraryViewModel @Inject constructor(
                 _isScanning.value = false
             }
         }
+    }
+
+    private suspend fun suggestBpmIfNeeded(folderIds: Set<Long>, newUndefinedTracks: Int) {
+        if (newUndefinedTracks <= 0 || folderIds.isEmpty()) return
+        if (settingsRepository.current().suppressBpmPromptAfterScan) return
+        _suggestBpmAfterScan.tryEmit(
+            SuggestBpmArgs(folderIds = folderIds, count = newUndefinedTracks),
+        )
     }
 
     fun importSidecarFile(folderId: Long, uri: Uri) {
@@ -224,6 +251,12 @@ class LibraryViewModel @Inject constructor(
                 Log.e(TAG, "exportSidecarFile failed for $uri", e)
                 _exportError.emit(e.toString())
             }
+        }
+    }
+
+    fun suppressBpmPromptAfterScan() {
+        viewModelScope.launch {
+            settingsRepository.update { it.copy(suppressBpmPromptAfterScan = true) }
         }
     }
 

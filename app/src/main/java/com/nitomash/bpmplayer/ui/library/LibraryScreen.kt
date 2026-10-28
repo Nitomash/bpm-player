@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +38,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,6 +54,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nitomash.bpmplayer.R
@@ -94,6 +99,8 @@ fun LibraryScreen(
     var showMassSetup by remember { mutableStateOf(false) }
     var importTargetFolder by remember { mutableStateOf<FolderEntity?>(null) }
     var exportTargetFolder by remember { mutableStateOf<FolderEntity?>(null) }
+    var bpmPromptArgs by remember { mutableStateOf<LibraryViewModel.SuggestBpmArgs?>(null) }
+    var bpmPromptDontShow by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.error.collect { detail ->
@@ -124,6 +131,13 @@ fun LibraryScreen(
             snackbarHostState.showSnackbar(
                 context.getString(R.string.library_export_error),
             )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.suggestBpmAfterScan.collect { args ->
+            bpmPromptDontShow = false
+            bpmPromptArgs = args
         }
     }
 
@@ -376,6 +390,73 @@ fun LibraryScreen(
                 }
             },
         )
+    }
+
+    bpmPromptArgs?.let { args ->
+        Dialog(onDismissRequest = { bpmPromptArgs = null }) {
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = 6.dp,
+            ) {
+                Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                        Text(
+                            text = stringResource(R.string.library_bpm_prompt_title),
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = stringResource(R.string.library_bpm_prompt_message, args.count),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { bpmPromptDontShow = !bpmPromptDontShow }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = bpmPromptDontShow,
+                                onCheckedChange = { bpmPromptDontShow = it },
+                            )
+                            Text(
+                                text = stringResource(R.string.library_bpm_prompt_dont_show),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(start = 4.dp),
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(onClick = {
+                            if (bpmPromptDontShow) {
+                                viewModel.suppressBpmPromptAfterScan()
+                            }
+                            bpmPromptArgs = null
+                        }) {
+                            Text(stringResource(R.string.library_bpm_prompt_later))
+                        }
+                        TextButton(onClick = {
+                            if (bpmPromptDontShow) {
+                                viewModel.suppressBpmPromptAfterScan()
+                            }
+                            val folderIds = args.folderIds
+                            bpmPromptArgs = null
+                            onOpenMassBpm(MassBpmScope.UNDEFINED_ONLY, folderIds)
+                        }) {
+                            Text(stringResource(R.string.library_bpm_prompt_action))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

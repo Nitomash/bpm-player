@@ -16,6 +16,7 @@ object SettingsMapper {
     private val PLAYBACK_PROCESSING_KEY = booleanPreferencesKey("playback_processing_enabled")
     private val PLAYBACK_LIMIT_KEY = intPreferencesKey("playback_limit_seconds")
     private val PLAYBACK_GAP_KEY = intPreferencesKey("playback_gap_seconds")
+    private val SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY = booleanPreferencesKey("suppress_bpm_prompt_after_scan")
 
     fun toSettings(prefs: Preferences): AppSettings {
         val defaults = AppSettings()
@@ -39,6 +40,8 @@ object SettingsMapper {
                 prefs[PLAYBACK_GAP_KEY] ?: defaults.playbackGapSeconds,
                 AppSettings.PLAYBACK_GAP_MAX,
             ),
+            suppressBpmPromptAfterScan = prefs[SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY]
+                ?: defaults.suppressBpmPromptAfterScan,
         )
     }
 
@@ -57,6 +60,7 @@ object SettingsMapper {
             settings.playbackGapSeconds,
             AppSettings.PLAYBACK_GAP_MAX,
         )
+        prefs[SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY] = settings.suppressBpmPromptAfterScan
     }
 
     fun normalizePlaybackSeconds(value: Int, max: Int): Int = value.coerceIn(0, max)

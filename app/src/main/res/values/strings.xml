@@ -108,6 +108,11 @@
     <string name="mass_scope_label">Определяемые треки</string>
     <string name="mass_scope_all">Все</string>
     <string name="mass_scope_undefined">Только неопределённые</string>
+    <string name="library_bpm_prompt_title">Определить BPM</string>
+    <string name="library_bpm_prompt_message">Найдены треки без BPM (%1$d). Определить их сейчас?</string>
+    <string name="library_bpm_prompt_action">Определить</string>
+    <string name="library_bpm_prompt_later">Позже</string>
+    <string name="library_bpm_prompt_dont_show">Больше не показывать</string>
     <string name="mass_next">Далее</string>
     <string name="mass_detect">Определить</string>
     <string name="mass_empty">Нет треков для определения</string>
