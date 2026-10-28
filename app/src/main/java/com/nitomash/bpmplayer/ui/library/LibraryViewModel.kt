@@ -178,6 +178,30 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    fun refreshAll() {
+        viewModelScope.launch {
+            if (_isScanning.value) return@launch
+            _isScanning.value = true
+            try {
+                val folderList = repository.getFolders()
+                folderList.forEach { folder ->
+                    try {
+                        repository.rescanFolder(folder.id)
+                        sidecarSync.requestFlush(folder.id)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "refreshAll failed for ${folder.id}", e)
+                        _error.emit(e.toString())
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "refreshAll failed", e)
+                _error.emit(e.toString())
+            } finally {
+                _isScanning.value = false
+            }
+        }
+    }
+
     fun importSidecarFile(folderId: Long, uri: Uri) {
         viewModelScope.launch {
             try {

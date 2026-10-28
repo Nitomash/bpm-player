@@ -31,6 +31,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -236,71 +238,87 @@ fun LibraryScreen(
                 )
 
                 if (content.isEmpty) {
-                    Box(
+                    val pullToRefreshState = rememberPullToRefreshState()
+                    PullToRefreshBox(
+                        isRefreshing = isScanning,
+                        onRefresh = { viewModel.refreshAll() },
+                        state = pullToRefreshState,
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = stringResource(R.string.library_search_empty),
-                            modifier = Modifier.padding(24.dp),
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                        )
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.library_search_empty),
+                                modifier = Modifier.padding(24.dp),
+                                style = MaterialTheme.typography.bodyLarge,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     }
                 } else {
-                    LazyColumn(
+                    val pullToRefreshState = rememberPullToRefreshState()
+                    PullToRefreshBox(
+                        isRefreshing = isScanning,
+                        onRefresh = { viewModel.refreshAll() },
+                        state = pullToRefreshState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        content.visibleFolders.forEach { folder ->
-                            val collapsed = folder.id in collapsedFolders && filterQuery.isBlank()
-                            item(key = "folder-${folder.id}") {
-                                FolderHeader(
-                                    folder = folder,
-                                    trackCount = content.countOf(folder.id),
-                                    sort = folderSort[folder.id] ?: TrackSort.BY_NAME,
-                                    expanded = !collapsed,
-                                    refreshEnabled = !isScanning,
-                                    onToggle = { viewModel.toggleFolderCollapsed(folder.id) },
-                                    onRefresh = { viewModel.rescanFolder(folder.id) },
-                                    onSortChange = { viewModel.setFolderSort(folder.id, it) },
-                                    onDelete = { folderToDelete = folder },
-                                    onImportInfo = {
-                                        importTargetFolder = folder
-                                        importFilePicker.launch(arrayOf("*/*"))
-                                    },
-                                    onExportInfo = {
-                                        exportTargetFolder = folder
-                                        exportDocumentCreator.launch(
-                                            "${safeFileName(folder.displayName)}.$SIDECAR_EXTENSION",
-                                        )
-                                    },
-                                )
-                            }
-                            if (!collapsed) {
-                                items(
-                                    items = content.tracksOf(folder.id),
-                                    key = { "track-${it.id}" },
-                                ) { track ->
-                                    Box {
-                                        TrackRow(
-                                            title = track.title,
-                                            bpm = track.bpm,
-                                            bpmSource = track.bpmSource,
-                                            onClick = { editorViewModel.open(track) },
-                                            onLongClick = { viewModel.openPlaylistMenu(track.id) },
-                                        )
-                                        AddToPlaylistDropdown(
-                                            expanded = menuTrackId == track.id,
-                                            playlists = playlists,
-                                            containing = containing,
-                                            onDismiss = viewModel::closePlaylistMenu,
-                                            onToggle = { playlistId ->
-                                                viewModel.toggleTrackInPlaylist(track.id, playlistId)
-                                                viewModel.closePlaylistMenu()
-                                            },
-                                        )
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            content.visibleFolders.forEach { folder ->
+                                val collapsed = folder.id in collapsedFolders && filterQuery.isBlank()
+                                item(key = "folder-${folder.id}") {
+                                    FolderHeader(
+                                        folder = folder,
+                                        trackCount = content.countOf(folder.id),
+                                        sort = folderSort[folder.id] ?: TrackSort.BY_NAME,
+                                        expanded = !collapsed,
+                                        refreshEnabled = !isScanning,
+                                        onToggle = { viewModel.toggleFolderCollapsed(folder.id) },
+                                        onRefresh = { viewModel.rescanFolder(folder.id) },
+                                        onSortChange = { viewModel.setFolderSort(folder.id, it) },
+                                        onDelete = { folderToDelete = folder },
+                                        onImportInfo = {
+                                            importTargetFolder = folder
+                                            importFilePicker.launch(arrayOf("*/*"))
+                                        },
+                                        onExportInfo = {
+                                            exportTargetFolder = folder
+                                            exportDocumentCreator.launch(
+                                                "${safeFileName(folder.displayName)}.$SIDECAR_EXTENSION",
+                                            )
+                                        },
+                                    )
+                                }
+                                if (!collapsed) {
+                                    items(
+                                        items = content.tracksOf(folder.id),
+                                        key = { "track-${it.id}" },
+                                    ) { track ->
+                                        Box {
+                                            TrackRow(
+                                                title = track.title,
+                                                bpm = track.bpm,
+                                                bpmSource = track.bpmSource,
+                                                onClick = { editorViewModel.open(track) },
+                                                onLongClick = { viewModel.openPlaylistMenu(track.id) },
+                                            )
+                                            AddToPlaylistDropdown(
+                                                expanded = menuTrackId == track.id,
+                                                playlists = playlists,
+                                                containing = containing,
+                                                onDismiss = viewModel::closePlaylistMenu,
+                                                onToggle = { playlistId ->
+                                                    viewModel.toggleTrackInPlaylist(track.id, playlistId)
+                                                    viewModel.closePlaylistMenu()
+                                                },
+                                            )
+                                        }
                                     }
                                 }
                             }
