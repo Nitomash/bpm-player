@@ -710,8 +710,11 @@ fun PlaylistsScreen(
                                 )
                             }
                         }
-                        result.forEach { track ->
-                            ResultRow(track)
+                        result.forEachIndexed { index, track ->
+                            ResultRow(
+                                track = track,
+                                onClick = { viewModel.playFrom(index) },
+                            )
                         }
                     }
                 }
@@ -874,11 +877,15 @@ private fun PlaylistDrawerLabels(summary: PlaylistSummary, modifier: Modifier = 
 }
 
 @Composable
-private fun ResultRow(track: TrackEntity) {
+private fun ResultRow(
+    track: TrackEntity,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

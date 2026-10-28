@@ -157,6 +157,12 @@ class GeneratorViewModel @Inject constructor(
         playbackSession.openQueue(queue, startIndex = startIndex, generated = true)
     }
 
+    fun playFrom(index: Int) {
+        val queue = _result.value.map { it.toPlayerTrack() }
+        if (queue.isEmpty()) return
+        playbackSession.openQueue(queue, startIndex = index, generated = true)
+    }
+
     private fun renderPlaylistName(spec: PlaylistNameSpec, order: PlaylistOrder): String {
         val range = when {
             spec.minBpm != null && spec.maxBpm != null -> context.getString(
