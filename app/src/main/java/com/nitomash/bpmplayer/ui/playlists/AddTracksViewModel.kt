@@ -7,6 +7,7 @@ import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.player.toPlayerTrack
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
+import com.nitomash.bpmplayer.ui.common.SelectAll
 import com.nitomash.bpmplayer.ui.common.buildIndex
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +80,13 @@ class AddTracksViewModel @Inject constructor(
         } else {
             _selectedIds.value + trackId
         }
+    }
+
+    fun toggleSelectAll() {
+        _selectedIds.value = SelectAll.toggledWithin(
+            visible.value.map { it.id },
+            _selectedIds.value,
+        )
     }
 
     fun togglePreview(trackId: Long) {

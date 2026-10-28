@@ -12,4 +12,11 @@ object SelectAll {
 
     fun toggled(allIds: List<Long>, selectedIds: Set<Long>): Set<Long> =
         if (state(allIds, selectedIds) == ToggleableState.On) emptySet() else allIds.toSet()
+
+    fun toggledWithin(allIds: List<Long>, selectedIds: Set<Long>): Set<Long> =
+        if (state(allIds, selectedIds) == ToggleableState.On) {
+            selectedIds - allIds.toSet()
+        } else {
+            selectedIds + allIds
+        }
 }

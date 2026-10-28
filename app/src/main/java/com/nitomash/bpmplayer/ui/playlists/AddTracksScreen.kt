@@ -14,17 +14,21 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.ui.common.SearchField
+import com.nitomash.bpmplayer.ui.common.SelectAll
 import com.nitomash.bpmplayer.ui.common.TrackList
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,6 +44,7 @@ fun AddTracksScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
     val previewTrackId by viewModel.previewTrackId.collectAsStateWithLifecycle()
+    val selectAllLabel = stringResource(R.string.playlist_select_all)
 
     LaunchedEffect(Unit) {
         viewModel.saved.collect { onBack() }
@@ -59,6 +64,13 @@ fun AddTracksScreen(
                     }
                 },
                 actions = {
+                    TriStateCheckbox(
+                        state = SelectAll.state(visible.map { it.id }, selectedIds),
+                        onClick = viewModel::toggleSelectAll,
+                        modifier = Modifier.semantics {
+                            contentDescription = selectAllLabel
+                        },
+                    )
                     TextButton(
                         onClick = viewModel::save,
                         enabled = selectedIds.isNotEmpty(),

@@ -47,4 +47,19 @@ class SelectAllTest {
     fun `toggled keeps nothing for empty list`() {
         assertEquals(emptySet<Long>(), SelectAll.toggled(emptyList(), emptySet()))
     }
+
+    @Test
+    fun `toggledWithin adds the given ids keeping other selections`() {
+        assertEquals(setOf(1L, 2L, 3L, 9L), SelectAll.toggledWithin(all, setOf(9L)))
+    }
+
+    @Test
+    fun `toggledWithin removes only the given ids`() {
+        assertEquals(setOf(9L), SelectAll.toggledWithin(all, setOf(1L, 2L, 3L, 9L)))
+    }
+
+    @Test
+    fun `toggledWithin ignores partially selected list when adding`() {
+        assertEquals(setOf(1L, 2L, 3L), SelectAll.toggledWithin(all, setOf(2L)))
+    }
 }
