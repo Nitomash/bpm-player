@@ -33,7 +33,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 import java.text.DateFormat
 import java.util.Date
 import javax.inject.Inject
@@ -67,6 +66,14 @@ class GeneratorViewModel @Inject constructor(
     val hasPrevious = playbackSession.hasPrevious
     val hasNext = playbackSession.hasNext
     val shuffleEnabled = playbackSession.shuffleEnabled
+
+    init {
+        val current = generatedPlaylistStore.current.value
+        if (current != null) {
+            _result.value = current.tracks
+            _generated.value = true
+        }
+    }
 
     val folders: StateFlow<List<FolderEntity>> = repository.observeFolders()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -149,12 +156,7 @@ class GeneratorViewModel @Inject constructor(
     fun openPlayer() {
         val queue = _result.value.map { it.toPlayerTrack() }
         if (queue.isEmpty()) return
-        val startIndex = if (playbackSession.shuffleEnabled.value) {
-            Random.Default.nextInt(queue.size)
-        } else {
-            0
-        }
-        playbackSession.openQueue(queue, startIndex = startIndex, generated = true)
+        playbackSession.openQueue(queue, startIndex = 0, generated = true, randomStart = true)
     }
 
     fun playFrom(index: Int) {

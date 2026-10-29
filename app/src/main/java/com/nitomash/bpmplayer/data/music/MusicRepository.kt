@@ -11,6 +11,8 @@ interface MusicRepository {
     fun observeTracks(): Flow<List<TrackEntity>>
     fun observeById(id: Long): Flow<TrackEntity?>
 
+    suspend fun getById(id: Long): TrackEntity?
+
     suspend fun getTracksWithBpm(): List<TrackEntity>
     suspend fun getFolders(): List<FolderEntity>
     suspend fun getByFolder(folderId: Long): List<TrackEntity>

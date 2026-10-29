@@ -20,13 +20,11 @@ import com.nitomash.bpmplayer.data.playlist.export.XspfExporter
 import com.nitomash.bpmplayer.data.playlist.xspf.XspfImportResult
 import com.nitomash.bpmplayer.data.playlist.xspf.XspfImporter
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
-import com.nitomash.bpmplayer.ui.common.BpmLog
 import com.nitomash.bpmplayer.ui.common.ListReorder
 import com.nitomash.bpmplayer.ui.common.SelectAll
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
-import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -96,12 +94,7 @@ class PlaylistListViewModel @Inject constructor(
         viewModelScope.launch {
             val tracks = playlistRepository.getTracksInDisplayOrder(playlistId)
             if (tracks.isEmpty()) return@launch
-            val startIndex = if (playbackSession.shuffleEnabled.value) {
-                Random.Default.nextInt(tracks.size)
-            } else {
-                0
-            }
-            playbackSession.openQueue(tracks.map { it.toPlayerTrack() }, playlistId, startIndex)
+            playbackSession.openQueue(tracks.map { it.toPlayerTrack() }, playlistId, 0, randomStart = true)
             onStarted()
         }
     }
@@ -115,7 +108,6 @@ class PlaylistListViewModel @Inject constructor(
     }
 
     fun enterReorder() {
-        BpmLog.d("VM list: enterReorder n=${playlists.value.size} sort=${listSort.value}")
         if (playlists.value.size < 2) return
         _reorderIds.value = playlists.value.map { it.id }
         _reorderSession.value += 1
@@ -134,7 +126,6 @@ class PlaylistListViewModel @Inject constructor(
             playlistRepository.setPlaylistOrder(draft)
             persistListSort(PlaylistListSort.CUSTOM)
             _reorderIds.value = null
-            BpmLog.d("VM list: committed $draft")
         }
     }
 
@@ -227,10 +218,6 @@ class PlaylistListViewModel @Inject constructor(
                 val result = bundleExporter.export(treeUri, playlistId) { progress ->
                     _bundleExportProgress.value = progress
                 }
-                BpmLog.d(
-                    "VM list: bundle export '${result.playlistName}' " +
-                        "folder=${result.folderName} copied=${result.copiedCount} error=${result.error}",
-                )
                 _bundleExportEvents.emit(result)
             } finally {
                 _bundleExportProgress.value = null
@@ -268,10 +255,6 @@ class PlaylistListViewModel @Inject constructor(
             _importing.value = true
             try {
                 val result = xspfImporter.import(documentUri)
-                BpmLog.d(
-                    "VM list: imported '${result.playlistName}' " +
-                        "matched=${result.matchedCount}/${result.totalCount} error=${result.error}",
-                )
                 _importEvents.emit(result)
             } finally {
                 _importing.value = false

@@ -10,7 +10,6 @@ import com.nitomash.bpmplayer.data.player.toPlayerTrack
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSort
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSorter
-import com.nitomash.bpmplayer.ui.common.BpmLog
 import com.nitomash.bpmplayer.ui.common.ListReorder
 import com.nitomash.bpmplayer.ui.common.SelectAll
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -99,7 +98,6 @@ class PlaylistDetailViewModel @Inject constructor(
     }
 
     fun enterReorder() {
-        BpmLog.d("VM detail: enterReorder n=${tracks.value.size} sort=${sortMode.value}")
         if (tracks.value.size < 2) return
         _reorderIds.value = tracks.value.map { it.id }
         _reorderSession.value += 1
@@ -118,7 +116,6 @@ class PlaylistDetailViewModel @Inject constructor(
         viewModelScope.launch {
             playlistRepository.setTrackOrder(playlistId, draft)
             playlistRepository.setTrackSortMode(playlistId, PlaylistTrackSort.CUSTOM)
-            BpmLog.d("VM detail: committed $draft")
             clearReorder()
         }
     }

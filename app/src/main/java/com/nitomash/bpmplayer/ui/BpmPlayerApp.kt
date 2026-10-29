@@ -1,5 +1,7 @@
 package com.nitomash.bpmplayer.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -70,7 +72,7 @@ fun BpmPlayerApp() {
                             onClick = {
                                 navController.navigate(destination.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                                        saveState = false
                                     }
                                     launchSingleTop = true
                                     restoreState = true
@@ -95,15 +97,19 @@ fun BpmPlayerApp() {
             modifier = Modifier
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding),
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None },
         ) {
             composable(TopLevelDestination.LIBRARY.route) { entry ->
                 ScreenWithMiniPlayer(playerViewModel) {
                     LibraryScreen(
                         onOpenMassBpm = { scope, folderIds ->
-                            if (entry.isForeground()) navController.navigate(MassBpmViewModel.route(scope, folderIds))
+                            if (entry.isForeground()) navController.navigate(MassBpmViewModel.route(scope, folderIds)) { launchSingleTop = true }
                         },
-                        onOpenSettings = { if (entry.isForeground()) navController.navigate(SETTINGS_ROUTE) },
-                        onOpenAbout = { if (entry.isForeground()) navController.navigate(ABOUT_ROUTE) },
+                        onOpenSettings = { if (entry.isForeground()) navController.navigate(SETTINGS_ROUTE) { launchSingleTop = true } },
+                        onOpenAbout = { if (entry.isForeground()) navController.navigate(ABOUT_ROUTE) { launchSingleTop = true } },
                     )
                 }
             }
@@ -111,13 +117,13 @@ fun BpmPlayerApp() {
                 ScreenWithMiniPlayer(playerViewModel) {
                     PlaylistsScreen(
                         onOpenPlaylist = { playlistId ->
-                            if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId))
+                            if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId)) { launchSingleTop = true }
                         },
                         onPlaylistStarted = {
                             if (entry.isForeground()) {
                                 navController.navigate(TopLevelDestination.PLAYER.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                                        saveState = false
                                     }
                                     launchSingleTop = true
                                     restoreState = true
@@ -130,10 +136,10 @@ fun BpmPlayerApp() {
             composable(TopLevelDestination.PLAYER.route) { entry ->
                 PlayerScreen(
                     onOpenPlaylist = { playlistId ->
-                        if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId))
+                        if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId)) { launchSingleTop = true }
                     },
                     onOpenGenerated = {
-                        if (entry.isForeground()) navController.navigate(GeneratedPlaylistViewModel.ROUTE)
+                        if (entry.isForeground()) navController.navigate(GeneratedPlaylistViewModel.ROUTE) { launchSingleTop = true }
                     },
                 )
             }
@@ -151,8 +157,8 @@ fun BpmPlayerApp() {
                 ),
             ) { entry ->
                 MassBpmScreen(
-                    onDiscard = { if (entry.isForeground()) navController.popBackStack() },
-                    onSaved = { if (entry.isForeground()) navController.popBackStack() },
+                    onDiscard = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
+                    onSaved = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                 )
             }
             composable(
@@ -165,9 +171,9 @@ fun BpmPlayerApp() {
             ) { entry ->
                 PlaylistDetailScreen(
                     playerViewModel = playerViewModel,
-                    onBack = { if (entry.isForeground()) navController.popBackStack() },
+                    onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                     onAddTracks = { playlistId ->
-                        if (entry.isForeground()) navController.navigate(AddTracksViewModel.route(playlistId))
+                        if (entry.isForeground()) navController.navigate(AddTracksViewModel.route(playlistId)) { launchSingleTop = true }
                     },
                 )
             }
@@ -180,18 +186,18 @@ fun BpmPlayerApp() {
                 ),
             ) { entry ->
                 AddTracksScreen(
-                    onBack = { if (entry.isForeground()) navController.popBackStack() },
+                    onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                 )
             }
             composable(GeneratedPlaylistViewModel.ROUTE) { entry ->
                 GeneratedPlaylistScreen(
                     playerViewModel = playerViewModel,
-                    onBack = { if (entry.isForeground()) navController.popBackStack() },
+                    onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                 )
             }
             composable(ABOUT_ROUTE) { entry ->
                 AboutScreen(
-                    onBack = { if (entry.isForeground()) navController.popBackStack() },
+                    onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                 )
             }
             composable(SETTINGS_ROUTE) { entry ->
@@ -201,7 +207,7 @@ fun BpmPlayerApp() {
                 SettingsScreen(
                     settings = value,
                     onDetectorRangeChange = settingsViewModel::setDetectorRange,
-                    onBack = { if (entry.isForeground()) navController.popBackStack() },
+                    onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                 )
             }
         }

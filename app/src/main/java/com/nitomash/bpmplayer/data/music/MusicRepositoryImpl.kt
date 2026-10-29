@@ -28,6 +28,8 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun observeById(id: Long): Flow<TrackEntity?> = trackDao.observeById(id)
 
+    override suspend fun getById(id: Long): TrackEntity? = trackDao.getById(id)
+
     override suspend fun getTracksWithBpm(): List<TrackEntity> = trackDao.getWithBpm()
 
     override suspend fun getFolders(): List<FolderEntity> = folderDao.getAll()

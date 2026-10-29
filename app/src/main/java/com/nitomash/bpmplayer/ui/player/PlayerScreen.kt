@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -35,6 +38,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -60,6 +64,7 @@ import com.nitomash.bpmplayer.ui.editor.BpmEditorDialog
 import com.nitomash.bpmplayer.ui.editor.formatBpm
 import com.nitomash.bpmplayer.ui.library.BpmEditorViewModel
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,6 +85,7 @@ fun PlayerScreen(
     val editorAutoDetect by editorViewModel.autoDetectState.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val notificationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {}
@@ -132,11 +138,19 @@ fun PlayerScreen(
             } else {
                 NowPlayingInfo(viewModel)
                 CurrentBpmBadge(
-                    currentTrack = viewModel.currentTrack,
                     currentBpm = viewModel.currentBpm,
                     playlists = viewModel.playlists,
                     playlistsContainingTrack = viewModel.playlistsContainingCurrentTrack,
-                    onEditBpm = editorViewModel::show,
+                    onEditBpm = {
+                        val id = viewModel.currentTrackId.value
+                        if (id != null) {
+                            scope.launch {
+                                viewModel.getTrack(id)?.let { track ->
+                                    editorViewModel.show(track)
+                                }
+                            }
+                        }
+                    },
                     onToggleInPlaylist = viewModel::toggleCurrentTrackInPlaylist,
                 )
                 SeekBarRow(
@@ -180,6 +194,7 @@ fun PlayerScreen(
             onSkipForward = editorViewModel::skipForward,
             onSave = { bpm, source ->
                 editorViewModel.saveBpm(bpm, source)
+                viewModel.updateCurrentBpm(bpm)
                 editorViewModel.dismiss()
             },
             onAutoDetect = editorViewModel::autoDetectBpm,
@@ -229,22 +244,24 @@ private fun NowPlayingInfo(viewModel: PlayerViewModel) {
 
 @Composable
 private fun CurrentBpmBadge(
-    currentTrack: StateFlow<TrackEntity?>,
     currentBpm: StateFlow<Double?>,
     playlists: StateFlow<List<PlaylistSummary>>,
     playlistsContainingTrack: StateFlow<Set<Long>>,
-    onEditBpm: (TrackEntity) -> Unit,
+    onEditBpm: () -> Unit,
     onToggleInPlaylist: (Long) -> Unit,
 ) {
-    val track by currentTrack.collectAsStateWithLifecycle()
     val bpm by currentBpm.collectAsStateWithLifecycle()
     val playlistItems by playlists.collectAsStateWithLifecycle()
     val containing by playlistsContainingTrack.collectAsStateWithLifecycle()
     var menuOpen by remember { mutableStateOf(false) }
 
-    track?.let { current ->
+    Box(
+        modifier = Modifier
+            .padding(top = 4.dp)
+            .height(48.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         Row(
-            modifier = Modifier.padding(top = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -255,7 +272,7 @@ private fun CurrentBpmBadge(
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center,
             )
-            IconButton(onClick = { onEditBpm(current) }) {
+            IconButton(onClick = onEditBpm) {
                 Icon(
                     imageVector = Icons.Filled.Settings,
                     contentDescription = stringResource(R.string.player_edit_bpm),
@@ -263,13 +280,13 @@ private fun CurrentBpmBadge(
                 )
             }
             Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.player_add_to_playlist),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.player_add_to_playlist),
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clickable { menuOpen = true },
+                )
                 AddToPlaylistDropdown(
                     expanded = menuOpen,
                     playlists = playlistItems,

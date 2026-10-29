@@ -20,10 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
@@ -131,15 +131,35 @@ fun PlaylistsScreen(
     val isSelectionMode by playlistListViewModel.isSelectionMode.collectAsStateWithLifecycle()
     val selectedIds by playlistListViewModel.selectedIds.collectAsStateWithLifecycle()
 
-    var minText by rememberSaveable { mutableStateOf("") }
-    var maxText by rememberSaveable { mutableStateOf("") }
-    var countText by rememberSaveable { mutableStateOf("") }
-    var order by rememberSaveable { mutableStateOf(PlaylistOrder.RANDOM) }
-    var generationScope by rememberSaveable { mutableStateOf(GenerationScope.FOLDERS) }
-    var allFolders by rememberSaveable { mutableStateOf(true) }
-    var selectedFolderIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
-    var allPlaylists by rememberSaveable { mutableStateOf(true) }
-    var selectedPlaylistIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
+    val initialInputs = remember { GeneratorInputStore.get() }
+    var minText by remember { mutableStateOf(initialInputs.minText) }
+    var maxText by remember { mutableStateOf(initialInputs.maxText) }
+    var countText by remember { mutableStateOf(initialInputs.countText) }
+    var order by remember { mutableStateOf(initialInputs.order) }
+    var generationScope by remember { mutableStateOf(initialInputs.generationScope) }
+    var allFolders by remember { mutableStateOf(initialInputs.allFolders) }
+    var selectedFolderIds by remember { mutableStateOf(initialInputs.selectedFolderIds) }
+    var allPlaylists by remember { mutableStateOf(initialInputs.allPlaylists) }
+    var selectedPlaylistIds by remember { mutableStateOf(initialInputs.selectedPlaylistIds) }
+
+    LaunchedEffect(
+        minText, maxText, countText, order, generationScope, allFolders,
+        selectedFolderIds, allPlaylists, selectedPlaylistIds,
+    ) {
+        GeneratorInputStore.update {
+            it.copy(
+                minText = minText,
+                maxText = maxText,
+                countText = countText,
+                order = order,
+                generationScope = generationScope,
+                allFolders = allFolders,
+                selectedFolderIds = selectedFolderIds,
+                allPlaylists = allPlaylists,
+                selectedPlaylistIds = selectedPlaylistIds,
+            )
+        }
+    }
 
     val folders by viewModel.folders.collectAsStateWithLifecycle()
     val generationPlaylists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -151,7 +171,7 @@ fun PlaylistsScreen(
     var deleteTarget by remember { mutableStateOf<PlaylistSummary?>(null) }
     var deleteSelectedTarget by remember { mutableStateOf(false) }
     var contextMenuFor by remember { mutableStateOf<Long?>(null) }
-    var sortMenuOpen by rememberSaveable { mutableStateOf(false) }
+    var sortMenuOpen by remember { mutableStateOf(false) }
 
     val isReorderMode = reorderIds != null
     val reorderState = reorderIds
@@ -500,225 +520,251 @@ fun PlaylistsScreen(
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
         ) { innerPadding ->
-            Column(
+            val listState = rememberLazyListState(
+                initialFirstVisibleItemIndex = initialInputs.firstVisibleItemIndex.coerceIn(0, result.size.coerceAtLeast(0)),
+                initialFirstVisibleItemScrollOffset = initialInputs.firstVisibleItemScrollOffset,
+            )
+            LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
+                GeneratorInputStore.update {
+                    it.copy(
+                        firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                        firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
+                    )
+                }
+            }
+            LaunchedEffect(result.size) {
+                if (listState.firstVisibleItemIndex > result.size.coerceAtLeast(0)) {
+                    listState.scrollToItem(0)
+                }
+            }
+            LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    OutlinedTextField(
-                        value = minText,
-                        onValueChange = { minText = it },
-                        label = { Text(stringResource(R.string.playlist_min_bpm)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = maxText,
-                        onValueChange = { maxText = it },
-                        label = { Text(stringResource(R.string.playlist_max_bpm)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                OutlinedTextField(
-                    value = countText,
-                    onValueChange = { countText = it },
-                    label = { Text(stringResource(R.string.playlist_count_label)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                var orderExpanded by rememberSaveable { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = orderExpanded,
-                    onExpandedChange = { orderExpanded = it },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    OutlinedTextField(
-                        value = stringResource(playlistOrderLabelRes(order)),
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(stringResource(R.string.playlist_order_label)) },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = orderExpanded)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                    )
-                    ExposedDropdownMenu(
-                        expanded = orderExpanded,
-                        onDismissRequest = { orderExpanded = false },
-                    ) {
-                        PlaylistOrder.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(playlistOrderLabelRes(option))) },
-                                onClick = {
-                                    order = option
-                                    orderExpanded = false
-                                },
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            OutlinedTextField(
+                                value = minText,
+                                onValueChange = { minText = it },
+                                label = { Text(stringResource(R.string.playlist_min_bpm)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            OutlinedTextField(
+                                value = maxText,
+                                onValueChange = { maxText = it },
+                                label = { Text(stringResource(R.string.playlist_max_bpm)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
                             )
                         }
-                    }
-                }
 
-                var advancedExpanded by rememberSaveable { mutableStateOf(false) }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { advancedExpanded = !advancedExpanded },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.playlist_advanced_settings),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(
-                        imageVector = if (advancedExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = stringResource(
-                            if (advancedExpanded) R.string.library_collapse else R.string.library_expand,
-                        ),
-                    )
-                }
-                AnimatedVisibility(visible = advancedExpanded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            GenerationScope.entries.forEachIndexed { index, option ->
-                                SegmentedButton(
-                                    selected = generationScope == option,
-                                    onClick = { generationScope = option },
-                                    shape = SegmentedButtonDefaults.itemShape(index, GenerationScope.entries.size),
-                                ) {
-                                    Text(stringResource(generationScopeLabelRes(option)))
+                        OutlinedTextField(
+                            value = countText,
+                            onValueChange = { countText = it },
+                            label = { Text(stringResource(R.string.playlist_count_label)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+
+                        var orderExpanded by remember { mutableStateOf(initialInputs.orderExpanded) }
+                        ExposedDropdownMenuBox(
+                            expanded = orderExpanded,
+                            onExpandedChange = { orderExpanded = it },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            OutlinedTextField(
+                                value = stringResource(playlistOrderLabelRes(order)),
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text(stringResource(R.string.playlist_order_label)) },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = orderExpanded)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                            )
+                            ExposedDropdownMenu(
+                                expanded = orderExpanded,
+                                onDismissRequest = { orderExpanded = false },
+                            ) {
+                                PlaylistOrder.entries.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(playlistOrderLabelRes(option))) },
+                                        onClick = {
+                                            order = option
+                                            orderExpanded = false
+                                        },
+                                    )
                                 }
                             }
                         }
-                        when (generationScope) {
-                            GenerationScope.FOLDERS -> FolderMultiSelector(
-                                folders = folders,
-                                allSelected = allFolders,
-                                selectedIds = selectedFolderIds,
-                                onAllSelected = {
-                                    allFolders = true
-                                    selectedFolderIds = emptySet()
-                                },
-                                onToggleFolder = { folderId ->
-                                    selectedFolderIds = if (folderId in selectedFolderIds) {
-                                        selectedFolderIds - folderId
-                                    } else {
-                                        selectedFolderIds + folderId
-                                    }
-                                    allFolders = false
-                                    if (selectedFolderIds.isEmpty()) {
-                                        allFolders = true
-                                    }
-                                },
-                            )
 
-                            GenerationScope.PLAYLISTS -> PlaylistMultiSelector(
-                                playlists = generationPlaylists,
-                                allSelected = allPlaylists,
-                                selectedIds = selectedPlaylistIds,
-                                onAllSelected = {
-                                    allPlaylists = true
-                                    selectedPlaylistIds = emptySet()
-                                },
-                                onTogglePlaylist = { playlistId ->
-                                    selectedPlaylistIds = if (playlistId in selectedPlaylistIds) {
-                                        selectedPlaylistIds - playlistId
-                                    } else {
-                                        selectedPlaylistIds + playlistId
-                                    }
-                                    allPlaylists = false
-                                    if (selectedPlaylistIds.isEmpty()) {
-                                        allPlaylists = true
-                                    }
-                                },
-                            )
+                        var advancedExpanded by remember { mutableStateOf(initialInputs.advancedExpanded) }
+                        LaunchedEffect(advancedExpanded, orderExpanded) {
+                            GeneratorInputStore.update {
+                                it.copy(advancedExpanded = advancedExpanded, orderExpanded = orderExpanded)
+                            }
                         }
-                    }
-                }
-
-                Button(
-                    onClick = {
-                        viewModel.generate(
-                            scope = generationScope,
-                            allFolders = allFolders,
-                            folderIds = selectedFolderIds,
-                            allPlaylists = allPlaylists,
-                            playlistIds = selectedPlaylistIds,
-                            minText = minText,
-                            maxText = maxText,
-                            countText = countText,
-                            order = order,
-                        )
-                    },
-                    enabled = !generating,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.playlist_generate))
-                }
-
-                if (generating) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-
-                when {
-                    generated && result.isEmpty() -> {
-                        Text(
-                            text = stringResource(R.string.playlist_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    result.isNotEmpty() -> {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { advancedExpanded = !advancedExpanded },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = pluralStringResource(R.plurals.playlist_result_count, result.size, result.size),
+                                text = stringResource(R.string.playlist_advanced_settings),
                                 style = MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.weight(1f),
                             )
-                            IconButton(onClick = {
-                                viewModel.saveToPlaylist()
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Save,
-                                    contentDescription = stringResource(R.string.playlist_save),
-                                )
-                            }
-                            IconButton(onClick = {
-                                viewModel.openPlayer()
-                                onPlaylistStarted()
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Filled.PlayArrow,
-                                    contentDescription = stringResource(R.string.playlist_play),
-                                )
-                            }
-                        }
-                        result.forEachIndexed { index, track ->
-                            ResultRow(
-                                track = track,
-                                onClick = { viewModel.playFrom(index) },
+                            Icon(
+                                imageVector = if (advancedExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = stringResource(
+                                    if (advancedExpanded) R.string.library_collapse else R.string.library_expand,
+                                ),
                             )
                         }
+                        AnimatedVisibility(visible = advancedExpanded) {
+                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                    GenerationScope.entries.forEachIndexed { index, option ->
+                                        SegmentedButton(
+                                            selected = generationScope == option,
+                                            onClick = { generationScope = option },
+                                            shape = SegmentedButtonDefaults.itemShape(index, GenerationScope.entries.size),
+                                        ) {
+                                            Text(stringResource(generationScopeLabelRes(option)))
+                                        }
+                                    }
+                                }
+                                when (generationScope) {
+                                    GenerationScope.FOLDERS -> FolderMultiSelector(
+                                        folders = folders,
+                                        allSelected = allFolders,
+                                        selectedIds = selectedFolderIds,
+                                        onAllSelected = {
+                                            allFolders = true
+                                            selectedFolderIds = emptySet()
+                                        },
+                                        onToggleFolder = { folderId ->
+                                            selectedFolderIds = if (folderId in selectedFolderIds) {
+                                                selectedFolderIds - folderId
+                                            } else {
+                                                selectedFolderIds + folderId
+                                            }
+                                            allFolders = false
+                                            if (selectedFolderIds.isEmpty()) {
+                                                allFolders = true
+                                            }
+                                        },
+                                    )
+
+                                    GenerationScope.PLAYLISTS -> PlaylistMultiSelector(
+                                        playlists = generationPlaylists,
+                                        allSelected = allPlaylists,
+                                        selectedIds = selectedPlaylistIds,
+                                        onAllSelected = {
+                                            allPlaylists = true
+                                            selectedPlaylistIds = emptySet()
+                                        },
+                                        onTogglePlaylist = { playlistId ->
+                                            selectedPlaylistIds = if (playlistId in selectedPlaylistIds) {
+                                                selectedPlaylistIds - playlistId
+                                            } else {
+                                                selectedPlaylistIds + playlistId
+                                            }
+                                            allPlaylists = false
+                                            if (selectedPlaylistIds.isEmpty()) {
+                                                allPlaylists = true
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.generate(
+                                    scope = generationScope,
+                                    allFolders = allFolders,
+                                    folderIds = selectedFolderIds,
+                                    allPlaylists = allPlaylists,
+                                    playlistIds = selectedPlaylistIds,
+                                    minText = minText,
+                                    maxText = maxText,
+                                    countText = countText,
+                                    order = order,
+                                )
+                            },
+                            enabled = !generating,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.playlist_generate))
+                        }
+
+                        if (generating) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+
+                        when {
+                            generated && result.isEmpty() -> {
+                                Text(
+                                    text = stringResource(R.string.playlist_empty),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+
+                            result.isNotEmpty() -> {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = pluralStringResource(R.plurals.playlist_result_count, result.size, result.size),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    IconButton(onClick = {
+                                        viewModel.saveToPlaylist()
+                                    }) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Save,
+                                            contentDescription = stringResource(R.string.playlist_save),
+                                        )
+                                    }
+                                    IconButton(onClick = {
+                                        viewModel.openPlayer()
+                                        onPlaylistStarted()
+                                    }) {
+                                        Icon(
+                                            imageVector = Icons.Filled.PlayArrow,
+                                            contentDescription = stringResource(R.string.playlist_play),
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
+                }
+                itemsIndexed(result, key = { _, track -> "result-${track.id}" }) { index, track ->
+                    ResultRow(
+                        track = track,
+                        onClick = { viewModel.playFrom(index) },
+                    )
                 }
             }
         }

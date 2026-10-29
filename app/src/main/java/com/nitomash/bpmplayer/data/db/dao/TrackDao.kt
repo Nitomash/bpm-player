@@ -42,6 +42,9 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE id = :id")
     fun observeById(id: Long): Flow<TrackEntity?>
 
+    @Query("SELECT * FROM tracks WHERE id = :id")
+    suspend fun getById(id: Long): TrackEntity?
+
     @Query("SELECT * FROM tracks WHERE bpm IS NOT NULL")
     suspend fun getWithBpm(): List<TrackEntity>
 

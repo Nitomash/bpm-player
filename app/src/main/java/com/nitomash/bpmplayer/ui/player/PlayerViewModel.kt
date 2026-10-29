@@ -16,9 +16,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -31,6 +31,23 @@ class PlayerViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch {
+            playbackSession.currentTrackId.collectLatest { id ->
+                if (id == null) {
+                    playbackSession.setCurrentBpm(null)
+                } else {
+                    musicRepository.observeById(id).collect { track ->
+                        if (track != null) {
+                            playbackSession.setCurrentBpm(track.bpm)
+                            playbackSession.updatePlaybackOrderBpm(id, track.bpm)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     val isPlaying = playbackSession.isPlaying
     val isPreview = playbackSession.isPreview
@@ -59,27 +76,13 @@ class PlayerViewModel @Inject constructor(
     val appSettings: StateFlow<AppSettings> = settingsRepository.observe()
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
-    val currentBpm: StateFlow<Double?> = currentTrackId
-        .flatMapLatest { id ->
-            if (id == null) flowOf(null)
-            else musicRepository.observeById(id).map { it?.bpm }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = null,
-        )
+    val currentBpm = playbackSession.currentBpm
 
-    val currentTrack: StateFlow<TrackEntity?> = currentTrackId
-        .flatMapLatest { id ->
-            if (id == null) flowOf(null)
-            else musicRepository.observeById(id)
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = null,
-        )
+    fun updateCurrentBpm(bpm: Double?) {
+        playbackSession.setCurrentBpm(bpm)
+    }
+
+    suspend fun getTrack(id: Long): TrackEntity? = musicRepository.getById(id)
 
     val playlists: StateFlow<List<PlaylistSummary>> = combine(
         playlistRepository.observePlaylists(),

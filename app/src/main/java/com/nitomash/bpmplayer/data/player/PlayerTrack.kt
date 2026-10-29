@@ -7,7 +7,8 @@ data class PlayerTrack(
     val uri: String,
     val title: String,
     val durationMs: Long = 0L,
+    val bpm: Double? = null,
 )
 
 fun TrackEntity.toPlayerTrack(): PlayerTrack =
-    PlayerTrack(trackId = id, uri = accessUri, title = title, durationMs = durationMs)
+    PlayerTrack(trackId = id, uri = accessUri, title = title, durationMs = durationMs, bpm = bpm)
