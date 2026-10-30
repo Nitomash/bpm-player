@@ -19,7 +19,7 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE folder_id = :folderId ORDER BY title")
     fun observeByFolder(folderId: Long): Flow<List<TrackEntity>>
 
-    @Query("SELECT * FROM tracks WHERE folder_id = :folderId")
+    @Query("SELECT * FROM tracks WHERE folder_id = :folderId ORDER BY title")
     suspend fun getByFolder(folderId: Long): List<TrackEntity>
 
     @Query("DELETE FROM tracks WHERE folder_id = :folderId AND relative_path IN (:paths)")
