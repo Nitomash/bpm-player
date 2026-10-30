@@ -69,8 +69,9 @@ class PlayerViewModel @Inject constructor(
         playbackSession.isGeneratedQueue,
         playbackSession.queueSize,
         playbackSession.isPreview,
-    ) { playlistId, generated, queueSize, isPreview ->
-        queueSize > 0 && !isPreview && (playlistId != null || generated)
+        playbackSession.hasUserStarted,
+    ) { playlistId, generated, queueSize, isPreview, started ->
+        started && queueSize > 0 && !isPreview && (playlistId != null || generated)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val appSettings: StateFlow<AppSettings> = settingsRepository.observe()

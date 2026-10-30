@@ -11,6 +11,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.settings.AppSettings
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import dagger.hilt.android.AndroidEntryPoint
@@ -26,6 +27,9 @@ class PlaybackService : MediaSessionService() {
 
     @Inject
     lateinit var settingsRepository: SettingsRepository
+
+    @Inject
+    lateinit var playbackSession: PlaybackSession
 
     private var mediaSession: MediaSession? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -68,6 +72,7 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
+        runCatching { playbackSession.saveResumeState() }
         scope.cancel()
         mediaSession?.run {
             player.removeListener(playerListener)
@@ -75,6 +80,12 @@ class PlaybackService : MediaSessionService() {
         }
         mediaSession = null
         super.onDestroy()
+    }
+
+    override fun onTaskRemoved(rootIntent: android.content.Intent?) {
+        runCatching { playbackSession.saveResumeState() }
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
     }
 
     companion object {

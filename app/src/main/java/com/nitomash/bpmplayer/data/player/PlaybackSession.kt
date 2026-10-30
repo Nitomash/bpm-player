@@ -5,14 +5,26 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.nitomash.bpmplayer.data.music.MusicRepository
+import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylist
+import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylistStore
+import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.settings.AppSettings
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
+import kotlinx.coroutines.runBlocking
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +33,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -32,6 +45,10 @@ import javax.inject.Singleton
 class PlaybackSession @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
+    private val dataStore: DataStore<Preferences>,
+    private val playlistRepository: PlaylistRepository,
+    private val musicRepository: MusicRepository,
+    private val generatedPlaylistStore: GeneratedPlaylistStore,
 ) {
     private var controller: MediaController? = null
     private var pendingAction: ((MediaController) -> Unit)? = null
@@ -51,6 +68,9 @@ class PlaybackSession @Inject constructor(
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
+    private val _hasUserStarted = MutableStateFlow(false)
+    val hasUserStarted: StateFlow<Boolean> = _hasUserStarted.asStateFlow()
 
     private val _isPreview = MutableStateFlow(false)
     val isPreview: StateFlow<Boolean> = _isPreview.asStateFlow()
@@ -103,6 +123,7 @@ class PlaybackSession @Inject constructor(
     private val _limits = MutableStateFlow(PlaybackLimits())
 
     init {
+        scope.launch { restoreIfNeeded(play = false) }
         scope.launch {
             settingsRepository.observe().collect { settings ->
                 latestSettings = settings
@@ -217,6 +238,7 @@ class PlaybackSession @Inject constructor(
         Log.i(TAG, "openQueue: ${items.size} items")
         cancelGap()
         mode = Mode.Playlist
+        _hasUserStarted.value = true
         originalQueue = items
         _isPreview.value = false
         _previewTrackId.value = null
@@ -405,6 +427,105 @@ class PlaybackSession @Inject constructor(
         // Shuffle/repeat are managed by the app (playbackOrder/_repeatMode); do not let Media3 override them.
     }
 
+    private suspend fun restoreIfNeeded(play: Boolean = false) {
+        val state = loadResumeState() ?: return
+        if (state.trackIds.isEmpty()) {
+            clearResumeState()
+            return
+        }
+        val entities = state.trackIds.mapNotNull { id -> musicRepository.getById(id) }
+        if (entities.isEmpty()) {
+            clearResumeState()
+            return
+        }
+        val tracks = entities.map { it.toPlayerTrack() }
+        val settings = settingsRepository.current()
+        val shuffle = settings.shuffleEnabled
+        val safeIndex = state.trackIds.indexOf(state.currentTrackId).coerceAtLeast(0).coerceAtMost(tracks.lastIndex)
+        mode = Mode.Playlist
+        originalQueue = tracks
+        _isPreview.value = false
+        _previewTrackId.value = null
+        _currentPlaylistId.value = state.playlistId
+        _isGeneratedQueue.value = state.playlistId == null
+        if (state.playlistId == null) {
+            generatedPlaylistStore.put(GeneratedPlaylist(name = "Сгенерированный плейлист", tracks = entities))
+        }
+        previewSnapshot = null
+        pendingAction = null
+        cancelGap()
+        _shuffleEnabled.value = shuffle
+        _repeatMode.value = settings.repeatMode
+        playbackOrder = if (shuffle) buildPlaybackOrder(tracks, safeIndex, true) else tracks
+        currentIndex = if (shuffle) 0 else safeIndex
+        _queueSize.value = playbackOrder.size
+        _currentBpm.value = playbackOrder.getOrNull(currentIndex)?.bpm
+        _currentTrackId.value = playbackOrder.getOrNull(currentIndex)?.trackId
+        _currentTitle.value = playbackOrder.getOrNull(currentIndex)?.title
+        _currentNumber.value = currentIndex + 1
+        _hasPrevious.value = currentIndex > 0 || _repeatMode.value != Player.REPEAT_MODE_OFF
+        _hasNext.value = currentIndex < playbackOrder.lastIndex || _repeatMode.value != Player.REPEAT_MODE_OFF
+        _positionMs.value = state.positionMs
+        startPlayback { player ->
+            player.shuffleModeEnabled = false
+            player.repeatMode = Player.REPEAT_MODE_OFF
+            player.setMediaItems(buildQueueItems(playbackOrder), currentIndex, state.positionMs)
+            if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            if (play) player.play() else player.pause()
+        }
+        clearResumeState()
+    }
+
+    fun saveResumeState() {
+        val ids = originalQueue.map { it.trackId }
+        val currentId = _currentTrackId.value
+        if (ids.isEmpty() && currentId == null) {
+            clearResumeState()
+            return
+        }
+        val playlistId = _currentPlaylistId.value
+        val position = _positionMs.value
+        runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            dataStore.edit { prefs ->
+                prefs[KEY_TRACK_IDS] = ids.joinToString(",")
+                prefs[KEY_PLAYLIST_ID] = playlistId ?: -1L
+                prefs[KEY_CURRENT_TRACK_ID] = currentId ?: -1L
+                prefs[KEY_POSITION_MS] = position
+            }
+        }
+    }
+
+    fun clearResumeState() {
+        runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            dataStore.edit { prefs ->
+                prefs.remove(KEY_TRACK_IDS)
+                prefs.remove(KEY_PLAYLIST_ID)
+                prefs.remove(KEY_CURRENT_TRACK_ID)
+                prefs.remove(KEY_POSITION_MS)
+            }
+        }
+    }
+
+    private suspend fun loadResumeState(): ResumeState? {
+        val prefs = dataStore.data.firstOrNull() ?: return null
+        val idsRaw = prefs[KEY_TRACK_IDS] ?: return null
+        val ids = idsRaw.split(',').mapNotNull { it.toLongOrNull() }
+        if (ids.isEmpty()) return null
+        return ResumeState(
+            playlistId = prefs[KEY_PLAYLIST_ID]?.takeIf { it != -1L },
+            trackIds = ids,
+            currentTrackId = prefs[KEY_CURRENT_TRACK_ID]?.takeIf { it != -1L },
+            positionMs = prefs[KEY_POSITION_MS] ?: 0L,
+        )
+    }
+
+    private data class ResumeState(
+        val playlistId: Long?,
+        val trackIds: List<Long>,
+        val currentTrackId: Long?,
+        val positionMs: Long,
+    )
+
     private fun applyQueue(player: MediaController, items: List<PlayerTrack>, startIndex: Int) {
         Log.i(TAG, "applying queue of ${items.size} items")
         player.setMediaItems(
@@ -527,7 +648,17 @@ class PlaybackSession @Inject constructor(
     }
 
     fun togglePlayback() {
-        val current = controller ?: return
+        if (playbackOrder.isEmpty()) return
+        _hasUserStarted.value = true
+        val current = controller
+        if (current == null) {
+            startPlayback { player ->
+                player.setMediaItems(buildQueueItems(playbackOrder), currentIndex, _positionMs.value)
+                if (player.playbackState == Player.STATE_IDLE) player.prepare()
+                player.play()
+            }
+            return
+        }
         cancelGap()
         if (current.isPlaying) current.pause() else current.play()
     }
@@ -806,6 +937,11 @@ class PlaybackSession @Inject constructor(
     )
 
     private companion object {
+        val KEY_TRACK_IDS = stringPreferencesKey("resume_track_ids")
+        val KEY_PLAYLIST_ID = longPreferencesKey("resume_playlist_id")
+        val KEY_CURRENT_TRACK_ID = longPreferencesKey("resume_current_track_id")
+        val KEY_POSITION_MS = longPreferencesKey("resume_position_ms")
+
         const val TAG = "BpmPlayback"
         const val TICKER_INTERVAL_MS = 250L
         const val FADE_STEP_MS = 50L
