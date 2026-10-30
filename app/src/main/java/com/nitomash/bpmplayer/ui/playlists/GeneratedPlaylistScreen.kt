@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -13,6 +14,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -29,14 +31,20 @@ fun GeneratedPlaylistScreen(
     viewModel: GeneratedPlaylistViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
+    onSaved: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
     val currentTrackId by viewModel.currentTrackId.collectAsStateWithLifecycle()
     val currentPlaylistId by viewModel.currentPlaylistId.collectAsStateWithLifecycle()
     val isPreview by viewModel.isPreview.collectAsStateWithLifecycle()
+    val savedPlaylistId by viewModel.savedPlaylistId.collectAsStateWithLifecycle()
     val isPlaylistPlaying by playerViewModel.isPlaylistActive
         .collectAsStateWithLifecycle(initialValue = false)
+
+    LaunchedEffect(savedPlaylistId) {
+        savedPlaylistId?.let { onSaved(it) }
+    }
 
     val tracks = playlist?.tracks.orEmpty()
 
@@ -52,6 +60,16 @@ fun GeneratedPlaylistScreen(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
                         )
+                    }
+                },
+                actions = {
+                    if (savedPlaylistId == null) {
+                        IconButton(onClick = viewModel::save) {
+                            Icon(
+                                imageVector = Icons.Filled.Save,
+                                contentDescription = stringResource(R.string.editor_save),
+                            )
+                        }
                     }
                 },
             )

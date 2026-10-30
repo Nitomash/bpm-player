@@ -193,6 +193,14 @@ fun BpmPlayerApp() {
                 GeneratedPlaylistScreen(
                     playerViewModel = playerViewModel,
                     onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
+                    onSaved = { playlistId ->
+                        if (entry.isForeground() && entry === navController.currentBackStackEntry) {
+                            navController.navigate(PlaylistDetailViewModel.route(playlistId)) {
+                                popUpTo(GeneratedPlaylistViewModel.ROUTE) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    },
                 )
             }
             composable(ABOUT_ROUTE) { entry ->

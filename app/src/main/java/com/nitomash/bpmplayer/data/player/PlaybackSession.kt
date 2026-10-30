@@ -289,6 +289,11 @@ class PlaybackSession @Inject constructor(
         }
     }
 
+    fun setCurrentPlaylistId(playlistId: Long?) {
+        _currentPlaylistId.value = playlistId
+        _isGeneratedQueue.value = playlistId == null
+    }
+
     fun setCurrentBpm(bpm: Double?) {
         _currentBpm.value = bpm
     }
@@ -449,7 +454,7 @@ class PlaybackSession @Inject constructor(
         _currentPlaylistId.value = state.playlistId
         _isGeneratedQueue.value = state.playlistId == null
         if (state.playlistId == null) {
-            generatedPlaylistStore.put(GeneratedPlaylist(name = "Сгенерированный плейлист", tracks = entities))
+            generatedPlaylistStore.put(GeneratedPlaylist(name = state.name ?: "Сгенерированный плейлист", tracks = entities))
         }
         previewSnapshot = null
         pendingAction = null
@@ -485,12 +490,14 @@ class PlaybackSession @Inject constructor(
         }
         val playlistId = _currentPlaylistId.value
         val position = _positionMs.value
+        val name = if (playlistId == null) generatedPlaylistStore.current.value?.name else null
         runBlocking(kotlinx.coroutines.Dispatchers.IO) {
             dataStore.edit { prefs ->
                 prefs[KEY_TRACK_IDS] = ids.joinToString(",")
                 prefs[KEY_PLAYLIST_ID] = playlistId ?: -1L
                 prefs[KEY_CURRENT_TRACK_ID] = currentId ?: -1L
                 prefs[KEY_POSITION_MS] = position
+                if (name != null) prefs[KEY_NAME] = name else prefs.remove(KEY_NAME)
             }
         }
     }
@@ -502,6 +509,7 @@ class PlaybackSession @Inject constructor(
                 prefs.remove(KEY_PLAYLIST_ID)
                 prefs.remove(KEY_CURRENT_TRACK_ID)
                 prefs.remove(KEY_POSITION_MS)
+                prefs.remove(KEY_NAME)
             }
         }
     }
@@ -516,6 +524,7 @@ class PlaybackSession @Inject constructor(
             trackIds = ids,
             currentTrackId = prefs[KEY_CURRENT_TRACK_ID]?.takeIf { it != -1L },
             positionMs = prefs[KEY_POSITION_MS] ?: 0L,
+            name = prefs[KEY_NAME],
         )
     }
 
@@ -524,6 +533,7 @@ class PlaybackSession @Inject constructor(
         val trackIds: List<Long>,
         val currentTrackId: Long?,
         val positionMs: Long,
+        val name: String?,
     )
 
     private fun applyQueue(player: MediaController, items: List<PlayerTrack>, startIndex: Int) {
@@ -941,6 +951,7 @@ class PlaybackSession @Inject constructor(
         val KEY_PLAYLIST_ID = longPreferencesKey("resume_playlist_id")
         val KEY_CURRENT_TRACK_ID = longPreferencesKey("resume_current_track_id")
         val KEY_POSITION_MS = longPreferencesKey("resume_position_ms")
+        val KEY_NAME = stringPreferencesKey("resume_name")
 
         const val TAG = "BpmPlayback"
         const val TICKER_INTERVAL_MS = 250L
