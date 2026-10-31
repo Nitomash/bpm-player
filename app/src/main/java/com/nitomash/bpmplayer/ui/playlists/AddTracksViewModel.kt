@@ -27,6 +27,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class AddTracksState(
+    val loaded: Boolean = false,
+    val tracks: List<TrackEntity> = emptyList(),
+)
+
 @HiltViewModel
 class AddTracksViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -46,17 +51,22 @@ class AddTracksViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _loaded = MutableStateFlow(false)
+
     @OptIn(FlowPreview::class)
     val filterQuery: StateFlow<String> = _searchQuery
         .debounce(SEARCH_DEBOUNCE_MS)
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
-    val visible: StateFlow<List<TrackEntity>> = combine(_candidates, filterQuery) { candidates, query ->
-        buildIndex(candidates).query(query)
+    val state: StateFlow<AddTracksState> = combine(_candidates, filterQuery, _loaded) { candidates, query, loaded ->
+        AddTracksState(
+            loaded = loaded,
+            tracks = buildIndex(candidates).query(query),
+        )
     }
         .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AddTracksState())
 
     private val _saved = MutableSharedFlow<Unit>()
     val saved: SharedFlow<Unit> = _saved.asSharedFlow()
@@ -66,7 +76,11 @@ class AddTracksViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            _candidates.value = playlistRepository.getTracksNotInPlaylist(playlistId)
+            try {
+                _candidates.value = playlistRepository.getTracksNotInPlaylist(playlistId)
+            } finally {
+                _loaded.value = true
+            }
         }
     }
 
@@ -84,7 +98,7 @@ class AddTracksViewModel @Inject constructor(
 
     fun toggleSelectAll() {
         _selectedIds.value = SelectAll.toggledWithin(
-            visible.value.map { it.id },
+            state.value.tracks.map { it.id },
             _selectedIds.value,
         )
     }

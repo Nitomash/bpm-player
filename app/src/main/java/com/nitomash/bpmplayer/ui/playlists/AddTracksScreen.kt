@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nitomash.bpmplayer.R
+import com.nitomash.bpmplayer.ui.common.LoadingPlaceholder
 import com.nitomash.bpmplayer.ui.common.SearchField
 import com.nitomash.bpmplayer.ui.common.SelectAll
 import com.nitomash.bpmplayer.ui.common.TrackList
@@ -39,7 +40,8 @@ fun AddTracksScreen(
     modifier: Modifier = Modifier,
 ) {
     val candidates by viewModel.candidates.collectAsStateWithLifecycle()
-    val visible by viewModel.visible.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val visible = state.tracks
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
@@ -87,30 +89,34 @@ fun AddTracksScreen(
                 onQueryChange = viewModel::setSearchQuery,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
-            TrackList(
-                tracks = visible,
-                modifier = Modifier.fillMaxSize(),
-                emptyText = stringResource(R.string.playlist_add_empty),
-                selectionMode = true,
-                selectedIds = selectedIds,
-                onToggleSelected = viewModel::toggleSelected,
-                onTrackClick = {},
-                trailing = { track ->
-                    val showPause = previewTrackId == track.id && isPlaying
-                    IconButton(onClick = { viewModel.togglePreview(track.id) }) {
-                        Icon(
-                            imageVector = if (showPause) {
-                                Icons.Filled.Pause
-                            } else {
-                                Icons.Filled.PlayArrow
-                            },
-                            contentDescription = stringResource(
-                                if (showPause) R.string.editor_pause else R.string.editor_play,
-                            ),
-                        )
-                    }
-                },
-            )
+            if (!state.loaded) {
+                LoadingPlaceholder(Modifier.fillMaxSize())
+            } else {
+                TrackList(
+                    tracks = visible,
+                    modifier = Modifier.fillMaxSize(),
+                    emptyText = stringResource(R.string.playlist_add_empty),
+                    selectionMode = true,
+                    selectedIds = selectedIds,
+                    onToggleSelected = viewModel::toggleSelected,
+                    onTrackClick = {},
+                    trailing = { track ->
+                        val showPause = previewTrackId == track.id && isPlaying
+                        IconButton(onClick = { viewModel.togglePreview(track.id) }) {
+                            Icon(
+                                imageVector = if (showPause) {
+                                    Icons.Filled.Pause
+                                } else {
+                                    Icons.Filled.PlayArrow
+                                },
+                                contentDescription = stringResource(
+                                    if (showPause) R.string.editor_pause else R.string.editor_play,
+                                ),
+                            )
+                        }
+                    },
+                )
+            }
         }
     }
 }

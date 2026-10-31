@@ -34,24 +34,30 @@ import androidx.compose.ui.unit.dp
 import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.bpm.PcmBpmDetector
 import com.nitomash.bpmplayer.data.settings.AppSettings
+import com.nitomash.bpmplayer.ui.common.LoadingPlaceholder
 
 const val SETTINGS_ROUTE = "settings"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    settings: AppSettings,
+    settings: AppSettings?,
     onDetectorRangeChange: (Double, Double) -> Unit,
     onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var minText by remember(settings.detectorMinBpm) { mutableStateOf(settings.detectorMinBpm.toInt().toString()) }
-    var maxText by remember(settings.detectorMaxBpm) { mutableStateOf(settings.detectorMaxBpm.toInt().toString()) }
+    var minText by remember(settings?.detectorMinBpm) {
+        mutableStateOf((settings?.detectorMinBpm ?: PcmBpmDetector.DEFAULT_MIN_BPM).toInt().toString())
+    }
+    var maxText by remember(settings?.detectorMaxBpm) {
+        mutableStateOf((settings?.detectorMaxBpm ?: PcmBpmDetector.DEFAULT_MAX_BPM).toInt().toString())
+    }
     var minError by remember { mutableStateOf(false) }
     var maxError by remember { mutableStateOf(false) }
     var rangeError by remember { mutableStateOf(false) }
 
     fun save() {
+        if (settings == null) return
         val form = parseDetectorRangeForm(minText, maxText)
         minError = form.minError
         maxError = form.maxError
@@ -75,7 +81,10 @@ fun SettingsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { save() }) {
+                    IconButton(
+                        onClick = { save() },
+                        enabled = settings != null,
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.Check,
                             contentDescription = stringResource(R.string.settings_save),
@@ -85,6 +94,14 @@ fun SettingsScreen(
             )
         },
     ) { innerPadding ->
+        if (settings == null) {
+            LoadingPlaceholder(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+            return@Scaffold
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()

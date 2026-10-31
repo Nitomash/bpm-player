@@ -42,11 +42,11 @@ class LibraryViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
-    val folders: StateFlow<List<FolderEntity>> = repository.observeFolders()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val folders: StateFlow<List<FolderEntity>?> = repository.observeFolders()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val tracks: StateFlow<List<TrackEntity>> = repository.observeTracks()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val tracks: StateFlow<List<TrackEntity>?> = repository.observeTracks()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
@@ -78,16 +78,20 @@ class LibraryViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
-    val content: StateFlow<LibraryContent> = combine(
+    val content: StateFlow<LibraryContent?> = combine(
         folders,
         tracks,
         filterQuery,
         _folderSort,
     ) { folderList, trackList, query, sortByFolder ->
-        buildLibraryContent(folderList, trackList, query, sortByFolder)
+        if (folderList == null || trackList == null) {
+            null
+        } else {
+            buildLibraryContent(folderList, trackList, query, sortByFolder)
+        }
     }
         .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryContent())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val playlists: StateFlow<List<PlaylistSummary>> = combine(
         playlistRepository.observePlaylists(),

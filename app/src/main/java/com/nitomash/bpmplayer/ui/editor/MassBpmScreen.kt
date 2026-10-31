@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nitomash.bpmplayer.R
+import com.nitomash.bpmplayer.ui.common.LoadingPlaceholder
 import com.nitomash.bpmplayer.ui.common.TrackRow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +51,7 @@ fun MassBpmScreen(
     modifier: Modifier = Modifier,
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
+    val loaded by viewModel.loaded.collectAsStateWithLifecycle()
     val detecting by viewModel.detecting.collectAsStateWithLifecycle()
     val selectedTarget by viewModel.selectedTarget.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
@@ -109,18 +111,26 @@ fun MassBpmScreen(
         },
     ) { innerPadding ->
         if (items.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = stringResource(R.string.mass_empty),
-                    style = MaterialTheme.typography.bodyLarge,
+            if (!loaded) {
+                LoadingPlaceholder(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
                 )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.mass_empty),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
             }
         } else {
             LazyColumn(

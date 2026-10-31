@@ -146,6 +146,7 @@
 
     <string name="playlist_detail_title">Плейлист</string>
     <string name="playlist_detail_empty">В плейлисте нет треков\nНажмите «Добавить треки»</string>
+    <string name="playlist_not_found">Плейлист не найден</string>
     <string name="playlist_rename_title">Переименовать плейлист</string>
     <string name="playlist_rename_label">Название</string>
     <string name="playlist_selected_count">Выбрано: %1$d</string>

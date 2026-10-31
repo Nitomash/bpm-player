@@ -64,6 +64,9 @@ class MassBpmViewModel @Inject constructor(
     private val _items = MutableStateFlow<List<BatchTrack>>(emptyList())
     val items: StateFlow<List<BatchTrack>> = _items.asStateFlow()
 
+    private val _loaded = MutableStateFlow(false)
+    val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
+
     private val _detecting = MutableStateFlow(false)
     val detecting: StateFlow<Boolean> = _detecting.asStateFlow()
 
@@ -94,28 +97,32 @@ class MassBpmViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val folders = repository.getFolders().filter { it.id in folderIds }
-            folderNames.putAll(folders.associate { it.id to it.displayName })
-            val tracks = folders.flatMap { folder ->
-                repository.getByFolder(folder.id)
-                    .filter { allTracks || it.bpm == null }
-                    .sortedBy { it.title.trim().lowercase() }
+            try {
+                val folders = repository.getFolders().filter { it.id in folderIds }
+                folderNames.putAll(folders.associate { it.id to it.displayName })
+                val tracks = folders.flatMap { folder ->
+                    repository.getByFolder(folder.id)
+                        .filter { allTracks || it.bpm == null }
+                        .sortedBy { it.title.trim().lowercase() }
+                }
+                base += tracks
+                trackById.putAll(tracks.associateBy { it.id })
+                baseItems += tracks.map { track ->
+                    BatchTrack(
+                        trackId = track.id,
+                        folderId = track.folderId,
+                        folderName = folderNames[track.folderId].orEmpty(),
+                        title = track.title,
+                        accessUri = track.accessUri,
+                        bpm = track.bpm,
+                        bpmSource = track.bpmSource,
+                        status = BatchTrackStatus.IDLE,
+                    )
+                }
+                publish()
+            } finally {
+                _loaded.value = true
             }
-            base += tracks
-            trackById.putAll(tracks.associateBy { it.id })
-            baseItems += tracks.map { track ->
-                BatchTrack(
-                    trackId = track.id,
-                    folderId = track.folderId,
-                    folderName = folderNames[track.folderId].orEmpty(),
-                    title = track.title,
-                    accessUri = track.accessUri,
-                    bpm = track.bpm,
-                    bpmSource = track.bpmSource,
-                    status = BatchTrackStatus.IDLE,
-                )
-            }
-            publish()
         }
     }
 

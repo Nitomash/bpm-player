@@ -23,6 +23,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class PlaylistDetailState(
+    val loaded: Boolean = false,
+    val playlist: PlaylistEntity? = null,
+    val tracks: List<TrackEntity> = emptyList(),
+)
+
 @HiltViewModel
 class PlaylistDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -33,31 +39,29 @@ class PlaylistDetailViewModel @Inject constructor(
     val playlistId: Long = savedStateHandle.get<Long>(ARG_PLAYLIST_ID)
         ?: error("playlistId argument missing")
 
-    val playlist: StateFlow<PlaylistEntity?> = playlistRepository.observePlaylist(playlistId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    val sortMode: StateFlow<PlaylistTrackSort> = playlistRepository.observePlaylist(playlistId)
-        .map { it?.trackSortMode ?: PlaylistTrackSort.CUSTOM }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PlaylistTrackSort.CUSTOM)
-
     private val _reorderIds = MutableStateFlow<List<Long>?>(null)
     val reorderIds: StateFlow<List<Long>?> = _reorderIds.asStateFlow()
 
     private val _reorderSession = MutableStateFlow(0)
     val reorderSession: StateFlow<Int> = _reorderSession.asStateFlow()
 
-    val tracks: StateFlow<List<TrackEntity>> = combine(
+    val state: StateFlow<PlaylistDetailState> = combine(
+        playlistRepository.observePlaylist(playlistId),
         playlistRepository.observeTrackRows(playlistId),
-        sortMode,
         _reorderIds,
-    ) { rows, mode, draft ->
+    ) { playlist, rows, draft ->
+        val mode = playlist?.trackSortMode ?: PlaylistTrackSort.CUSTOM
         val ordered = if (draft == null) {
             PlaylistTrackSorter.sort(rows, mode)
         } else {
             ListReorder.applyDraft(rows, draft) { it.track.id }
         }
-        ordered.map { it.track }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        PlaylistDetailState(
+            loaded = true,
+            playlist = playlist,
+            tracks = ordered.map { it.track },
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PlaylistDetailState())
 
     val currentTrackId = playbackSession.currentTrackId
     val currentPlaylistId = playbackSession.currentPlaylistId
@@ -82,12 +86,15 @@ class PlaylistDetailViewModel @Inject constructor(
     }
 
     fun setSort(sort: PlaylistTrackSort) {
-        if (sort == sortMode.value) return
+        if (sort == sortMode()) return
         if (sort != PlaylistTrackSort.CUSTOM) clearReorder()
         viewModelScope.launch {
             playlistRepository.setTrackSortMode(playlistId, sort)
         }
     }
+
+    private fun sortMode(): PlaylistTrackSort =
+        state.value.playlist?.trackSortMode ?: PlaylistTrackSort.CUSTOM
 
     fun playFrom(index: Int) {
         viewModelScope.launch {
@@ -98,8 +105,9 @@ class PlaylistDetailViewModel @Inject constructor(
     }
 
     fun enterReorder() {
-        if (tracks.value.size < 2) return
-        _reorderIds.value = tracks.value.map { it.id }
+        val tracks = state.value.tracks
+        if (tracks.size < 2) return
+        _reorderIds.value = tracks.map { it.id }
         _reorderSession.value += 1
         _mode.value = PlaylistDetailMode.REORDER
     }
@@ -150,7 +158,7 @@ class PlaylistDetailViewModel @Inject constructor(
     }
 
     fun toggleSelectAll() {
-        _selectedIds.value = SelectAll.toggled(tracks.value.map { it.id }, _selectedIds.value)
+        _selectedIds.value = SelectAll.toggled(state.value.tracks.map { it.id }, _selectedIds.value)
     }
 
     fun removeSelected() {

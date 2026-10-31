@@ -1,6 +1,7 @@
 package com.nitomash.bpmplayer.ui.playlists
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -41,6 +42,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -57,6 +59,7 @@ import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSort
 import com.nitomash.bpmplayer.ui.common.ConfirmDialog
+import com.nitomash.bpmplayer.ui.common.LoadingPlaceholder
 import com.nitomash.bpmplayer.ui.common.ReorderHandle
 import com.nitomash.bpmplayer.ui.common.ReorderRowShape
 import com.nitomash.bpmplayer.ui.common.ReorderableList
@@ -77,9 +80,10 @@ fun PlaylistDetailScreen(
     onAddTracks: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val playlist by viewModel.playlist.collectAsStateWithLifecycle()
-    val tracks by viewModel.tracks.collectAsStateWithLifecycle()
-    val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
+    val detail by viewModel.state.collectAsStateWithLifecycle()
+    val playlist = detail.playlist
+    val tracks = detail.tracks
+    val sortMode = playlist?.trackSortMode ?: PlaylistTrackSort.CUSTOM
     val mode by viewModel.mode.collectAsStateWithLifecycle()
     val reorderIds by viewModel.reorderIds.collectAsStateWithLifecycle()
     val reorderSession by viewModel.reorderSession.collectAsStateWithLifecycle()
@@ -248,8 +252,10 @@ fun PlaylistDetailScreen(
                 modifier = headerModifier,
             )
         }
-        if (isReorderMode && reorderState != null) {
-            Column(modifier = listModifier) {
+        when {
+            !detail.loaded -> LoadingPlaceholder(listModifier)
+            playlist == null -> MissingPlaylist(listModifier)
+            isReorderMode && reorderState != null -> Column(modifier = listModifier) {
                 header(Modifier.padding(horizontal = 16.dp))
                 key(reorderSession) {
                     ReorderableList(
@@ -275,8 +281,7 @@ fun PlaylistDetailScreen(
                     )
                 }
             }
-        } else {
-            TrackList(
+            else -> TrackList(
                 tracks = tracks,
                 modifier = listModifier,
                 header = { header(Modifier) },
@@ -350,6 +355,20 @@ fun PlaylistDetailScreen(
                 deleteTarget = null
             },
             onDismiss = { deleteTarget = null },
+        )
+    }
+}
+
+@Composable
+private fun MissingPlaylist(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.playlist_not_found),
+            style = MaterialTheme.typography.bodyLarge,
         )
     }
 }

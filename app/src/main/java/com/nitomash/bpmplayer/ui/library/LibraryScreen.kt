@@ -64,6 +64,7 @@ import com.nitomash.bpmplayer.data.music.SIDECAR_EXTENSION
 import com.nitomash.bpmplayer.data.music.SIDECAR_MIME
 import com.nitomash.bpmplayer.data.music.safeFileName
 import com.nitomash.bpmplayer.ui.common.AddToPlaylistDropdown
+import com.nitomash.bpmplayer.ui.common.LoadingPlaceholder
 import com.nitomash.bpmplayer.ui.common.SearchField
 import com.nitomash.bpmplayer.ui.common.TrackRow
 import com.nitomash.bpmplayer.ui.editor.BpmEditorDialog
@@ -80,8 +81,9 @@ fun LibraryScreen(
     onOpenAbout: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val folders by viewModel.folders.collectAsStateWithLifecycle()
-    val content by viewModel.content.collectAsStateWithLifecycle()
+    val foldersOrNull by viewModel.folders.collectAsStateWithLifecycle()
+    val libraryContent by viewModel.content.collectAsStateWithLifecycle()
+    val folders = foldersOrNull.orEmpty()
     val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
     val selectedTrack by editorViewModel.selectedTrack.collectAsStateWithLifecycle()
     val isPlaying by editorViewModel.isPlaying.collectAsStateWithLifecycle()
@@ -244,96 +246,99 @@ fun LibraryScreen(
                 )
             }
 
-            if (folders.isEmpty()) {
-                EmptyLibrary(modifier = Modifier.fillMaxSize())
-            } else {
-                SearchField(
-                    query = searchQuery,
-                    onQueryChange = viewModel::setSearchQuery,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
+            val library = libraryContent
+            when {
+                library == null -> LoadingPlaceholder(modifier = Modifier.fillMaxSize())
+                folders.isEmpty() -> EmptyLibrary(modifier = Modifier.fillMaxSize())
+                else -> {
+                    SearchField(
+                        query = searchQuery,
+                        onQueryChange = viewModel::setSearchQuery,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
 
-                if (content.isEmpty) {
-                    val pullToRefreshState = rememberPullToRefreshState()
-                    PullToRefreshBox(
-                        isRefreshing = isScanning,
-                        onRefresh = { viewModel.refreshAll() },
-                        state = pullToRefreshState,
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        Box(
+                    if (library.isEmpty) {
+                        val pullToRefreshState = rememberPullToRefreshState()
+                        PullToRefreshBox(
+                            isRefreshing = isScanning,
+                            onRefresh = { viewModel.refreshAll() },
+                            state = pullToRefreshState,
                             modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                text = stringResource(R.string.library_search_empty),
-                                modifier = Modifier.padding(24.dp),
-                                style = MaterialTheme.typography.bodyLarge,
-                                textAlign = TextAlign.Center,
-                            )
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.library_search_empty),
+                                    modifier = Modifier.padding(24.dp),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
                         }
-                    }
-                } else {
-                    val pullToRefreshState = rememberPullToRefreshState()
-                    PullToRefreshBox(
-                        isRefreshing = isScanning,
-                        onRefresh = { viewModel.refreshAll() },
-                        state = pullToRefreshState,
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        LazyColumn(
+                    } else {
+                        val pullToRefreshState = rememberPullToRefreshState()
+                        PullToRefreshBox(
+                            isRefreshing = isScanning,
+                            onRefresh = { viewModel.refreshAll() },
+                            state = pullToRefreshState,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            content.visibleFolders.forEach { folder ->
-                                val collapsed = folder.id in collapsedFolders && filterQuery.isBlank()
-                                item(key = "folder-${folder.id}") {
-                                    FolderHeader(
-                                        folder = folder,
-                                        trackCount = content.countOf(folder.id),
-                                        sort = folderSort[folder.id] ?: TrackSort.BY_NAME,
-                                        expanded = !collapsed,
-                                        refreshEnabled = !isScanning,
-                                        onToggle = { viewModel.toggleFolderCollapsed(folder.id) },
-                                        onRefresh = { viewModel.rescanFolder(folder.id) },
-                                        onSortChange = { viewModel.setFolderSort(folder.id, it) },
-                                        onDelete = { folderToDelete = folder },
-                                        onImportInfo = {
-                                            importTargetFolder = folder
-                                            importFilePicker.launch(arrayOf("*/*"))
-                                        },
-                                        onExportInfo = {
-                                            exportTargetFolder = folder
-                                            exportDocumentCreator.launch(
-                                                "${safeFileName(folder.displayName)}.$SIDECAR_EXTENSION",
-                                            )
-                                        },
-                                    )
-                                }
-                                if (!collapsed) {
-                                    items(
-                                        items = content.tracksOf(folder.id),
-                                        key = { "track-${it.id}" },
-                                    ) { track ->
-                                        Box {
-                                            TrackRow(
-                                                title = track.title,
-                                                bpm = track.bpm,
-                                                bpmSource = track.bpmSource,
-                                                onClick = { editorViewModel.open(track) },
-                                                onLongClick = { viewModel.openPlaylistMenu(track.id) },
-                                            )
-                                            AddToPlaylistDropdown(
-                                                expanded = menuTrackId == track.id,
-                                                playlists = playlists,
-                                                containing = containing,
-                                                onDismiss = viewModel::closePlaylistMenu,
-                                                onToggle = { playlistId ->
-                                                    viewModel.toggleTrackInPlaylist(track.id, playlistId)
-                                                    viewModel.closePlaylistMenu()
-                                                },
-                                            )
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                library.visibleFolders.forEach { folder ->
+                                    val collapsed = folder.id in collapsedFolders && filterQuery.isBlank()
+                                    item(key = "folder-${folder.id}") {
+                                        FolderHeader(
+                                            folder = folder,
+                                            trackCount = library.countOf(folder.id),
+                                            sort = folderSort[folder.id] ?: TrackSort.BY_NAME,
+                                            expanded = !collapsed,
+                                            refreshEnabled = !isScanning,
+                                            onToggle = { viewModel.toggleFolderCollapsed(folder.id) },
+                                            onRefresh = { viewModel.rescanFolder(folder.id) },
+                                            onSortChange = { viewModel.setFolderSort(folder.id, it) },
+                                            onDelete = { folderToDelete = folder },
+                                            onImportInfo = {
+                                                importTargetFolder = folder
+                                                importFilePicker.launch(arrayOf("*/*"))
+                                            },
+                                            onExportInfo = {
+                                                exportTargetFolder = folder
+                                                exportDocumentCreator.launch(
+                                                    "${safeFileName(folder.displayName)}.$SIDECAR_EXTENSION",
+                                                )
+                                            },
+                                        )
+                                    }
+                                    if (!collapsed) {
+                                        items(
+                                            items = library.tracksOf(folder.id),
+                                            key = { "track-${it.id}" },
+                                        ) { track ->
+                                            Box {
+                                                TrackRow(
+                                                    title = track.title,
+                                                    bpm = track.bpm,
+                                                    bpmSource = track.bpmSource,
+                                                    onClick = { editorViewModel.open(track) },
+                                                    onLongClick = { viewModel.openPlaylistMenu(track.id) },
+                                                )
+                                                AddToPlaylistDropdown(
+                                                    expanded = menuTrackId == track.id,
+                                                    playlists = playlists,
+                                                    containing = containing,
+                                                    onDismiss = viewModel::closePlaylistMenu,
+                                                    onToggle = { playlistId ->
+                                                        viewModel.toggleTrackInPlaylist(track.id, playlistId)
+                                                        viewModel.closePlaylistMenu()
+                                                    },
+                                                )
+                                            }
                                         }
                                     }
                                 }
