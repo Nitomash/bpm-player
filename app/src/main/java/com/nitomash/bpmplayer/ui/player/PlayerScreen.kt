@@ -60,6 +60,7 @@ import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.ui.common.AddToPlaylistDropdown
+import com.nitomash.bpmplayer.ui.common.LoadingPlaceholder
 import com.nitomash.bpmplayer.ui.editor.BpmEditorDialog
 import com.nitomash.bpmplayer.ui.editor.formatBpm
 import com.nitomash.bpmplayer.ui.library.BpmEditorViewModel
@@ -78,6 +79,7 @@ fun PlayerScreen(
 ) {
     val queueSize by viewModel.queueSize.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
+    val isRestoring by viewModel.isRestoring.collectAsStateWithLifecycle()
     val currentPlaylistId by viewModel.currentPlaylistId.collectAsStateWithLifecycle()
     val isGeneratedQueue by viewModel.isGeneratedQueue.collectAsStateWithLifecycle()
     val appSettings by viewModel.appSettings.collectAsStateWithLifecycle()
@@ -128,60 +130,68 @@ fun PlayerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            if (queueSize == 0) {
-                Text(
-                    text = stringResource(R.string.player_empty_hint),
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (isRestoring) {
+                LoadingPlaceholder(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
                 )
             } else {
-                NowPlayingInfo(viewModel)
-                CurrentBpmBadge(
-                    currentBpm = viewModel.currentBpm,
-                    playlists = viewModel.playlists,
-                    playlistsContainingTrack = viewModel.playlistsContainingCurrentTrack,
-                    onEditBpm = {
-                        val id = viewModel.currentTrackId.value
-                        if (id != null) {
-                            scope.launch {
-                                viewModel.getTrack(id)?.let { track ->
-                                    editorViewModel.show(track)
+                if (queueSize == 0) {
+                    Text(
+                        text = stringResource(R.string.player_empty_hint),
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    NowPlayingInfo(viewModel)
+                    CurrentBpmBadge(
+                        currentBpm = viewModel.currentBpm,
+                        playlists = viewModel.playlists,
+                        playlistsContainingTrack = viewModel.playlistsContainingCurrentTrack,
+                        onEditBpm = {
+                            val id = viewModel.currentTrackId.value
+                            if (id != null) {
+                                scope.launch {
+                                    viewModel.getTrack(id)?.let { track ->
+                                        editorViewModel.show(track)
+                                    }
                                 }
                             }
-                        }
-                    },
-                    onToggleInPlaylist = viewModel::toggleCurrentTrackInPlaylist,
+                        },
+                        onToggleInPlaylist = viewModel::toggleCurrentTrackInPlaylist,
+                    )
+                    SeekBarRow(
+                        positionMs = viewModel.positionMs,
+                        durationMs = viewModel.durationMs,
+                        onSeek = viewModel::seekTo,
+                    )
+                }
+
+                TransportBar(
+                    modifier = Modifier.padding(top = 32.dp),
+                    isPlaying = viewModel.isPlaying,
+                    queueSize = viewModel.queueSize,
+                    hasPrevious = viewModel.hasPrevious,
+                    hasNext = viewModel.hasNext,
+                    shuffleEnabled = viewModel.shuffleEnabled,
+                    repeatMode = viewModel.repeatMode,
+                    onToggleShuffle = viewModel::toggleShuffle,
+                    onPrevious = viewModel::previous,
+                    onTogglePlayback = viewModel::togglePlayback,
+                    onNext = viewModel::next,
+                    onCycleRepeat = viewModel::cycleRepeat,
                 )
-                SeekBarRow(
-                    positionMs = viewModel.positionMs,
-                    durationMs = viewModel.durationMs,
-                    onSeek = viewModel::seekTo,
+
+                IntervalPlaybackControl(
+                    settings = appSettings,
+                    onEnabledChange = viewModel::setPlaybackProcessingEnabled,
+                    onLimitCommit = viewModel::setPlaybackLimitSeconds,
+                    onGapCommit = viewModel::setPlaybackGapSeconds,
+                    modifier = Modifier.padding(top = 24.dp),
                 )
             }
-
-            TransportBar(
-                modifier = Modifier.padding(top = 32.dp),
-                isPlaying = viewModel.isPlaying,
-                queueSize = viewModel.queueSize,
-                hasPrevious = viewModel.hasPrevious,
-                hasNext = viewModel.hasNext,
-                shuffleEnabled = viewModel.shuffleEnabled,
-                repeatMode = viewModel.repeatMode,
-                onToggleShuffle = viewModel::toggleShuffle,
-                onPrevious = viewModel::previous,
-                onTogglePlayback = viewModel::togglePlayback,
-                onNext = viewModel::next,
-                onCycleRepeat = viewModel::cycleRepeat,
-            )
-
-            IntervalPlaybackControl(
-                settings = appSettings,
-                onEnabledChange = viewModel::setPlaybackProcessingEnabled,
-                onLimitCommit = viewModel::setPlaybackLimitSeconds,
-                onGapCommit = viewModel::setPlaybackGapSeconds,
-                modifier = Modifier.padding(top = 24.dp),
-            )
         }
     }
 

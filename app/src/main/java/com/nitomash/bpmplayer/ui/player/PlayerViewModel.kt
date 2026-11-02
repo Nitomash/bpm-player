@@ -51,6 +51,7 @@ class PlayerViewModel @Inject constructor(
 
     val isPlaying = playbackSession.isPlaying
     val isPreview = playbackSession.isPreview
+    val isRestoring = playbackSession.isRestoring
     val currentTitle = playbackSession.currentTitle
     val currentNumber = playbackSession.currentNumber
     val queueSize = playbackSession.queueSize

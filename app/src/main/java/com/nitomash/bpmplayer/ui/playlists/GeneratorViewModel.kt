@@ -63,15 +63,19 @@ class GeneratorViewModel @Inject constructor(
     val currentNumber = playbackSession.currentNumber
     val queueSize = playbackSession.queueSize
     val isPlaying = playbackSession.isPlaying
+    val isRestoring = playbackSession.isRestoring
     val hasPrevious = playbackSession.hasPrevious
     val hasNext = playbackSession.hasNext
     val shuffleEnabled = playbackSession.shuffleEnabled
 
     init {
-        val current = generatedPlaylistStore.current.value
-        if (current != null) {
-            _result.value = current.tracks
-            _generated.value = true
+        viewModelScope.launch {
+            generatedPlaylistStore.current.collect { current ->
+                if (current != null) {
+                    _result.value = current.tracks
+                    _generated.value = true
+                }
+            }
         }
     }
 
