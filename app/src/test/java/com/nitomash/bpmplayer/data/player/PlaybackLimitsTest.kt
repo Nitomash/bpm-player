@@ -28,7 +28,14 @@ class PlaybackLimitsTest {
 
         assertTrue(limits.enabled)
         assertFalse(clipNow(limits))
-        assertFalse(shouldStartGap(limits, isPlaylistMode = true, stopOnTrackEnd = false))
+        assertFalse(
+            shouldPauseAfterSegment(
+                limits,
+                isPlaylistMode = true,
+                stopOnTrackEnd = false,
+                hasNextTarget = true,
+            ),
+        )
     }
 
     @Test
@@ -83,24 +90,31 @@ class PlaybackLimitsTest {
     }
 
     @Test
-    fun `gap starts in playlist`() {
+    fun `gap pauses between segments in playlist`() {
         val limits = PlaybackLimits(gapSeconds = 10)
 
-        assertTrue(shouldStartGap(limits, isPlaylistMode = true, stopOnTrackEnd = false))
+        assertTrue(pauseAfter(limits, hasNextTarget = true))
+    }
+
+    @Test
+    fun `gap does not pause after the last segment without a next target`() {
+        val limits = PlaybackLimits(gapSeconds = 10)
+
+        assertFalse(pauseAfter(limits, hasNextTarget = false))
     }
 
     @Test
     fun `gap does not start outside playlist mode`() {
         val limits = PlaybackLimits(gapSeconds = 10)
 
-        assertFalse(shouldStartGap(limits, isPlaylistMode = false, stopOnTrackEnd = false))
+        assertFalse(pauseAfter(limits, isPlaylistMode = false))
     }
 
     @Test
     fun `gap does not start when editor holds playback`() {
         val limits = PlaybackLimits(gapSeconds = 10)
 
-        assertFalse(shouldStartGap(limits, isPlaylistMode = true, stopOnTrackEnd = true))
+        assertFalse(pauseAfter(limits, stopOnTrackEnd = true))
     }
 
     @Test
@@ -108,8 +122,8 @@ class PlaybackLimitsTest {
         val disabled = PlaybackLimits(enabled = false, gapSeconds = 10)
         val zeroed = PlaybackLimits(enabled = true, gapSeconds = 0)
 
-        assertFalse(shouldStartGap(disabled, isPlaylistMode = true, stopOnTrackEnd = false))
-        assertFalse(shouldStartGap(zeroed, isPlaylistMode = true, stopOnTrackEnd = false))
+        assertFalse(pauseAfter(disabled))
+        assertFalse(pauseAfter(zeroed))
     }
 
     @Test
@@ -164,28 +178,17 @@ class PlaybackLimitsTest {
         assertEquals(0.5f, clipFade(limits, positionMs = 89_000L, durationMs = 0L)!!, 0.001f)
     }
 
-    @Test
-    fun `advance to next item at the very end of the track`() {
-        assertTrue(shouldAdvanceToNextItem(hasNext = true, positionMs = 140_000L, durationMs = 140_000L))
-        assertTrue(shouldAdvanceToNextItem(hasNext = true, positionMs = 139_500L, durationMs = 140_000L))
-    }
-
-    @Test
-    fun `no advance without a next item`() {
-        assertFalse(shouldAdvanceToNextItem(hasNext = false, positionMs = 140_000L, durationMs = 140_000L))
-    }
-
-    @Test
-    fun `no advance when the player already moved to the next track`() {
-        assertFalse(shouldAdvanceToNextItem(hasNext = true, positionMs = 0L, durationMs = 180_000L))
-        assertFalse(shouldAdvanceToNextItem(hasNext = true, positionMs = 137_000L, durationMs = 140_000L))
-    }
-
-    @Test
-    fun `no advance when duration is unknown`() {
-        assertFalse(shouldAdvanceToNextItem(hasNext = true, positionMs = 0L, durationMs = 0L))
-        assertFalse(shouldAdvanceToNextItem(hasNext = true, positionMs = 140_000L, durationMs = 0L))
-    }
+    private fun pauseAfter(
+        limits: PlaybackLimits,
+        isPlaylistMode: Boolean = true,
+        stopOnTrackEnd: Boolean = false,
+        hasNextTarget: Boolean = true,
+    ): Boolean = shouldPauseAfterSegment(
+        limits = limits,
+        isPlaylistMode = isPlaylistMode,
+        stopOnTrackEnd = stopOnTrackEnd,
+        hasNextTarget = hasNextTarget,
+    )
 
     private fun clipFade(
         limits: PlaybackLimits,

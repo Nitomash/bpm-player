@@ -15,7 +15,6 @@ import androidx.media3.session.SessionToken
 import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylist
 import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylistStore
-import com.nitomash.bpmplayer.data.settings.AppSettings
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -32,6 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.random.Random
 
 @Singleton
 class PlaybackSession @Inject constructor(
@@ -45,14 +45,11 @@ class PlaybackSession @Inject constructor(
     private var pendingAction: ((MediaController) -> Unit)? = null
     private var tickerJob: Job? = null
     private var gapJob: Job? = null
+    private var shuffleJob: Job? = null
     private var mode: Mode = Mode.Empty
     private var previewSnapshot: QueueSnapshot? = null
-    private var currentQueue: List<PlayerTrack>? = null
-    private var originalQueue: List<PlayerTrack> = emptyList()
-    private var playbackOrder: List<PlayerTrack> = emptyList()
-    private var currentIndex: Int = 0
+    private var queue: PlaybackQueue = PlaybackQueue.Empty
     private var appliedLimits: PlaybackLimits? = null
-    private var latestSettings: AppSettings? = null
     @Volatile
     private var stopOnTrackEnd = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -124,9 +121,7 @@ class PlaybackSession @Inject constructor(
         scope.launch { restoreIfNeeded() }
         scope.launch {
             settingsRepository.observe().collect { settings ->
-                latestSettings = settings
                 onLimitsChanged(settings.toPlaybackLimits())
-                applyPersistedPlaybackState()
             }
         }
     }
@@ -144,31 +139,12 @@ class PlaybackSession @Inject constructor(
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            val previousTrackId = _currentTrackId.value
             restoreVolume()
             updateNavigation()
             saveResumeState()
-            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
-                if (_currentTrackId.value != previousTrackId) {
-                    _positionMs.value = 0L
-                }
-                if (stopOnTrackEnd) {
-                    Log.i(TAG, "Track ended while editor is open, stopping playback")
-                    controller?.pause()
-                }
-            }
-        }
-
-        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-            if (playWhenReady) return
-            if (reason != Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) return
-            Log.i(TAG, "player paused at end of item (mode=$mode, stopOnTrackEnd=$stopOnTrackEnd)")
-            Log.i(TAG, "onPlayerPausedAtItemEnd: mode=$mode stopOnTrackEnd=$stopOnTrackEnd")
-            onPlayerPausedAtItemEnd()
         }
 
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-            _queueSize.value = timeline.windowCount
             updateNavigation()
         }
 
@@ -183,41 +159,9 @@ class PlaybackSession @Inject constructor(
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            if (playbackState != Player.STATE_ENDED) return
-            if (mode == Mode.Preview) {
-                restoreQueue()
-                return
-            }
-            if (mode == Mode.Playlist && !stopOnTrackEnd) {
-                when (_repeatMode.value) {
-                    Player.REPEAT_MODE_ONE -> {
-                        controller?.seekTo(0L)
-                        controller?.play()
-                        _positionMs.value = 0L
-                        refreshPosition()
-                        updateNavigation()
-                        return
-                    }
-                    Player.REPEAT_MODE_ALL -> {
-                        reshuffleAndRestart()
-                        return
-                    }
-                }
-            }
-            if (
-                mode == Mode.Playlist &&
-                _limits.value.enabled &&
-                !stopOnTrackEnd
-            ) {
-                Log.i(TAG, "queue ended with interval playback enabled, restarting from beginning")
-                val current = controller ?: return
-                current.seekTo(0L)
-                current.pause()
-                _positionMs.value = 0L
-                refreshPosition()
-                updateNavigation()
-            } else if (mode == Mode.Playlist && !stopOnTrackEnd && currentIndex < playbackOrder.lastIndex) {
-                loadTrack(currentIndex + 1, true)
+            when (playbackState) {
+                Player.STATE_READY -> refreshPosition()
+                Player.STATE_ENDED -> finishSegment(SegmentEnd.EndOfMedia)
             }
         }
 
@@ -239,7 +183,6 @@ class PlaybackSession @Inject constructor(
         cancelGap()
         mode = Mode.Playlist
         _hasUserStarted.value = true
-        originalQueue = items
         _isPreview.value = false
         _previewTrackId.value = null
         _currentPlaylistId.value = playlistId
@@ -247,30 +190,18 @@ class PlaybackSession @Inject constructor(
         previewSnapshot = null
         pendingAction = null
         scope.launch {
-            latestSettings = settingsRepository.current()
-            val shuffle = latestSettings?.shuffleEnabled == true
+            val settings = settingsRepository.current()
+            val shuffle = settings.shuffleEnabled
             _shuffleEnabled.value = shuffle
-            _repeatMode.value = latestSettings?.repeatMode ?: Player.REPEAT_MODE_OFF
-            val actualStart = if (randomStart && shuffle && items.isNotEmpty()) kotlin.random.Random.nextInt(items.size) else start
-            playbackOrder = buildPlaybackOrder(items, actualStart, shuffle)
-            currentIndex = if (shuffle) 0 else actualStart.coerceIn(0, items.lastIndex)
-            _queueSize.value = playbackOrder.size
-            _currentBpm.value = playbackOrder.getOrNull(currentIndex)?.bpm
-            _currentTrackId.value = playbackOrder.getOrNull(currentIndex)?.trackId
-            _currentTitle.value = playbackOrder.getOrNull(currentIndex)?.title
-            _currentNumber.value = currentIndex + 1
-            _hasPrevious.value = currentIndex > 0 || _repeatMode.value != Player.REPEAT_MODE_OFF
-            _hasNext.value = currentIndex < playbackOrder.lastIndex || _repeatMode.value != Player.REPEAT_MODE_OFF
-            startPlayback { player ->
-                player.shuffleModeEnabled = false
-                player.repeatMode = Player.REPEAT_MODE_OFF
-                val track = playbackOrder.getOrNull(currentIndex)
-                if (track != null) {
-                    player.setMediaItems(listOf(track).map { it.toMediaItem() }, 0, 0L)
-                    player.prepare()
-                    player.play()
-                }
-            }
+            _repeatMode.value = settings.repeatMode
+            val actualStart = if (randomStart && shuffle) Random.nextInt(items.size) else start
+            queue = PlaybackQueue(
+                source = items.toList(),
+                order = buildPlaybackOrder(items, actualStart, shuffle),
+                index = if (shuffle) 0 else actualStart.coerceIn(0, items.lastIndex),
+            )
+            syncQueueMetadata()
+            startPlayback { loadTrack(queue.index, play = true) }
         }
     }
 
@@ -299,8 +230,10 @@ class PlaybackSession @Inject constructor(
     }
 
     fun updatePlaybackOrderBpm(trackId: Long, bpm: Double?) {
-        playbackOrder = playbackOrder.map { if (it.trackId == trackId) it.copy(bpm = bpm) else it }
-        originalQueue = originalQueue.map { if (it.trackId == trackId) it.copy(bpm = bpm) else it }
+        queue = queue.copy(
+            source = queue.source.map { if (it.trackId == trackId) it.copy(bpm = bpm) else it },
+            order = queue.order.map { if (it.trackId == trackId) it.copy(bpm = bpm) else it },
+        )
         if (_currentTrackId.value == trackId) {
             _currentBpm.value = bpm
         }
@@ -310,11 +243,14 @@ class PlaybackSession @Inject constructor(
         Log.i(TAG, "previewTrack: ${track.title}")
         cancelGap()
         val snapshot = if (mode == Mode.Preview) previewSnapshot else captureQueue()
+        previewSnapshot = snapshot
         mode = Mode.Preview
         _isPreview.value = true
         _previewTrackId.value = track.trackId
+        _currentTrackId.value = track.trackId
+        _currentTitle.value = track.title
         _currentBpm.value = track.bpm
-        startPlayback { player -> startPreview(player, track, snapshot) }
+        startPlayback { player -> startPreview(player, track) }
     }
 
     fun endPreview() {
@@ -327,64 +263,59 @@ class PlaybackSession @Inject constructor(
     }
 
     private fun captureQueue(): QueueSnapshot? {
-        val current = controller ?: return null
-        val count = current.mediaItemCount
-        if (count == 0) return null
-        val items = ArrayList<MediaItem>(count)
-        for (i in 0 until count) {
-            items += current.getMediaItemAt(i)
+        if (queue.size == 0) return null
+        val player = controller
+        val positionMs = when {
+            player == null -> _positionMs.value
+            isAtTrackEnd(player) -> 0L
+            else -> player.currentPosition
         }
         return QueueSnapshot(
-            items = items,
-            restoreIndex = current.currentMediaItemIndex.coerceIn(0, items.lastIndex),
-            restorePositionMs = if (isAtTrackEnd(current)) 0L else current.currentPosition,
-            wasPlaying = current.isPlaying,
+            index = queue.index,
+            positionMs = positionMs,
+            wasPlaying = player?.isPlaying == true,
         )
     }
 
-    private fun startPreview(player: MediaController, track: PlayerTrack, snapshot: QueueSnapshot?) {
-        Log.i(TAG, "startPreview: ${track.title}, snapshot=${snapshot?.items?.size ?: 0} items")
-        previewSnapshot = snapshot
-        player.setMediaItems(listOf(track.toMediaItem()))
-        if (player.playbackState == Player.STATE_IDLE) player.prepare()
+    private fun startPreview(player: MediaController, track: PlayerTrack) {
+        player.setMediaItems(listOf(track.toMediaItem()), 0, 0L)
+        player.prepare()
         player.play()
     }
 
     private fun restoreQueue() {
-        val current = controller
         val snapshot = previewSnapshot
-        mode = if (snapshot == null) Mode.Empty else Mode.Playlist
+        previewSnapshot = null
         _isPreview.value = false
         _previewTrackId.value = null
-        previewSnapshot = null
         pendingAction = null
         cancelGap()
-        if (current == null) return
+        val player = controller
         if (snapshot == null) {
             Log.i(TAG, "preview ended, nothing to restore, stopping")
-            currentQueue = null
+            mode = Mode.Empty
+            queue = PlaybackQueue.Empty
             _isGeneratedQueue.value = false
             _currentBpm.value = null
-            current.stop()
-            current.clearMediaItems()
+            _currentTrackId.value = null
+            _currentTitle.value = null
+            _currentNumber.value = 0
+            _queueSize.value = 0
+            _hasPrevious.value = false
+            _hasNext.value = false
+            _positionMs.value = 0L
+            _durationMs.value = 0L
+            player?.stop()
+            player?.clearMediaItems()
             return
         }
-        val items = currentQueue?.let(::buildQueueItems) ?: snapshot.items
         Log.i(
             TAG,
-            "preview ended, restoring ${items.size} items to ${snapshot.restoreIndex} " +
-                "at ${snapshot.restorePositionMs}ms wasPlaying=${snapshot.wasPlaying}",
+            "preview ended, restoring index ${snapshot.index} at ${snapshot.positionMs}ms " +
+                "wasPlaying=${snapshot.wasPlaying}",
         )
-        current.setMediaItems(
-            items,
-            snapshot.restoreIndex.coerceIn(0, items.lastIndex),
-            snapshot.restorePositionMs,
-        )
-        if (current.playbackState == Player.STATE_IDLE) current.prepare()
-        _positionMs.value = snapshot.restorePositionMs
-        _durationMs.value = current.duration.takeIf { it > 0 } ?: _durationMs.value
-        _currentBpm.value = currentQueue?.firstOrNull { it.trackId == _currentTrackId.value }?.bpm
-        if (snapshot.wasPlaying) current.play() else current.pause()
+        mode = Mode.Playlist
+        loadTrack(snapshot.index, play = snapshot.wasPlaying, positionMs = snapshot.positionMs)
     }
 
     private fun startPlayback(
@@ -423,7 +354,6 @@ class PlaybackSession @Inject constructor(
                         pendingAction = null
                     }
                     updateNavigation()
-                    applyPersistedPlaybackState()
                     if (built.isPlaying) startTicker()
                 }.onFailure { e ->
                     Log.e(TAG, "controller build failed", e)
@@ -431,10 +361,6 @@ class PlaybackSession @Inject constructor(
             },
             ContextCompat.getMainExecutor(context),
         )
-    }
-
-    private fun applyPersistedPlaybackState(player: MediaController? = null) {
-        // Shuffle/repeat are managed by the app (playbackOrder/_repeatMode); do not let Media3 override them.
     }
 
     private suspend fun restoreIfNeeded() {
@@ -460,7 +386,6 @@ class PlaybackSession @Inject constructor(
             val shuffle = settings.shuffleEnabled
             val safeIndex = state.trackIds.indexOf(state.currentTrackId).coerceAtLeast(0).coerceAtMost(tracks.lastIndex)
             mode = Mode.Playlist
-            originalQueue = tracks
             _isPreview.value = false
             _previewTrackId.value = null
             _currentPlaylistId.value = state.playlistId
@@ -473,22 +398,15 @@ class PlaybackSession @Inject constructor(
             cancelGap()
             _shuffleEnabled.value = shuffle
             _repeatMode.value = settings.repeatMode
-            playbackOrder = if (shuffle) buildPlaybackOrder(tracks, safeIndex, true) else tracks
-            currentIndex = if (shuffle) 0 else safeIndex
-            _queueSize.value = playbackOrder.size
-            _currentBpm.value = playbackOrder.getOrNull(currentIndex)?.bpm
-            _currentTrackId.value = playbackOrder.getOrNull(currentIndex)?.trackId
-            _currentTitle.value = playbackOrder.getOrNull(currentIndex)?.title
-            _currentNumber.value = currentIndex + 1
-            _hasPrevious.value = currentIndex > 0 || _repeatMode.value != Player.REPEAT_MODE_OFF
-            _hasNext.value = currentIndex < playbackOrder.lastIndex || _repeatMode.value != Player.REPEAT_MODE_OFF
+            queue = PlaybackQueue(
+                source = tracks,
+                order = buildPlaybackOrder(tracks, safeIndex, shuffle),
+                index = if (shuffle) 0 else safeIndex,
+            )
+            syncQueueMetadata()
             _positionMs.value = state.positionMs
-            startPlayback(foreground = false) { player ->
-                player.shuffleModeEnabled = false
-                player.repeatMode = Player.REPEAT_MODE_OFF
-                player.setMediaItems(buildQueueItems(playbackOrder), currentIndex, state.positionMs)
-                if (player.playbackState == Player.STATE_IDLE) player.prepare()
-                player.pause()
+            startPlayback(foreground = false) {
+                loadTrack(queue.index, play = false, positionMs = state.positionMs)
             }
         } finally {
             _isRestoring.value = false
@@ -497,7 +415,7 @@ class PlaybackSession @Inject constructor(
 
     fun saveResumeState() {
         if (!resumeLoaded || mode == Mode.Preview) return
-        val ids = originalQueue.map { it.trackId }
+        val ids = queue.source.map { it.trackId }
         if (ids.isEmpty()) return
         val playlistId = _currentPlaylistId.value
         val name = if (playlistId == null) generatedPlaylistStore.current.value?.name else null
@@ -534,20 +452,6 @@ class PlaybackSession @Inject constructor(
         data class Save(val state: ResumeState) : ResumeWrite
     }
 
-    private fun applyQueue(player: MediaController, items: List<PlayerTrack>, startIndex: Int) {
-        Log.i(TAG, "applying queue of ${items.size} items")
-        player.setMediaItems(
-            buildQueueItems(items),
-            startIndex,
-            0L,
-        )
-        player.prepare()
-        player.play()
-    }
-
-    private fun buildQueueItems(items: List<PlayerTrack>): List<MediaItem> =
-        items.map { it.toMediaItem() }
-
     private fun onLimitsChanged(limits: PlaybackLimits) {
         val previous = appliedLimits
         appliedLimits = limits
@@ -572,61 +476,40 @@ class PlaybackSession @Inject constructor(
         _positionMs.value = 0L
     }
 
-    private fun onPlayerPausedAtItemEnd() {
-        val current = controller
+    private fun finishSegment(cause: SegmentEnd) {
+        val player = controller ?: return
         if (mode == Mode.Preview) {
             restoreQueue()
             return
         }
-        if (current == null) {
+        if (mode != Mode.Playlist) return
+        if (stopOnTrackEnd) {
+            Log.i(TAG, "segment finished while editor holds playback ($cause), pausing")
+            player.pause()
+            player.seekTo(0L)
+            _positionMs.value = 0L
             return
         }
-        if (!current.hasNextMediaItem()) {
-            Log.i(TAG, "no next item, shouldStartGap=${shouldStartGap(limits = _limits.value, isPlaylistMode = mode == Mode.Playlist, stopOnTrackEnd = stopOnTrackEnd)}")
-            if (
-                shouldStartGap(
-                    limits = _limits.value,
-                    isPlaylistMode = mode == Mode.Playlist,
-                    stopOnTrackEnd = stopOnTrackEnd,
-                )
-            ) {
-                Log.i(TAG, "last item ended with interval playback enabled, restarting from beginning")
-                current.seekTo(0L)
-                current.pause()
-                _positionMs.value = 0L
-                refreshPosition()
-                updateNavigation()
-                return
+        if (queue.size == 0) return
+        val advance = queue.advance(repeatModeValue())
+        val pause = shouldPauseAfterSegment(
+            limits = _limits.value,
+            isPlaylistMode = true,
+            stopOnTrackEnd = false,
+            hasNextTarget = advance != QueueAdvance.EndOfQueue,
+        )
+        Log.i(TAG, "finishSegment($cause): advance=$advance pause=$pause index=${queue.index}/${queue.size}")
+        when (advance) {
+            is QueueAdvance.To -> {
+                loadTrack(advance.index, play = !pause)
+                if (pause) startGap()
             }
-            Log.i(TAG, "item ended without a next one, not starting a gap (mode=$mode)")
-            return
+            QueueAdvance.RestartQueue -> {
+                restartQueue(play = !pause)
+                if (pause) startGap()
+            }
+            QueueAdvance.EndOfQueue -> loadTrack(queue.index, play = false)
         }
-        if (
-            !shouldStartGap(
-                limits = _limits.value,
-                isPlaylistMode = mode == Mode.Playlist,
-                stopOnTrackEnd = stopOnTrackEnd,
-            )
-        ) {
-            return
-        }
-        advanceToNextItem()
-        startGap()
-    }
-
-    private fun advanceToNextItem() {
-        val current = controller ?: return
-        if (
-            !shouldAdvanceToNextItem(
-                hasNext = current.hasNextMediaItem(),
-                positionMs = current.currentPosition,
-                durationMs = current.duration,
-            )
-        ) {
-            return
-        }
-        Log.i(TAG, "moving to next item before the gap")
-        current.seekToNextMediaItem()
     }
 
     private fun startGap() {
@@ -656,19 +539,22 @@ class PlaybackSession @Inject constructor(
     }
 
     fun togglePlayback() {
-        if (playbackOrder.isEmpty()) return
+        if (queue.size == 0 && mode != Mode.Preview) return
         _hasUserStarted.value = true
         val current = controller
         if (current == null) {
-            startPlayback { player ->
-                player.setMediaItems(buildQueueItems(playbackOrder), currentIndex, _positionMs.value)
-                if (player.playbackState == Player.STATE_IDLE) player.prepare()
-                player.play()
-            }
+            if (mode == Mode.Preview) return
+            startPlayback { loadTrack(queue.index, play = true, positionMs = _positionMs.value) }
             return
         }
         cancelGap()
-        if (current.isPlaying) current.pause() else current.play()
+        when {
+            current.isPlaying -> current.pause()
+            current.playbackState == Player.STATE_ENDED -> {
+                if (mode == Mode.Preview) restoreQueue() else loadTrack(queue.index, play = true)
+            }
+            else -> current.play()
+        }
     }
 
     fun togglePreviewPlayback(track: PlayerTrack) {
@@ -690,100 +576,100 @@ class PlaybackSession @Inject constructor(
     }
 
     fun next() {
+        if (queue.size == 0) return
+        leavePreview()
+        _hasUserStarted.value = true
+        val play = isPlayIntentActive()
         cancelGap()
-        if (playbackOrder.isEmpty()) return
-        if (currentIndex < playbackOrder.lastIndex) {
-            loadTrack(currentIndex + 1, controller?.isPlaying == true)
-        } else if (_repeatMode.value != Player.REPEAT_MODE_OFF) {
-            reshuffleAndRestart()
+        val q = queue
+        when {
+            q.index < q.order.lastIndex -> loadTrack(q.index + 1, play)
+            repeatModeValue() != RepeatMode.OFF -> restartQueue(play)
         }
     }
 
     fun previous() {
+        if (queue.size == 0) return
+        leavePreview()
+        _hasUserStarted.value = true
+        val play = isPlayIntentActive()
         cancelGap()
-        if (playbackOrder.isEmpty()) return
-        if (currentIndex > 0) {
-            loadTrack(currentIndex - 1, controller?.isPlaying == true)
-        } else if (_repeatMode.value != Player.REPEAT_MODE_OFF) {
-            loadTrack(playbackOrder.lastIndex, controller?.isPlaying == true)
+        val q = queue
+        when {
+            q.index > 0 -> loadTrack(q.index - 1, play)
+            repeatModeValue() != RepeatMode.OFF -> loadTrack(q.order.lastIndex, play)
         }
     }
 
-    private fun loadTrack(index: Int, play: Boolean) {
-        val track = playbackOrder.getOrNull(index) ?: return
-        currentIndex = index
-        _currentTrackId.value = track.trackId
-        _currentBpm.value = track.bpm
-        _currentTitle.value = track.title
-        _currentNumber.value = index + 1
-        _hasPrevious.value = index > 0 || _repeatMode.value != Player.REPEAT_MODE_OFF
-        _hasNext.value = index < playbackOrder.lastIndex || _repeatMode.value != Player.REPEAT_MODE_OFF
-        _positionMs.value = 0L
+    private fun loadTrack(index: Int, play: Boolean, positionMs: Long = 0L) {
+        val track = queue.order.getOrNull(index) ?: return
+        queue = queue.moveTo(index)
+        syncQueueMetadata()
+        _positionMs.value = positionMs.coerceAtLeast(0L)
+        _durationMs.value = 0L
         val player = controller ?: return
-        player.setMediaItems(listOf(track).map { it.toMediaItem() }, 0, 0L)
-        if (player.playbackState == Player.STATE_IDLE) player.prepare()
-        if (play) player.play() else player.pause()
+        if (!play) player.pause()
+        player.setMediaItems(listOf(track.toMediaItem()), 0, _positionMs.value)
+        player.prepare()
+        if (play) player.play()
     }
 
-    private fun reshuffleAndRestart() {
-        if (playbackOrder.isEmpty()) return
-        val previousTrackId = playbackOrder.getOrNull(playbackOrder.lastIndex)?.trackId
-        if (_shuffleEnabled.value) {
-            var shuffled = originalQueue.shuffled()
-            var attempts = 0
-            while (shuffled.isNotEmpty() && previousTrackId != null && shuffled.first().trackId == previousTrackId && attempts < 10) {
-                shuffled = originalQueue.shuffled()
-                attempts++
-            }
-            playbackOrder = shuffled
-        } else {
-            playbackOrder = originalQueue.toList()
+    private fun restartQueue(play: Boolean) {
+        val q = queue
+        if (q.size == 0) return
+        val order = if (_shuffleEnabled.value) reshuffled(q) else q.source.toList()
+        queue = q.copy(order = order, index = 0)
+        loadTrack(0, play)
+    }
+
+    private fun reshuffled(q: PlaybackQueue): List<PlayerTrack> {
+        val previousId = q.order.lastOrNull()?.trackId
+        var order = q.source.shuffled()
+        var attempts = 0
+        while (order.size > 1 && previousId != null && order.first().trackId == previousId && attempts < 10) {
+            order = q.source.shuffled()
+            attempts++
         }
-        currentIndex = 0
-        _queueSize.value = playbackOrder.size
-        _currentBpm.value = playbackOrder.firstOrNull()?.bpm
-        _currentTrackId.value = playbackOrder.firstOrNull()?.trackId
-        _currentTitle.value = playbackOrder.firstOrNull()?.title
-        val player = controller ?: return
-        player.setMediaItems(buildQueueItems(playbackOrder), 0, 0L)
-        if (player.playbackState == Player.STATE_IDLE) player.prepare()
-        player.play()
+        return order
     }
-
-
-    private var shuffleJob: Job? = null
 
     fun toggleShuffle() {
         val desired = !_shuffleEnabled.value
         _shuffleEnabled.value = desired
         shuffleJob?.cancel()
         shuffleJob = scope.launch {
-            val curTrackId = _currentTrackId.value ?: playbackOrder.getOrNull(currentIndex)?.trackId
-            val curTrack = playbackOrder.firstOrNull { it.trackId == curTrackId }
-                ?: originalQueue.firstOrNull { it.trackId == curTrackId }
+            val q = queue
+            val curTrack = q.current
             val newOrder = withContext(Dispatchers.Default) {
-                if (desired) {
-                    val rest = originalQueue.filter { it.trackId != curTrack?.trackId }.shuffled()
-                    if (curTrack != null) listOf(curTrack) + rest else originalQueue.shuffled()
+                if (q.size == 0) {
+                    emptyList()
+                } else if (desired) {
+                    val rest = q.source.filter { it.trackId != curTrack?.trackId }.shuffled()
+                    if (curTrack != null) listOf(curTrack) + rest else q.source.shuffled()
                 } else {
-                    originalQueue.toList()
+                    q.source.toList()
                 }
             }
             if (desired != _shuffleEnabled.value) return@launch
             withContext(Dispatchers.Main) {
                 if (desired != _shuffleEnabled.value) return@withContext
-                playbackOrder = newOrder
-                currentIndex = if (desired) 0 else originalQueue.indexOfFirst { it.trackId == curTrack?.trackId }.coerceAtLeast(0)
-                _queueSize.value = playbackOrder.size
-                _currentBpm.value = playbackOrder.getOrNull(currentIndex)?.bpm
-                _currentTrackId.value = playbackOrder.getOrNull(currentIndex)?.trackId
-                _currentTitle.value = playbackOrder.getOrNull(currentIndex)?.title
-                _currentNumber.value = currentIndex + 1
-                _hasPrevious.value = currentIndex > 0 || _repeatMode.value != Player.REPEAT_MODE_OFF
-                _hasNext.value = currentIndex < playbackOrder.lastIndex || _repeatMode.value != Player.REPEAT_MODE_OFF
-                scope.launch { settingsRepository.update { it.copy(shuffleEnabled = desired) } }
+                val newIndex = if (desired) {
+                    0
+                } else {
+                    newOrder.indexOfFirst { it.trackId == curTrack?.trackId }.coerceAtLeast(0)
+                }
+                queue = q.copy(order = newOrder, index = newIndex.coerceIn(0, newOrder.lastIndex.coerceAtLeast(0)))
+                if (previewSnapshot != null) {
+                    previewSnapshot = previewSnapshot?.copy(index = queue.index)
+                }
+                if (mode == Mode.Preview) {
+                    _queueSize.value = queue.size
+                    syncNavigationFlags()
+                } else {
+                    syncQueueMetadata()
+                }
+                settingsRepository.update { it.copy(shuffleEnabled = desired) }
             }
-            scope.launch { settingsRepository.update { it.copy(shuffleEnabled = desired) } }
         }
     }
 
@@ -795,8 +681,7 @@ class PlaybackSession @Inject constructor(
         }
         _repeatMode.value = newMode
         controller?.repeatMode = Player.REPEAT_MODE_OFF
-        _hasPrevious.value = currentIndex > 0 || newMode != Player.REPEAT_MODE_OFF
-        _hasNext.value = currentIndex < playbackOrder.lastIndex || newMode != Player.REPEAT_MODE_OFF
+        syncNavigationFlags()
         scope.launch { settingsRepository.update { it.copy(repeatMode = newMode) } }
     }
 
@@ -886,26 +771,7 @@ class PlaybackSession @Inject constructor(
         Log.i(TAG, "clip limit reached at ${positionMs}ms (limit ${limitMs}ms), advancing")
         current.pause()
         restoreVolume()
-        if (current.hasNextMediaItem()) {
-            current.seekToNextMediaItem()
-            if (
-                shouldStartGap(
-                    limits = limits,
-                    isPlaylistMode = true,
-                    stopOnTrackEnd = false,
-                )
-            ) {
-                startGap()
-            } else {
-                current.play()
-            }
-        } else {
-            Log.i(TAG, "clip limit reached at ${positionMs}ms (limit ${limitMs}ms), no next item")
-            current.seekTo(0L)
-            _positionMs.value = 0L
-            refreshPosition()
-            updateNavigation()
-        }
+        finishSegment(SegmentEnd.LimitReached)
     }
 
     private fun stopTicker() {
@@ -916,28 +782,61 @@ class PlaybackSession @Inject constructor(
     private fun refreshPosition() {
         val current = controller ?: return
         if (current.isPlayingAd) return
-        val duration = current.duration.takeIf { it > 0 } ?: 0L
-        _durationMs.value = duration
-        _positionMs.value = current.currentPosition.coerceIn(0L, duration)
+        val duration = current.duration
+        val position = current.currentPosition.coerceAtLeast(0L)
+        if (duration > 0L) {
+            _durationMs.value = duration
+            _positionMs.value = position.coerceIn(0L, duration)
+        } else {
+            _durationMs.value = 0L
+            if (position > 0L) _positionMs.value = position
+        }
+    }
+
+    private fun syncQueueMetadata() {
+        val q = queue
+        val current = q.current
+        _queueSize.value = q.size
+        _currentTrackId.value = current?.trackId
+        _currentBpm.value = current?.bpm
+        _currentTitle.value = current?.title
+        _currentNumber.value = if (current == null) 0 else q.index + 1
+        syncNavigationFlags()
+    }
+
+    private fun syncNavigationFlags() {
+        val q = queue
+        _hasPrevious.value = q.index > 0 || repeatModeValue() != RepeatMode.OFF
+        _hasNext.value = q.index < q.order.lastIndex || repeatModeValue() != RepeatMode.OFF
     }
 
     private fun updateNavigation() {
         val current = controller ?: return
-        _currentTitle.value = current.currentMediaItem?.mediaMetadata?.title?.toString() ?: _currentTitle.value
-        val mediaTrackId = current.currentMediaItem?.mediaId?.toLongOrNull()
-        if (mediaTrackId != null && mediaTrackId != _currentTrackId.value) {
-            val idx = playbackOrder.indexOfFirst { it.trackId == mediaTrackId }
-            if (idx >= 0) currentIndex = idx
-        }
-        _currentTrackId.value = mediaTrackId ?: _currentTrackId.value
-        _currentBpm.value = playbackOrder.getOrNull(currentIndex)?.bpm ?: _currentBpm.value
-        _currentNumber.value = currentIndex + 1
-        _queueSize.value = playbackOrder.size.takeIf { it > 0 } ?: current.mediaItemCount
         _isPlaying.value = current.isPlaying
-        _hasPrevious.value = currentIndex > 0 || _repeatMode.value != Player.REPEAT_MODE_OFF
-        _hasNext.value = currentIndex < playbackOrder.lastIndex || _repeatMode.value != Player.REPEAT_MODE_OFF
+        if (mode != Mode.Preview) {
+            syncQueueMetadata()
+        } else {
+            _queueSize.value = queue.size
+        }
         refreshPosition()
     }
+
+    private fun leavePreview() {
+        if (mode != Mode.Preview) return
+        mode = Mode.Playlist
+        _isPreview.value = false
+        _previewTrackId.value = null
+        previewSnapshot = null
+    }
+
+    private fun repeatModeValue(): RepeatMode = when (_repeatMode.value) {
+        Player.REPEAT_MODE_ONE -> RepeatMode.ONE
+        Player.REPEAT_MODE_ALL -> RepeatMode.ALL
+        else -> RepeatMode.OFF
+    }
+
+    private fun isPlayIntentActive(): Boolean =
+        controller?.playWhenReady == true || _gapActive.value
 
     private enum class Mode {
         Empty,
@@ -945,10 +844,14 @@ class PlaybackSession @Inject constructor(
         Preview,
     }
 
+    private enum class SegmentEnd {
+        EndOfMedia,
+        LimitReached,
+    }
+
     private data class QueueSnapshot(
-        val items: List<MediaItem>,
-        val restoreIndex: Int,
-        val restorePositionMs: Long,
+        val index: Int,
+        val positionMs: Long,
         val wasPlaying: Boolean,
     )
 

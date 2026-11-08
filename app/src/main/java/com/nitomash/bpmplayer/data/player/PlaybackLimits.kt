@@ -30,26 +30,17 @@ fun shouldClipNow(
     return positionMs >= limitMs
 }
 
-fun shouldStartGap(
+fun shouldPauseAfterSegment(
     limits: PlaybackLimits,
     isPlaylistMode: Boolean,
     stopOnTrackEnd: Boolean,
+    hasNextTarget: Boolean,
 ): Boolean {
     if (!limits.enabled) return false
     if (limits.gapSeconds <= 0) return false
     if (!isPlaylistMode) return false
     if (stopOnTrackEnd) return false
-    return true
-}
-
-fun shouldAdvanceToNextItem(
-    hasNext: Boolean,
-    positionMs: Long,
-    durationMs: Long,
-): Boolean {
-    if (!hasNext) return false
-    if (durationMs <= 0L) return false
-    return positionMs >= durationMs - TRACK_END_TOLERANCE_MS
+    return hasNextTarget
 }
 
 fun clipFadeVolume(
@@ -71,4 +62,3 @@ fun clipFadeVolume(
 
 private const val SECOND_MS = 1000L
 private const val FADE_OUT_MS = 2_000L
-private const val TRACK_END_TOLERANCE_MS = 1_000L
