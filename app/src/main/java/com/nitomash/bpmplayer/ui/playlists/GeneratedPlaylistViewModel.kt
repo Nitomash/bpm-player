@@ -6,9 +6,10 @@ import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.player.toPlayerTrack
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -23,24 +24,31 @@ class GeneratedPlaylistViewModel @Inject constructor(
     val currentPlaylistId = playbackSession.currentPlaylistId
     val isPreview = playbackSession.isPreview
 
-    private val _savedPlaylistId = MutableStateFlow<Long?>(null)
-    val savedPlaylistId: StateFlow<Long?> = _savedPlaylistId.asStateFlow()
+    private val _savedEvents = MutableSharedFlow<Long>(extraBufferCapacity = 1)
+    val savedEvents: SharedFlow<Long> = _savedEvents.asSharedFlow()
 
     fun playFrom(index: Int) {
-        val queue = store.current.value?.tracks.orEmpty().map { it.toPlayerTrack() }
+        val playlist = store.current.value ?: return
+        val queue = playlist.tracks.map { it.toPlayerTrack() }
         if (queue.isEmpty()) return
-        playbackSession.openQueue(queue, startIndex = index, generated = true)
+        playbackSession.openQueue(
+            queue,
+            playlistId = playlist.savedPlaylistId,
+            startIndex = index,
+            generated = playlist.savedPlaylistId == null,
+        )
     }
 
     fun save() {
-        val pl = store.current.value ?: return
-        if (_savedPlaylistId.value != null) return
+        val playlist = store.current.value ?: return
+        if (playlist.savedPlaylistId != null) return
         viewModelScope.launch {
-            val name = pl.name.ifBlank { "Сгенерированный плейлист" }
+            val name = playlist.name.ifBlank { "Сгенерированный плейлист" }
             val id = playlistRepository.create(name)
-            playlistRepository.addTracks(id, pl.tracks.map { it.id })
+            playlistRepository.addTracks(id, playlist.tracks.map { it.id })
+            store.markSaved(id)
             playbackSession.setCurrentPlaylistId(id)
-            _savedPlaylistId.value = id
+            _savedEvents.emit(id)
         }
     }
 

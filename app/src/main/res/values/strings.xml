@@ -4,6 +4,7 @@
     <string name="nav_library">Аудиотека</string>
     <string name="nav_playlists">Плейлисты</string>
     <string name="nav_player">Плеер</string>
+    <string name="nav_generator">Генератор</string>
     <string name="action_back">Назад</string>
     <string name="library_more">Ещё</string>
     <string name="library_mass_bpm">Массовое определение BPM</string>
@@ -129,7 +130,6 @@
         <item quantity="other">%d треков</item>
     </plurals>
 
-    <string name="playlist_drawer_open">Открыть плейлисты</string>
     <string name="playlist_create">Создать плейлист</string>
     <string name="playlist_new_default">Новый плейлист</string>
     <string name="playlist_empty_list">Плейлистов пока нет</string>

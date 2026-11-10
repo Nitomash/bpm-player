@@ -3,6 +3,7 @@ package com.nitomash.bpmplayer.ui
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -15,5 +16,6 @@ enum class TopLevelDestination(
 ) {
     LIBRARY("library", R.string.nav_library, Icons.Filled.Home),
     PLAYLISTS("playlists", R.string.nav_playlists, Icons.AutoMirrored.Filled.List),
+    GENERATOR("generator", R.string.nav_generator, Icons.Filled.AutoAwesome),
     PLAYER("player", R.string.nav_player, Icons.Filled.PlayCircleOutline),
 }

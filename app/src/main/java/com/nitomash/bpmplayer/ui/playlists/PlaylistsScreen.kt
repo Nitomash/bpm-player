@@ -2,12 +2,9 @@ package com.nitomash.bpmplayer.ui.playlists
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,68 +12,40 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TriStateCheckbox
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,89 +57,41 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nitomash.bpmplayer.R
-import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.data.playlist.export.BundleExportError
 import com.nitomash.bpmplayer.data.playlist.export.BundleExportResult
 import com.nitomash.bpmplayer.data.playlist.xspf.XspfImportError
-import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
 import com.nitomash.bpmplayer.ui.common.ConfirmDialog
-import com.nitomash.bpmplayer.ui.common.FolderMultiSelector
-import com.nitomash.bpmplayer.ui.common.PlaylistMultiSelector
 import com.nitomash.bpmplayer.ui.common.ReorderHandle
-import com.nitomash.bpmplayer.ui.common.ReorderHandleWidth
 import com.nitomash.bpmplayer.ui.common.ReorderRowShape
 import com.nitomash.bpmplayer.ui.common.ReorderableList
 import com.nitomash.bpmplayer.ui.common.SelectAll
 import com.nitomash.bpmplayer.ui.common.reorderRowColor
 import com.nitomash.bpmplayer.ui.common.reorderRowElevation
-import com.nitomash.bpmplayer.ui.editor.formatBpm
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistsScreen(
-    viewModel: GeneratorViewModel = hiltViewModel(),
-    playlistListViewModel: PlaylistListViewModel = hiltViewModel(),
+    viewModel: PlaylistListViewModel = hiltViewModel(),
     onOpenPlaylist: (Long) -> Unit = {},
     onPlaylistStarted: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val generating by viewModel.generating.collectAsStateWithLifecycle()
-    val result by viewModel.result.collectAsStateWithLifecycle()
-    val generated by viewModel.generated.collectAsStateWithLifecycle()
-    val isRestoring by viewModel.isRestoring.collectAsStateWithLifecycle()
-    val playlists by playlistListViewModel.playlists.collectAsStateWithLifecycle()
-    val listSort by playlistListViewModel.listSort.collectAsStateWithLifecycle()
-    val reorderIds by playlistListViewModel.reorderIds.collectAsStateWithLifecycle()
-    val reorderSession by playlistListViewModel.reorderSession.collectAsStateWithLifecycle()
-    val isSelectionMode by playlistListViewModel.isSelectionMode.collectAsStateWithLifecycle()
-    val selectedIds by playlistListViewModel.selectedIds.collectAsStateWithLifecycle()
-
-    val initialInputs = remember { GeneratorInputStore.get() }
-    var minText by remember { mutableStateOf(initialInputs.minText) }
-    var maxText by remember { mutableStateOf(initialInputs.maxText) }
-    var countText by remember { mutableStateOf(initialInputs.countText) }
-    var order by remember { mutableStateOf(initialInputs.order) }
-    var generationScope by remember { mutableStateOf(initialInputs.generationScope) }
-    var allFolders by remember { mutableStateOf(initialInputs.allFolders) }
-    var selectedFolderIds by remember { mutableStateOf(initialInputs.selectedFolderIds) }
-    var allPlaylists by remember { mutableStateOf(initialInputs.allPlaylists) }
-    var selectedPlaylistIds by remember { mutableStateOf(initialInputs.selectedPlaylistIds) }
-
-    LaunchedEffect(
-        minText, maxText, countText, order, generationScope, allFolders,
-        selectedFolderIds, allPlaylists, selectedPlaylistIds,
-    ) {
-        GeneratorInputStore.update {
-            it.copy(
-                minText = minText,
-                maxText = maxText,
-                countText = countText,
-                order = order,
-                generationScope = generationScope,
-                allFolders = allFolders,
-                selectedFolderIds = selectedFolderIds,
-                allPlaylists = allPlaylists,
-                selectedPlaylistIds = selectedPlaylistIds,
-            )
-        }
-    }
-
-    val folders by viewModel.folders.collectAsStateWithLifecycle()
-    val generationPlaylists by viewModel.playlists.collectAsStateWithLifecycle()
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val listSort by viewModel.listSort.collectAsStateWithLifecycle()
+    val reorderIds by viewModel.reorderIds.collectAsStateWithLifecycle()
+    val reorderSession by viewModel.reorderSession.collectAsStateWithLifecycle()
+    val isSelectionMode by viewModel.isSelectionMode.collectAsStateWithLifecycle()
+    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
     var deleteTarget by remember { mutableStateOf<PlaylistSummary?>(null) }
     var deleteSelectedTarget by remember { mutableStateOf(false) }
     var contextMenuFor by remember { mutableStateOf<Long?>(null) }
@@ -178,6 +99,7 @@ fun PlaylistsScreen(
 
     val isReorderMode = reorderIds != null
     val reorderState = reorderIds
+    val isHeaderCompact = isReorderMode || isSelectionMode
     val selectAllLabel = stringResource(R.string.playlist_select_all)
 
     var exportIds by remember { mutableStateOf<List<Long>?>(null) }
@@ -187,7 +109,7 @@ fun PlaylistsScreen(
         val ids = exportIds
         exportIds = null
         if (uri != null && ids != null) {
-            playlistListViewModel.exportTo(uri, ids)
+            viewModel.exportTo(uri, ids)
         }
     }
 
@@ -198,7 +120,7 @@ fun PlaylistsScreen(
         val id = bundleExportId
         bundleExportId = null
         if (uri != null && id != null) {
-            playlistListViewModel.exportWithFiles(uri, id)
+            viewModel.exportWithFiles(uri, id)
         }
     }
 
@@ -207,18 +129,18 @@ fun PlaylistsScreen(
         bundleExportFolderPicker.launch(null)
     }
 
-    val bundleProgress by playlistListViewModel.bundleExportProgress.collectAsStateWithLifecycle()
+    val bundleProgress by viewModel.bundleExportProgress.collectAsStateWithLifecycle()
 
     val importPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
-            playlistListViewModel.importPlaylist(uri)
+            viewModel.importPlaylist(uri)
         }
     }
 
     LaunchedEffect(Unit) {
-        playlistListViewModel.exportEvents.collect { result ->
+        viewModel.exportEvents.collect { result ->
             val message = when {
                 result.files.isEmpty() -> context.getString(R.string.playlist_export_none)
                 result.failedCount > 0 -> context.getString(R.string.playlist_export_partial, result.succeededCount, result.failedCount)
@@ -240,7 +162,7 @@ fun PlaylistsScreen(
     }
 
     LaunchedEffect(Unit) {
-        playlistListViewModel.bundleExportEvents.collect { result ->
+        viewModel.bundleExportEvents.collect { result ->
             val message = when (result.error) {
                 BundleExportError.EMPTY_PLAYLIST -> context.getString(R.string.bundle_export_error_empty)
                 BundleExportError.FOLDER_CREATE_FAILED -> context.getString(R.string.bundle_export_error_folder)
@@ -260,13 +182,7 @@ fun PlaylistsScreen(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.savedToPlaylist.collect {
-            snackbarHostState.showSnackbar(context.getString(R.string.playlist_save_result))
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        playlistListViewModel.importEvents.collect { result ->
+        viewModel.importEvents.collect { result ->
             val message = when (result.error) {
                 XspfImportError.READ_FAILED -> context.getString(R.string.playlist_import_error_read)
                 XspfImportError.NOT_XSPF -> context.getString(R.string.playlist_import_error_format)
@@ -284,42 +200,12 @@ fun PlaylistsScreen(
         }
     }
 
-    LaunchedEffect(drawerState.currentValue) {
-        if (drawerState.currentValue != DrawerValue.Open) {
-            playlistListViewModel.exitReorder()
-        }
-    }
-
-    fun closeDrawer() {
-        scope.launch { drawerState.close() }
-    }
-
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                val isHeaderCompact = isReorderMode || isSelectionMode
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = if (isHeaderCompact) 0.dp else 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (isReorderMode) {
-                        IconButton(onClick = playlistListViewModel::exitReorder) {
-                            Icon(
-                                imageVector = Icons.Filled.Close,
-                                contentDescription = stringResource(R.string.editor_cancel),
-                            )
-                        }
-                    } else if (isSelectionMode) {
-                        IconButton(onClick = playlistListViewModel::exitSelectionMode) {
-                            Icon(
-                                imageVector = Icons.Filled.Close,
-                                contentDescription = stringResource(R.string.editor_cancel),
-                            )
-                        }
-                    }
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
                     Text(
                         text = when {
                             isReorderMode -> stringResource(R.string.playlist_reorder_hint)
@@ -336,10 +222,29 @@ fun PlaylistsScreen(
                         } else {
                             Color.Unspecified
                         },
-                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
                     )
+                },
+                navigationIcon = {
                     if (isReorderMode) {
-                        IconButton(onClick = playlistListViewModel::commitReorder) {
+                        IconButton(onClick = viewModel::exitReorder) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.editor_cancel),
+                            )
+                        }
+                    } else if (isSelectionMode) {
+                        IconButton(onClick = viewModel::exitSelectionMode) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.editor_cancel),
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    if (isReorderMode) {
+                        IconButton(onClick = viewModel::commitReorder) {
                             Icon(
                                 imageVector = Icons.Filled.Check,
                                 contentDescription = stringResource(R.string.playlist_reorder_done),
@@ -348,7 +253,7 @@ fun PlaylistsScreen(
                     } else if (isSelectionMode) {
                         TriStateCheckbox(
                             state = SelectAll.state(playlists.map { it.id }, selectedIds),
-                            onClick = { playlistListViewModel.toggleSelectAll() },
+                            onClick = { viewModel.toggleSelectAll() },
                             modifier = Modifier.semantics {
                                 contentDescription = selectAllLabel
                             },
@@ -386,7 +291,7 @@ fun PlaylistsScreen(
                                         text = { Text(stringResource(playlistListSortLabelRes(option))) },
                                         onClick = {
                                             sortMenuOpen = false
-                                            playlistListViewModel.setListSort(option)
+                                            viewModel.setListSort(option)
                                         },
                                         leadingIcon = {
                                             if (option == listSort) {
@@ -400,7 +305,7 @@ fun PlaylistsScreen(
                                 }
                             }
                         }
-                        IconButton(onClick = { playlistListViewModel.create() }) {
+                        IconButton(onClick = { viewModel.create() }) {
                             Icon(
                                 imageVector = Icons.Filled.Add,
                                 contentDescription = stringResource(R.string.playlist_create),
@@ -413,375 +318,99 @@ fun PlaylistsScreen(
                             )
                         }
                     }
-                }
-                HorizontalDivider()
-                when {
-                    playlists.isEmpty() -> {
-                        Text(
-                            text = stringResource(R.string.playlist_empty_list),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(16.dp),
-                        )
-                    }
-
-                    reorderState != null -> {
-                        key(reorderSession) {
-                            ReorderableList(
-                                items = playlists,
-                                key = { it.id },
-                                onMove = playlistListViewModel::onReorderMove,
-                                contentPadding = PaddingValues(vertical = 8.dp),
-                                itemContent = { summary, rowModifier, handleModifier, isDragging ->
-                                    PlaylistReorderRow(
-                                        summary = summary,
-                                        isDragging = isDragging,
-                                        modifier = rowModifier,
-                                        dragHandleModifier = handleModifier,
-                                    )
-                                },
-                            )
-                        }
-                    }
-
-                    else -> {
-                        LazyColumn {
-                            items(items = playlists, key = { it.id }) { summary ->
-                                Box {
-                                    PlaylistDrawerRow(
-                                        summary = summary,
-                                        onClick = {
-                                            closeDrawer()
-                                            onOpenPlaylist(summary.id)
-                                        },
-                                        onLongClick = { contextMenuFor = summary.id },
-                                        onPlay = {
-                                            closeDrawer()
-                                            playlistListViewModel.play(summary.id, onPlaylistStarted)
-                                        },
-                                        onDelete = { deleteTarget = summary },
-                                        isSelectionMode = isSelectionMode,
-                                        isSelected = selectedIds.contains(summary.id),
-                                        onToggleSelected = { playlistListViewModel.toggleSelection(summary.id) },
-                                    )
-                                    DropdownMenu(
-                                        expanded = contextMenuFor == summary.id,
-                                        onDismissRequest = { contextMenuFor = null },
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.playlist_menu_export)) },
-                                            onClick = {
-                                                contextMenuFor = null
-                                                requestExport(listOf(summary.id))
-                                            },
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.playlist_menu_export_files)) },
-                                            onClick = {
-                                                contextMenuFor = null
-                                                requestBundleExport(summary.id)
-                                            },
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.playlist_menu_select)) },
-                                            onClick = {
-                                                contextMenuFor = null
-                                                playlistListViewModel.enterSelectionMode(summary.id)
-                                            },
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.playlist_menu_reorder)) },
-                                            onClick = {
-                                                contextMenuFor = null
-                                                playlistListViewModel.enterReorder()
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-    ) {
-        Scaffold(
-            modifier = modifier.fillMaxSize(),
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = { Text(stringResource(R.string.playlist_generator_title)) },
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(
-                                imageVector = Icons.Filled.Menu,
-                                contentDescription = stringResource(R.string.playlist_drawer_open),
-                            )
-                        }
-                    },
-                )
-            },
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-        ) { innerPadding ->
-            val listState = rememberLazyListState(
-                initialFirstVisibleItemIndex = initialInputs.firstVisibleItemIndex.coerceIn(0, result.size.coerceAtLeast(0)),
-                initialFirstVisibleItemScrollOffset = initialInputs.firstVisibleItemScrollOffset,
+                },
             )
-            LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
-                GeneratorInputStore.update {
-                    it.copy(
-                        firstVisibleItemIndex = listState.firstVisibleItemIndex,
-                        firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { innerPadding ->
+        when {
+            playlists.isEmpty() -> {
+                Text(
+                    text = stringResource(R.string.playlist_empty_list),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(innerPadding)
+                        .padding(16.dp),
+                )
+            }
+
+            reorderState != null -> {
+                key(reorderSession) {
+                    ReorderableList(
+                        items = playlists,
+                        key = { it.id },
+                        onMove = viewModel::onReorderMove,
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                        itemContent = { summary, rowModifier, handleModifier, isDragging ->
+                            PlaylistReorderRow(
+                                summary = summary,
+                                isDragging = isDragging,
+                                modifier = rowModifier,
+                                dragHandleModifier = handleModifier,
+                            )
+                        },
                     )
                 }
             }
-            LaunchedEffect(result.size) {
-                if (listState.firstVisibleItemIndex > result.size.coerceAtLeast(0)) {
-                    listState.scrollToItem(0)
-                }
-            }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            OutlinedTextField(
-                                value = minText,
-                                onValueChange = { minText = it },
-                                label = { Text(stringResource(R.string.playlist_min_bpm)) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                            OutlinedTextField(
-                                value = maxText,
-                                onValueChange = { maxText = it },
-                                label = { Text(stringResource(R.string.playlist_max_bpm)) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
 
-                        OutlinedTextField(
-                            value = countText,
-                            onValueChange = { countText = it },
-                            label = { Text(stringResource(R.string.playlist_count_label)) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-
-                        var orderExpanded by remember { mutableStateOf(initialInputs.orderExpanded) }
-                        ExposedDropdownMenuBox(
-                            expanded = orderExpanded,
-                            onExpandedChange = { orderExpanded = it },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            OutlinedTextField(
-                                value = stringResource(playlistOrderLabelRes(order)),
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text(stringResource(R.string.playlist_order_label)) },
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = orderExpanded)
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .padding(innerPadding)
+                        .fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                ) {
+                    items(items = playlists, key = { it.id }) { summary ->
+                        Box {
+                            PlaylistRow(
+                                summary = summary,
+                                onClick = { onOpenPlaylist(summary.id) },
+                                onLongClick = { contextMenuFor = summary.id },
+                                onPlay = { viewModel.play(summary.id, onPlaylistStarted) },
+                                onDelete = { deleteTarget = summary },
+                                isSelectionMode = isSelectionMode,
+                                isSelected = selectedIds.contains(summary.id),
+                                onToggleSelected = { viewModel.toggleSelection(summary.id) },
                             )
-                            ExposedDropdownMenu(
-                                expanded = orderExpanded,
-                                onDismissRequest = { orderExpanded = false },
+                            DropdownMenu(
+                                expanded = contextMenuFor == summary.id,
+                                onDismissRequest = { contextMenuFor = null },
                             ) {
-                                PlaylistOrder.entries.forEach { option ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(playlistOrderLabelRes(option))) },
-                                        onClick = {
-                                            order = option
-                                            orderExpanded = false
-                                        },
-                                    )
-                                }
-                            }
-                        }
-
-                        var advancedExpanded by remember { mutableStateOf(initialInputs.advancedExpanded) }
-                        LaunchedEffect(advancedExpanded, orderExpanded) {
-                            GeneratorInputStore.update {
-                                it.copy(advancedExpanded = advancedExpanded, orderExpanded = orderExpanded)
-                            }
-                        }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { advancedExpanded = !advancedExpanded },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.playlist_advanced_settings),
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Icon(
-                                imageVector = if (advancedExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                contentDescription = stringResource(
-                                    if (advancedExpanded) R.string.library_collapse else R.string.library_expand,
-                                ),
-                            )
-                        }
-                        AnimatedVisibility(visible = advancedExpanded) {
-                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                                    GenerationScope.entries.forEachIndexed { index, option ->
-                                        SegmentedButton(
-                                            selected = generationScope == option,
-                                            onClick = { generationScope = option },
-                                            shape = SegmentedButtonDefaults.itemShape(index, GenerationScope.entries.size),
-                                        ) {
-                                            Text(stringResource(generationScopeLabelRes(option)))
-                                        }
-                                    }
-                                }
-                                when (generationScope) {
-                                    GenerationScope.FOLDERS -> FolderMultiSelector(
-                                        folders = folders,
-                                        allSelected = allFolders,
-                                        selectedIds = selectedFolderIds,
-                                        onAllSelected = {
-                                            allFolders = true
-                                            selectedFolderIds = emptySet()
-                                        },
-                                        onToggleFolder = { folderId ->
-                                            selectedFolderIds = if (folderId in selectedFolderIds) {
-                                                selectedFolderIds - folderId
-                                            } else {
-                                                selectedFolderIds + folderId
-                                            }
-                                            allFolders = false
-                                            if (selectedFolderIds.isEmpty()) {
-                                                allFolders = true
-                                            }
-                                        },
-                                    )
-
-                                    GenerationScope.PLAYLISTS -> PlaylistMultiSelector(
-                                        playlists = generationPlaylists,
-                                        allSelected = allPlaylists,
-                                        selectedIds = selectedPlaylistIds,
-                                        onAllSelected = {
-                                            allPlaylists = true
-                                            selectedPlaylistIds = emptySet()
-                                        },
-                                        onTogglePlaylist = { playlistId ->
-                                            selectedPlaylistIds = if (playlistId in selectedPlaylistIds) {
-                                                selectedPlaylistIds - playlistId
-                                            } else {
-                                                selectedPlaylistIds + playlistId
-                                            }
-                                            allPlaylists = false
-                                            if (selectedPlaylistIds.isEmpty()) {
-                                                allPlaylists = true
-                                            }
-                                        },
-                                    )
-                                }
-                            }
-                        }
-
-                        Button(
-                            onClick = {
-                                viewModel.generate(
-                                    scope = generationScope,
-                                    allFolders = allFolders,
-                                    folderIds = selectedFolderIds,
-                                    allPlaylists = allPlaylists,
-                                    playlistIds = selectedPlaylistIds,
-                                    minText = minText,
-                                    maxText = maxText,
-                                    countText = countText,
-                                    order = order,
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.playlist_menu_export)) },
+                                    onClick = {
+                                        contextMenuFor = null
+                                        requestExport(listOf(summary.id))
+                                    },
                                 )
-                            },
-                            enabled = !generating,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.playlist_generate))
-                        }
-
-                        if (generating) {
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        }
-
-                        if (isRestoring) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(28.dp),
-                                    strokeWidth = 2.dp,
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.playlist_menu_export_files)) },
+                                    onClick = {
+                                        contextMenuFor = null
+                                        requestBundleExport(summary.id)
+                                    },
                                 )
-                            }
-                        }
-
-                        when {
-                            generated && result.isEmpty() -> {
-                                Text(
-                                    text = stringResource(R.string.playlist_empty),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.playlist_menu_select)) },
+                                    onClick = {
+                                        contextMenuFor = null
+                                        viewModel.enterSelectionMode(summary.id)
+                                    },
                                 )
-                            }
-
-                            result.isNotEmpty() -> {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = pluralStringResource(R.plurals.playlist_result_count, result.size, result.size),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    IconButton(onClick = {
-                                        viewModel.saveToPlaylist()
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Save,
-                                            contentDescription = stringResource(R.string.playlist_save),
-                                        )
-                                    }
-                                    IconButton(onClick = {
-                                        viewModel.openPlayer()
-                                        onPlaylistStarted()
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Filled.PlayArrow,
-                                            contentDescription = stringResource(R.string.playlist_play),
-                                        )
-                                    }
-                                }
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.playlist_menu_reorder)) },
+                                    onClick = {
+                                        contextMenuFor = null
+                                        viewModel.enterReorder()
+                                    },
+                                )
                             }
                         }
                     }
-                }
-                itemsIndexed(result, key = { _, track -> "result-${track.id}" }) { index, track ->
-                    ResultRow(
-                        track = track,
-                        onClick = { viewModel.playFrom(index) },
-                    )
                 }
             }
         }
@@ -793,7 +422,7 @@ fun PlaylistsScreen(
             text = stringResource(R.string.playlist_delete_confirm_message, summary.name),
             confirmLabel = stringResource(R.string.action_delete_confirm),
             onConfirm = {
-                playlistListViewModel.delete(summary.id)
+                viewModel.delete(summary.id)
                 deleteTarget = null
             },
             onDismiss = { deleteTarget = null },
@@ -807,7 +436,7 @@ fun PlaylistsScreen(
             text = context.getString(R.string.playlist_delete_selected_confirm, count),
             confirmLabel = stringResource(R.string.action_delete_confirm),
             onConfirm = {
-                playlistListViewModel.deleteSelected()
+                viewModel.deleteSelected()
                 deleteSelectedTarget = false
             },
             onDismiss = { deleteSelectedTarget = false },
@@ -847,7 +476,7 @@ fun PlaylistsScreen(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = playlistListViewModel::cancelBundleExport) {
+                TextButton(onClick = viewModel::cancelBundleExport) {
                     Text(stringResource(R.string.editor_cancel))
                 }
             },
@@ -857,7 +486,7 @@ fun PlaylistsScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PlaylistDrawerRow(
+private fun PlaylistRow(
     summary: PlaylistSummary,
     onClick: () -> Unit,
     onPlay: () -> Unit,
@@ -886,7 +515,7 @@ private fun PlaylistDrawerRow(
                 onCheckedChange = { onToggleSelected() },
             )
         }
-        PlaylistDrawerLabels(summary, Modifier.weight(1f))
+        PlaylistLabels(summary, Modifier.weight(1f))
         if (!isSelectionMode) {
             IconButton(onClick = onPlay) {
                 Icon(
@@ -921,12 +550,12 @@ private fun PlaylistReorderRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ReorderHandle(dragHandleModifier)
-        PlaylistDrawerLabels(summary, Modifier.weight(1f))
+        PlaylistLabels(summary, Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun PlaylistDrawerLabels(summary: PlaylistSummary, modifier: Modifier = Modifier) {
+private fun PlaylistLabels(summary: PlaylistSummary, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(
             text = summary.name,
@@ -937,35 +566,6 @@ private fun PlaylistDrawerLabels(summary: PlaylistSummary, modifier: Modifier = 
             text = pluralStringResource(R.plurals.track_count, summary.trackCount, summary.trackCount),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun ResultRow(
-    track: TrackEntity,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = track.title,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = track.bpm?.let(::formatBpm) ?: "—",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(56.dp),
         )
     }
 }

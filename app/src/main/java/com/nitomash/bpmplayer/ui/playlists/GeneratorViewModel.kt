@@ -153,6 +153,10 @@ class GeneratorViewModel @Inject constructor(
             if (generated.tracks.isEmpty()) return@launch
             val playlistId = playlistRepository.create(generated.name)
             playlistRepository.addTracks(playlistId, generated.tracks.map { it.id })
+            generatedPlaylistStore.markSaved(playlistId)
+            if (playbackSession.isGeneratedQueue.value) {
+                playbackSession.setCurrentPlaylistId(playlistId)
+            }
             _savedToPlaylist.emit(Unit)
         }
     }
@@ -160,13 +164,26 @@ class GeneratorViewModel @Inject constructor(
     fun openPlayer() {
         val queue = _result.value.map { it.toPlayerTrack() }
         if (queue.isEmpty()) return
-        playbackSession.openQueue(queue, startIndex = 0, generated = true, randomStart = true)
+        val savedPlaylistId = generatedPlaylistStore.current.value?.savedPlaylistId
+        playbackSession.openQueue(
+            queue,
+            playlistId = savedPlaylistId,
+            startIndex = 0,
+            generated = savedPlaylistId == null,
+            randomStart = true,
+        )
     }
 
     fun playFrom(index: Int) {
         val queue = _result.value.map { it.toPlayerTrack() }
         if (queue.isEmpty()) return
-        playbackSession.openQueue(queue, startIndex = index, generated = true)
+        val savedPlaylistId = generatedPlaylistStore.current.value?.savedPlaylistId
+        playbackSession.openQueue(
+            queue,
+            playlistId = savedPlaylistId,
+            startIndex = index,
+            generated = savedPlaylistId == null,
+        )
     }
 
     private fun renderPlaylistName(spec: PlaylistNameSpec, order: PlaylistOrder): String {

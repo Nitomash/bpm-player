@@ -19,12 +19,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,13 +42,8 @@ import com.nitomash.bpmplayer.ui.library.LibraryScreen
 import com.nitomash.bpmplayer.ui.player.PlayerMiniBar
 import com.nitomash.bpmplayer.ui.player.PlayerScreen
 import com.nitomash.bpmplayer.ui.player.PlayerViewModel
-import com.nitomash.bpmplayer.ui.playlists.AddTracksScreen
-import com.nitomash.bpmplayer.ui.playlists.AddTracksViewModel
-import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylistScreen
-import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylistViewModel
-import com.nitomash.bpmplayer.ui.playlists.PlaylistDetailScreen
-import com.nitomash.bpmplayer.ui.playlists.PlaylistDetailViewModel
-import com.nitomash.bpmplayer.ui.playlists.PlaylistsScreen
+import com.nitomash.bpmplayer.ui.playlists.GeneratorScreen
+import com.nitomash.bpmplayer.ui.playlists.PlaylistsTab
 import com.nitomash.bpmplayer.ui.settings.SETTINGS_ROUTE
 import com.nitomash.bpmplayer.ui.settings.SettingsScreen
 import com.nitomash.bpmplayer.ui.settings.SettingsViewModel
@@ -58,13 +52,10 @@ import com.nitomash.bpmplayer.ui.settings.SettingsViewModel
 fun BpmPlayerApp() {
     val navController = rememberNavController()
     val playerViewModel: PlayerViewModel = hiltViewModel()
+    var pendingPlaylistId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pendingGeneratedPlaylist by rememberSaveable { mutableStateOf(false) }
 
-    val layoutDirection = LocalLayoutDirection.current
-    val density = LocalDensity.current
-    val nestedOffsetPx = remember(layoutDirection, density) {
-        with(density) { NavigationMotion.nestedOffset.roundToPx() } *
-            if (layoutDirection == LayoutDirection.Rtl) -1 else 1
-    }
+    val nestedOffsetPx = rememberNestedOffsetPx()
 
     val selectTopLevel: (TopLevelDestination) -> Unit = { destination ->
         navController.navigate(destination.route) {
@@ -129,20 +120,18 @@ fun BpmPlayerApp() {
                     onSelect = selectTopLevel,
                     miniPlayer = { MiniPlayer(playerViewModel) },
                 ) {
-                    PlaylistsScreen(
-                        onOpenPlaylist = { playlistId ->
-                            if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId)) { launchSingleTop = true }
+                    PlaylistsTab(
+                        pendingPlaylistId = pendingPlaylistId,
+                        pendingGeneratedPlaylist = pendingGeneratedPlaylist,
+                        onPendingPlaylistConsumed = {
+                            pendingPlaylistId = null
+                            pendingGeneratedPlaylist = false
                         },
                         onPlaylistStarted = {
-                            if (entry.isForeground()) {
-                                navController.navigate(TopLevelDestination.PLAYER.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = false
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
+                            if (entry.isForeground()) selectTopLevel(TopLevelDestination.PLAYER)
+                        },
+                        onBackToPlayer = {
+                            if (entry.isForeground()) selectTopLevel(TopLevelDestination.PLAYER)
                         },
                     )
                 }
@@ -154,10 +143,29 @@ fun BpmPlayerApp() {
                 ) {
                     PlayerScreen(
                         onOpenPlaylist = { playlistId ->
-                            if (entry.isForeground()) navController.navigate(PlaylistDetailViewModel.route(playlistId)) { launchSingleTop = true }
+                            if (entry.isForeground()) {
+                                pendingPlaylistId = playlistId
+                                selectTopLevel(TopLevelDestination.PLAYLISTS)
+                            }
                         },
                         onOpenGenerated = {
-                            if (entry.isForeground()) navController.navigate(GeneratedPlaylistViewModel.ROUTE) { launchSingleTop = true }
+                            if (entry.isForeground()) {
+                                pendingGeneratedPlaylist = true
+                                selectTopLevel(TopLevelDestination.PLAYLISTS)
+                            }
+                        },
+                    )
+                }
+            }
+            composable(TopLevelDestination.GENERATOR.route) { entry ->
+                TopLevelScreen(
+                    destination = TopLevelDestination.GENERATOR,
+                    onSelect = selectTopLevel,
+                    miniPlayer = { MiniPlayer(playerViewModel) },
+                ) {
+                    GeneratorScreen(
+                        onPlaylistStarted = {
+                            if (entry.isForeground()) selectTopLevel(TopLevelDestination.PLAYER)
                         },
                     )
                 }
@@ -178,48 +186,6 @@ fun BpmPlayerApp() {
                 MassBpmScreen(
                     onDiscard = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                     onSaved = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
-                )
-            }
-            composable(
-                route = "${PlaylistDetailViewModel.ROUTE}/{${PlaylistDetailViewModel.ARG_PLAYLIST_ID}}",
-                arguments = listOf(
-                    navArgument(PlaylistDetailViewModel.ARG_PLAYLIST_ID) {
-                        type = NavType.LongType
-                    },
-                ),
-            ) { entry ->
-                PlaylistDetailScreen(
-                    playerViewModel = playerViewModel,
-                    onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
-                    onAddTracks = { playlistId ->
-                        if (entry.isForeground()) navController.navigate(AddTracksViewModel.route(playlistId)) { launchSingleTop = true }
-                    },
-                )
-            }
-            composable(
-                route = "${AddTracksViewModel.ROUTE}/{${AddTracksViewModel.ARG_PLAYLIST_ID}}",
-                arguments = listOf(
-                    navArgument(AddTracksViewModel.ARG_PLAYLIST_ID) {
-                        type = NavType.LongType
-                    },
-                ),
-            ) { entry ->
-                AddTracksScreen(
-                    onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
-                )
-            }
-            composable(GeneratedPlaylistViewModel.ROUTE) { entry ->
-                GeneratedPlaylistScreen(
-                    playerViewModel = playerViewModel,
-                    onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
-                    onSaved = { playlistId ->
-                        if (entry.isForeground() && entry === navController.currentBackStackEntry) {
-                            navController.navigate(PlaylistDetailViewModel.route(playlistId)) {
-                                popUpTo(GeneratedPlaylistViewModel.ROUTE) { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        }
-                    },
                 )
             }
             composable(ABOUT_ROUTE) { entry ->

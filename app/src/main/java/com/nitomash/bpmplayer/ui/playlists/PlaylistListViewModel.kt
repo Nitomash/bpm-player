@@ -46,6 +46,7 @@ class PlaylistListViewModel @Inject constructor(
     private val xspfExporter: XspfExporter,
     private val xspfImporter: XspfImporter,
     private val bundleExporter: PlaylistBundleExporter,
+    private val generatedPlaylistStore: GeneratedPlaylistStore,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -87,6 +88,7 @@ class PlaylistListViewModel @Inject constructor(
         viewModelScope.launch {
             playlistRepository.delete(playlistId)
             playbackSession.clearPlaylistIdIf(playlistId)
+            generatedPlaylistStore.clearSaved(playlistId)
         }
     }
 
@@ -176,6 +178,7 @@ class PlaylistListViewModel @Inject constructor(
             ids.forEach { id ->
                 playlistRepository.delete(id)
                 playbackSession.clearPlaylistIdIf(id)
+                generatedPlaylistStore.clearSaved(id)
             }
             exitSelectionMode()
         }
