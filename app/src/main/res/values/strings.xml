@@ -226,4 +226,10 @@
     <string name="about_author">@nitomash</string>
     <string name="about_contact">Связаться с автором:</string>
     <string name="about_open_telegram">Открыть Telegram</string>
+    <string name="about_source">Исходный код</string>
+    <string name="about_source_url">github.com/Nitomash/bpm-player</string>
+    <string name="about_open_source">Открыть репозиторий</string>
+    <string name="about_license">Лицензия: GNU GPL v3.0</string>
+    <string name="about_open_license">Открыть текст лицензии</string>
+    <string name="about_third_party">Используется TarsosDSP 2.5 (GPL-3.0). Подробности: THIRD_PARTY_NOTICES.md в репозитории.</string>
 </resources>
