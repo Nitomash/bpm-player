@@ -1,10 +1,11 @@
-package com.nitomash.bpmplayer.data.settings
+﻿package com.nitomash.bpmplayer.data.settings
 
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
 
 object SettingsMapper {
@@ -19,6 +20,8 @@ object SettingsMapper {
     private val SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY = booleanPreferencesKey("suppress_bpm_prompt_after_scan")
     private val SHUFFLE_ENABLED_KEY = booleanPreferencesKey("shuffle_enabled")
     private val REPEAT_MODE_KEY = intPreferencesKey("repeat_mode")
+    private val BETA_INTRO_ACCEPTED_KEY = booleanPreferencesKey("beta_intro_accepted")
+    private val TESTER_BEACONS_KEY = stringSetPreferencesKey("tester_beacons")
 
     fun toSettings(prefs: Preferences): AppSettings {
         val defaults = AppSettings()
@@ -46,6 +49,8 @@ object SettingsMapper {
                 ?: defaults.suppressBpmPromptAfterScan,
             shuffleEnabled = prefs[SHUFFLE_ENABLED_KEY] ?: defaults.shuffleEnabled,
             repeatMode = prefs[REPEAT_MODE_KEY] ?: defaults.repeatMode,
+            betaIntroAccepted = prefs[BETA_INTRO_ACCEPTED_KEY] ?: defaults.betaIntroAccepted,
+            testerBeacons = prefs[TESTER_BEACONS_KEY] ?: defaults.testerBeacons,
         )
     }
 
@@ -67,6 +72,8 @@ object SettingsMapper {
         prefs[SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY] = settings.suppressBpmPromptAfterScan
         prefs[SHUFFLE_ENABLED_KEY] = settings.shuffleEnabled
         prefs[REPEAT_MODE_KEY] = settings.repeatMode
+        prefs[BETA_INTRO_ACCEPTED_KEY] = settings.betaIntroAccepted
+        prefs[TESTER_BEACONS_KEY] = settings.testerBeacons
     }
 
     fun normalizePlaybackSeconds(value: Int, max: Int): Int = value.coerceIn(0, max)

@@ -1,0 +1,102 @@
+﻿package com.nitomash.bpmplayer.data.testing
+
+enum class TesterBeacon(val id: String) {
+    BETA_INTRO_ACCEPTED("beta_intro_accepted"),
+    NAV_LIBRARY_OPENED("nav_library_opened"),
+    NAV_PLAYLISTS_OPENED("nav_playlists_opened"),
+    NAV_GENERATOR_OPENED("nav_generator_opened"),
+    NAV_PLAYER_OPENED("nav_player_opened"),
+    SCREEN_SETTINGS_OPENED("screen_settings_opened"),
+    SCREEN_ABOUT_OPENED("screen_about_opened"),
+    SCREEN_TESTING_OPENED("screen_testing_opened"),
+
+    FOLDER_ADDED("folder_added"),
+    LIBRARY_REFRESH_ALL("library_refresh_all"),
+    FOLDER_RESCAN("folder_rescan"),
+    FOLDER_REMOVED("folder_removed"),
+    FOLDER_EXPAND_COLLAPSE("folder_expand_collapse"),
+    LIBRARY_SEARCH_USED("library_search_used"),
+    LIBRARY_SORT_CHANGED("library_sort_changed"),
+    TRACK_OPEN_EDITOR("track_open_editor"),
+    TRACK_ADD_TO_PLAYLIST_FROM_LIBRARY("track_add_to_playlist_from_library"),
+
+    BPM_MANUAL_SAVED("bpm_manual_saved"),
+    BPM_TAP_USED("bpm_tap_used"),
+    BPM_TAP_SAVED("bpm_tap_saved"),
+    BPM_AUTO_DETECT_STARTED("bpm_auto_detect_started"),
+    BPM_AUTO_DETECT_SUCCEEDED("bpm_auto_detect_succeeded"),
+    BPM_AUTO_DETECT_SAVED("bpm_auto_detect_saved"),
+    BPM_EDITOR_SKIP_FORWARD("bpm_editor_skip_forward"),
+    BPM_EDITOR_PREVIEW_PLAY("bpm_editor_preview_play"),
+
+    MASS_BPM_SETUP_OPENED("mass_bpm_setup_opened"),
+    MASS_BPM_SCREEN_OPENED("mass_bpm_screen_opened"),
+    MASS_BPM_BATCH_DETECT_STARTED("mass_bpm_batch_detect_started"),
+    MASS_BPM_ITEM_EDITED("mass_bpm_item_edited"),
+    MASS_BPM_SAVED("mass_bpm_saved"),
+    MASS_BPM_DISCARDED("mass_bpm_discarded"),
+    LIBRARY_BPM_PROMPT_ACCEPTED("library_bpm_prompt_accepted"),
+    LIBRARY_BPM_PROMPT_DISMISSED("library_bpm_prompt_dismissed"),
+
+    PLAYLIST_CREATED("playlist_created"),
+    PLAYLIST_OPENED("playlist_opened"),
+    PLAYLIST_RENAMED("playlist_renamed"),
+    PLAYLIST_DELETED("playlist_deleted"),
+    PLAYLIST_DELETED_SELECTED("playlist_deleted_selected"),
+    PLAYLIST_LIST_SORT_CHANGED("playlist_list_sort_changed"),
+    PLAYLIST_LIST_REORDER_ENTERED("playlist_list_reorder_entered"),
+    PLAYLIST_LIST_REORDER_COMMITTED("playlist_list_reorder_committed"),
+    PLAYLIST_SELECTION_MODE_USED("playlist_selection_mode_used"),
+
+    PLAYLIST_TRACK_SORT_CHANGED("playlist_track_sort_changed"),
+    PLAYLIST_TRACKS_REORDER_ENTERED("playlist_tracks_reorder_entered"),
+    PLAYLIST_TRACKS_REORDER_COMMITTED("playlist_tracks_reorder_committed"),
+    PLAYLIST_TRACK_REMOVED("playlist_track_removed"),
+    PLAYLIST_TRACKS_REMOVED_SELECTED("playlist_tracks_removed_selected"),
+    PLAYLIST_TRACK_SELECTION_USED("playlist_track_selection_used"),
+    PLAYLIST_ADD_TRACKS_OPENED("playlist_add_tracks_opened"),
+    PLAYLIST_TRACKS_ADDED("playlist_tracks_added"),
+    PLAYLIST_ADD_TRACKS_SEARCH_USED("playlist_add_tracks_search_used"),
+    PLAYLIST_ADD_TRACKS_PREVIEW("playlist_add_tracks_preview"),
+    PLAYLIST_PLAY_STARTED("playlist_play_started"),
+    PLAYLIST_PLAY_FROM_TRACK("playlist_play_from_track"),
+
+    GENERATOR_BPM_RANGE_SET("generator_bpm_range_set"),
+    GENERATOR_COUNT_SET("generator_count_set"),
+    GENERATOR_ORDER_CHANGED("generator_order_changed"),
+    GENERATOR_ADVANCED_OPENED("generator_advanced_opened"),
+    GENERATOR_SCOPE_FOLDERS_USED("generator_scope_folders_used"),
+    GENERATOR_SCOPE_PLAYLISTS_USED("generator_scope_playlists_used"),
+    GENERATOR_GENERATED("generator_generated"),
+    GENERATOR_RESULT_OPEN_PLAYER("generator_result_open_player"),
+    GENERATOR_RESULT_PLAY_FROM_TRACK("generator_result_play_from_track"),
+    GENERATOR_SAVED_TO_PLAYLIST("generator_saved_to_playlist"),
+
+    SIDECAR_IMPORT("sidecar_import"),
+    SIDECAR_EXPORT("sidecar_export"),
+    XSPF_IMPORT("xspf_import"),
+    XSPF_EXPORT("xspf_export"),
+    BUNDLE_EXPORT("bundle_export"),
+    BUNDLE_EXPORT_CANCELLED("bundle_export_cancelled"),
+
+    PLAYER_PLAY_PAUSE_TOGGLED("player_play_pause_toggled"),
+    PLAYER_NEXT("player_next"),
+    PLAYER_PREVIOUS("player_previous"),
+    PLAYER_SEEK_USED("player_seek_used"),
+    PLAYER_SHUFFLE_TOGGLED("player_shuffle_toggled"),
+    PLAYER_REPEAT_CYCLED("player_repeat_cycled"),
+    PLAYER_OPEN_PLAYLIST_FROM_PLAYER("player_open_playlist_from_player"),
+    PLAYER_EDIT_BPM("player_edit_bpm"),
+    PLAYER_ADD_CURRENT_TO_PLAYLIST("player_add_current_to_playlist"),
+    PLAYER_INTERVAL_ENABLED("player_interval_enabled"),
+    PLAYER_INTERVAL_LIMIT_CHANGED("player_interval_limit_changed"),
+    PLAYER_INTERVAL_GAP_CHANGED("player_interval_gap_changed"),
+
+    SETTINGS_DETECTOR_RANGE_SAVED("settings_detector_range_saved"),
+    SETTINGS_DETECTOR_RANGE_RESET("settings_detector_range_reset");
+
+    companion object {
+        val allIds: Set<String> = entries.map { it.id }.toSet()
+        val totalCount: Int = entries.size
+    }
+}

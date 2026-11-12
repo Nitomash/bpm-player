@@ -1,4 +1,4 @@
-package com.nitomash.bpmplayer.ui.playlists
+﻿package com.nitomash.bpmplayer.ui.playlists
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -10,6 +10,8 @@ import com.nitomash.bpmplayer.data.player.toPlayerTrack
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSort
 import com.nitomash.bpmplayer.data.playlist.PlaylistTrackSorter
+import com.nitomash.bpmplayer.data.testing.TesterBeacon
+import com.nitomash.bpmplayer.data.testing.TesterProgress
 import com.nitomash.bpmplayer.ui.common.ListReorder
 import com.nitomash.bpmplayer.ui.common.SelectAll
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,10 +36,15 @@ class PlaylistDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val playlistRepository: PlaylistRepository,
     private val playbackSession: PlaybackSession,
+    private val testerProgress: TesterProgress,
 ) : ViewModel() {
 
     val playlistId: Long = savedStateHandle.get<Long>(ARG_PLAYLIST_ID)
         ?: error("playlistId argument missing")
+
+    init {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYLIST_OPENED) }
+    }
 
     private val _reorderIds = MutableStateFlow<List<Long>?>(null)
     val reorderIds: StateFlow<List<Long>?> = _reorderIds.asStateFlow()
@@ -82,6 +89,7 @@ class PlaylistDetailViewModel @Inject constructor(
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
             playlistRepository.rename(playlistId, trimmed)
+            testerProgress.mark(TesterBeacon.PLAYLIST_RENAMED)
         }
     }
 
@@ -90,6 +98,7 @@ class PlaylistDetailViewModel @Inject constructor(
         if (sort != PlaylistTrackSort.CUSTOM) clearReorder()
         viewModelScope.launch {
             playlistRepository.setTrackSortMode(playlistId, sort)
+            testerProgress.mark(TesterBeacon.PLAYLIST_TRACK_SORT_CHANGED)
         }
     }
 
@@ -101,6 +110,7 @@ class PlaylistDetailViewModel @Inject constructor(
             val queue = playlistRepository.getTracksInDisplayOrder(playlistId)
             if (queue.isEmpty()) return@launch
             playbackSession.openQueue(queue.map { it.toPlayerTrack() }, playlistId, index)
+            testerProgress.mark(TesterBeacon.PLAYLIST_PLAY_FROM_TRACK)
         }
     }
 
@@ -110,6 +120,7 @@ class PlaylistDetailViewModel @Inject constructor(
         _reorderIds.value = tracks.map { it.id }
         _reorderSession.value += 1
         _mode.value = PlaylistDetailMode.REORDER
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYLIST_TRACKS_REORDER_ENTERED) }
     }
 
     fun onReorderMove(fromIndex: Int, toIndex: Int) {
@@ -124,6 +135,7 @@ class PlaylistDetailViewModel @Inject constructor(
         viewModelScope.launch {
             playlistRepository.setTrackOrder(playlistId, draft)
             playlistRepository.setTrackSortMode(playlistId, PlaylistTrackSort.CUSTOM)
+            testerProgress.mark(TesterBeacon.PLAYLIST_TRACKS_REORDER_COMMITTED)
             clearReorder()
         }
     }
@@ -147,6 +159,7 @@ class PlaylistDetailViewModel @Inject constructor(
     fun enterSelection(trackId: Long) {
         _selectedIds.value = setOf(trackId)
         _mode.value = PlaylistDetailMode.SELECT
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYLIST_TRACK_SELECTION_USED) }
     }
 
     fun toggleSelected(trackId: Long) {
@@ -166,6 +179,7 @@ class PlaylistDetailViewModel @Inject constructor(
         if (ids.isEmpty()) return
         viewModelScope.launch {
             playlistRepository.removeTracks(playlistId, ids)
+            testerProgress.mark(TesterBeacon.PLAYLIST_TRACKS_REMOVED_SELECTED)
             exitSelection()
         }
     }
@@ -173,6 +187,7 @@ class PlaylistDetailViewModel @Inject constructor(
     fun removeTrack(trackId: Long) {
         viewModelScope.launch {
             playlistRepository.removeTracks(playlistId, setOf(trackId))
+            testerProgress.mark(TesterBeacon.PLAYLIST_TRACK_REMOVED)
         }
     }
 

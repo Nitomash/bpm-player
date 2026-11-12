@@ -232,4 +232,14 @@
     <string name="about_license">Лицензия: GNU GPL v3.0</string>
     <string name="about_open_license">Открыть текст лицензии</string>
     <string name="about_third_party">Используется TarsosDSP 2.5 (GPL-3.0). Подробности: THIRD_PARTY_NOTICES.md в репозитории.</string>
+    <string name="testing_menu">Тестирование</string>
+    <string name="testing_title">Тестирование</string>
+    <string name="testing_intro_title">Бета-тестирование</string>
+    <string name="testing_intro_message">Приложение находится в стадии бета-тестирования. Оно учитывает использование функций и показывает общий процент задействованных возможностей во вкладке «Тестирование». Данные сохраняются только локально на этом устройстве и никуда не передаются.</string>
+    <string name="testing_intro_accept">Принять</string>
+    <string name="testing_percent_value">%1$d%%</string>
+    <string name="testing_percent_label">задействовано функций: %1$d из %2$d</string>
+    <string name="testing_local_note">Данные хранятся локально на устройстве и не передаются.</string>
+    <string name="testing_section_completed">Проверено</string>
+    <string name="testing_section_pending">Осталось проверить</string>
 </resources>

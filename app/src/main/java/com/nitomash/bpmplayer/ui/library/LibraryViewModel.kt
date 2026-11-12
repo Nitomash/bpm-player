@@ -12,6 +12,8 @@ import com.nitomash.bpmplayer.data.playlist.PlaylistListSorter
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
+import com.nitomash.bpmplayer.data.testing.TesterBeacon
+import com.nitomash.bpmplayer.data.testing.TesterProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,6 +42,7 @@ class LibraryViewModel @Inject constructor(
     private val sidecarSync: SidecarSyncManager,
     private val playlistRepository: PlaylistRepository,
     private val settingsRepository: SettingsRepository,
+    private val testerProgress: TesterProgress,
 ) : ViewModel() {
 
     val folders: StateFlow<List<FolderEntity>?> = repository.observeFolders()
@@ -112,6 +115,24 @@ class LibraryViewModel @Inject constructor(
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+        if (query.isNotBlank()) {
+            viewModelScope.launch { testerProgress.mark(TesterBeacon.LIBRARY_SEARCH_USED) }
+        }
+    }
+
+    fun markTrackEditorOpened() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.TRACK_OPEN_EDITOR) }
+    }
+
+    fun markBpmPromptAccepted() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.LIBRARY_BPM_PROMPT_ACCEPTED) }
+    }
+
+    fun markBpmPromptDismissed() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.LIBRARY_BPM_PROMPT_DISMISSED) }
+    }
+    fun markMassBpmSetupOpened() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.MASS_BPM_SETUP_OPENED) }
     }
 
     fun openPlaylistMenu(trackId: Long) {
@@ -129,15 +150,20 @@ class LibraryViewModel @Inject constructor(
                 playlistRepository.removeTracks(playlistId, setOf(trackId))
             } else {
                 playlistRepository.addTracks(playlistId, listOf(trackId))
+                testerProgress.mark(TesterBeacon.TRACK_ADD_TO_PLAYLIST_FROM_LIBRARY)
             }
         }
     }
 
     fun setFolderSort(folderId: Long, sort: TrackSort) {
+        if (_folderSort.value[folderId] != sort) {
+            viewModelScope.launch { testerProgress.mark(TesterBeacon.LIBRARY_SORT_CHANGED) }
+        }
         _folderSort.value = _folderSort.value + (folderId to sort)
     }
 
     fun toggleFolderCollapsed(folderId: Long) {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.FOLDER_EXPAND_COLLAPSE) }
         _collapsedFolders.value = if (folderId in _collapsedFolders.value) {
             _collapsedFolders.value - folderId
         } else {
@@ -159,6 +185,7 @@ class LibraryViewModel @Inject constructor(
             try {
                 val result = repository.addFolder(uri)
                 sidecarSync.requestFlush(result.folderId)
+                testerProgress.mark(TesterBeacon.FOLDER_ADDED)
                 suggestBpmIfNeeded(setOf(result.folderId), result.newUndefinedTracks)
             } catch (e: Exception) {
                 Log.e(TAG, "addFolder failed for $uri", e)
@@ -172,6 +199,7 @@ class LibraryViewModel @Inject constructor(
     fun removeFolder(folderId: Long) {
         viewModelScope.launch {
             repository.removeFolder(folderId)
+            testerProgress.mark(TesterBeacon.FOLDER_REMOVED)
             _folderDeleted.emit(Unit)
         }
     }
@@ -182,6 +210,7 @@ class LibraryViewModel @Inject constructor(
             try {
                 val result = repository.rescanFolder(folderId)
                 sidecarSync.requestFlush(folderId)
+                testerProgress.mark(TesterBeacon.FOLDER_RESCAN)
                 if (result != null) {
                     suggestBpmIfNeeded(setOf(folderId), result.newUndefinedTracks)
                 }
@@ -198,6 +227,7 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             if (_isScanning.value) return@launch
             _isScanning.value = true
+            testerProgress.mark(TesterBeacon.LIBRARY_REFRESH_ALL)
             try {
                 val folderList = repository.getFolders()
                 val affected = linkedSetOf<Long>()
@@ -237,7 +267,10 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val count = repository.importSidecarFile(folderId, uri)
-                if (count > 0) sidecarSync.requestFlush(folderId)
+                if (count > 0) {
+                    sidecarSync.requestFlush(folderId)
+                    testerProgress.mark(TesterBeacon.SIDECAR_IMPORT)
+                }
                 _importResult.emit(count)
             } catch (e: Exception) {
                 Log.e(TAG, "importSidecarFile failed for $uri", e)
@@ -250,7 +283,11 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val ok = repository.exportSidecarFile(folderId, uri)
-                if (!ok) _exportError.emit("write failed")
+                if (ok) {
+                    testerProgress.mark(TesterBeacon.SIDECAR_EXPORT)
+                } else {
+                    _exportError.emit("write failed")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "exportSidecarFile failed for $uri", e)
                 _exportError.emit(e.toString())
@@ -264,8 +301,8 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    private companion object {
-        const val TAG = "BpmLibrary"
-        const val SEARCH_DEBOUNCE_MS = 250L
+    companion object {
+        private const val TAG = "LibraryViewModel"
+        private const val SEARCH_DEBOUNCE_MS = 250L
     }
 }

@@ -1,4 +1,4 @@
-package com.nitomash.bpmplayer.ui.playlists
+﻿package com.nitomash.bpmplayer.ui.playlists
 
 import android.content.Context
 import android.net.Uri
@@ -20,6 +20,8 @@ import com.nitomash.bpmplayer.data.playlist.export.XspfExporter
 import com.nitomash.bpmplayer.data.playlist.xspf.XspfImportResult
 import com.nitomash.bpmplayer.data.playlist.xspf.XspfImporter
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
+import com.nitomash.bpmplayer.data.testing.TesterBeacon
+import com.nitomash.bpmplayer.data.testing.TesterProgress
 import com.nitomash.bpmplayer.ui.common.ListReorder
 import com.nitomash.bpmplayer.ui.common.SelectAll
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -47,6 +49,7 @@ class PlaylistListViewModel @Inject constructor(
     private val xspfImporter: XspfImporter,
     private val bundleExporter: PlaylistBundleExporter,
     private val generatedPlaylistStore: GeneratedPlaylistStore,
+    private val testerProgress: TesterProgress,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -81,6 +84,7 @@ class PlaylistListViewModel @Inject constructor(
     fun create() {
         viewModelScope.launch {
             playlistRepository.create(context.getString(R.string.playlist_new_default))
+            testerProgress.mark(TesterBeacon.PLAYLIST_CREATED)
         }
     }
 
@@ -89,6 +93,7 @@ class PlaylistListViewModel @Inject constructor(
             playlistRepository.delete(playlistId)
             playbackSession.clearPlaylistIdIf(playlistId)
             generatedPlaylistStore.clearSaved(playlistId)
+            testerProgress.mark(TesterBeacon.PLAYLIST_DELETED)
         }
     }
 
@@ -97,6 +102,7 @@ class PlaylistListViewModel @Inject constructor(
             val tracks = playlistRepository.getTracksInDisplayOrder(playlistId)
             if (tracks.isEmpty()) return@launch
             playbackSession.openQueue(tracks.map { it.toPlayerTrack() }, playlistId, 0, randomStart = true)
+            testerProgress.mark(TesterBeacon.PLAYLIST_PLAY_STARTED)
             onStarted()
         }
     }
@@ -106,6 +112,7 @@ class PlaylistListViewModel @Inject constructor(
         discardReorder()
         viewModelScope.launch {
             persistListSort(sort)
+            testerProgress.mark(TesterBeacon.PLAYLIST_LIST_SORT_CHANGED)
         }
     }
 
@@ -113,6 +120,7 @@ class PlaylistListViewModel @Inject constructor(
         if (playlists.value.size < 2) return
         _reorderIds.value = playlists.value.map { it.id }
         _reorderSession.value += 1
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYLIST_LIST_REORDER_ENTERED) }
     }
 
     fun onReorderMove(fromIndex: Int, toIndex: Int) {
@@ -128,6 +136,7 @@ class PlaylistListViewModel @Inject constructor(
             playlistRepository.setPlaylistOrder(draft)
             persistListSort(PlaylistListSort.CUSTOM)
             _reorderIds.value = null
+            testerProgress.mark(TesterBeacon.PLAYLIST_LIST_REORDER_COMMITTED)
         }
     }
 
@@ -151,6 +160,7 @@ class PlaylistListViewModel @Inject constructor(
         if (initialSelection != null) {
             _selectedIds.value = _selectedIds.value + initialSelection
         }
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYLIST_SELECTION_MODE_USED) }
     }
 
     fun exitSelectionMode() {
@@ -180,6 +190,7 @@ class PlaylistListViewModel @Inject constructor(
                 playbackSession.clearPlaylistIdIf(id)
                 generatedPlaylistStore.clearSaved(id)
             }
+            testerProgress.mark(TesterBeacon.PLAYLIST_DELETED_SELECTED)
             exitSelectionMode()
         }
     }
@@ -196,8 +207,11 @@ class PlaylistListViewModel @Inject constructor(
             _exporting.value = true
             try {
                 val result = xspfExporter.export(treeUri, playlistIds)
-                if (result.succeededCount > 0 && playlistIds.toSet() == _selectedIds.value) {
-                    exitSelectionMode()
+                if (result.succeededCount > 0) {
+                    testerProgress.mark(TesterBeacon.XSPF_EXPORT)
+                    if (playlistIds.toSet() == _selectedIds.value) {
+                        exitSelectionMode()
+                    }
                 }
                 _exportEvents.emit(result)
             } finally {
@@ -221,6 +235,11 @@ class PlaylistListViewModel @Inject constructor(
                 val result = bundleExporter.export(treeUri, playlistId) { progress ->
                     _bundleExportProgress.value = progress
                 }
+                if (result.error == null) {
+                    testerProgress.mark(TesterBeacon.BUNDLE_EXPORT)
+                } else if (result.error == BundleExportError.CANCELLED) {
+                    testerProgress.mark(TesterBeacon.BUNDLE_EXPORT_CANCELLED)
+                }
                 _bundleExportEvents.emit(result)
             } finally {
                 _bundleExportProgress.value = null
@@ -235,6 +254,7 @@ class PlaylistListViewModel @Inject constructor(
         _bundleExportProgress.value = null
         job.cancel()
         viewModelScope.launch {
+            testerProgress.mark(TesterBeacon.BUNDLE_EXPORT_CANCELLED)
             _bundleExportEvents.emit(
                 BundleExportResult(
                     playlistName = "",
@@ -258,6 +278,9 @@ class PlaylistListViewModel @Inject constructor(
             _importing.value = true
             try {
                 val result = xspfImporter.import(documentUri)
+                if (result.succeeded) {
+                    testerProgress.mark(TesterBeacon.XSPF_IMPORT)
+                }
                 _importEvents.emit(result)
             } finally {
                 _importing.value = false

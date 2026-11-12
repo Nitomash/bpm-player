@@ -110,11 +110,11 @@ fun PlayerScreen(
                 actions = {
                     val playlistId = currentPlaylistId
                     if (playlistId != null) {
-                        TextButton(onClick = { onOpenPlaylist(playlistId) }) {
+                        TextButton(onClick = { viewModel.markOpenPlaylist(); onOpenPlaylist(playlistId) }) {
                             Text(stringResource(R.string.player_open_playlist))
                         }
                     } else if (isGeneratedQueue) {
-                        TextButton(onClick = onOpenGenerated) {
+                        TextButton(onClick = { viewModel.markOpenPlaylist(); onOpenGenerated() }) {
                             Text(stringResource(R.string.player_open_playlist))
                         }
                     }
@@ -151,6 +151,7 @@ fun PlayerScreen(
                         playlists = viewModel.playlists,
                         playlistsContainingTrack = viewModel.playlistsContainingCurrentTrack,
                         onEditBpm = {
+                            viewModel.markEditBpm()
                             val id = viewModel.currentTrackId.value
                             if (id != null) {
                                 scope.launch {
@@ -210,6 +211,7 @@ fun PlayerScreen(
             onAutoDetect = editorViewModel::autoDetectBpm,
             onCancelAutoDetect = editorViewModel::cancelAutoDetect,
             onDismiss = editorViewModel::dismiss,
+            onTapUsed = editorViewModel::markTapUsed,
         )
     }
 }

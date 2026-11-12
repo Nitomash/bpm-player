@@ -1,4 +1,4 @@
-package com.nitomash.bpmplayer.ui.playlists
+﻿package com.nitomash.bpmplayer.ui.playlists
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -7,6 +7,8 @@ import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.player.toPlayerTrack
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
+import com.nitomash.bpmplayer.data.testing.TesterBeacon
+import com.nitomash.bpmplayer.data.testing.TesterProgress
 import com.nitomash.bpmplayer.ui.common.SelectAll
 import com.nitomash.bpmplayer.ui.common.buildIndex
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,6 +39,7 @@ class AddTracksViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val playlistRepository: PlaylistRepository,
     private val playbackSession: PlaybackSession,
+    private val testerProgress: TesterProgress,
 ) : ViewModel() {
 
     val playlistId: Long = savedStateHandle.get<Long>(ARG_PLAYLIST_ID)
@@ -75,6 +78,7 @@ class AddTracksViewModel @Inject constructor(
     val previewTrackId: StateFlow<Long?> = playbackSession.previewTrackId
 
     init {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYLIST_ADD_TRACKS_OPENED) }
         viewModelScope.launch {
             try {
                 _candidates.value = playlistRepository.getTracksNotInPlaylist(playlistId)
@@ -86,6 +90,9 @@ class AddTracksViewModel @Inject constructor(
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+        if (query.isNotBlank()) {
+            viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYLIST_ADD_TRACKS_SEARCH_USED) }
+        }
     }
 
     fun toggleSelected(trackId: Long) {
@@ -110,6 +117,7 @@ class AddTracksViewModel @Inject constructor(
         }
         val track = _candidates.value.firstOrNull { it.id == trackId } ?: return
         playbackSession.previewTrack(track.toPlayerTrack())
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYLIST_ADD_TRACKS_PREVIEW) }
     }
 
     fun save() {
@@ -117,6 +125,7 @@ class AddTracksViewModel @Inject constructor(
         if (selected.isEmpty()) return
         viewModelScope.launch {
             playlistRepository.addTracks(playlistId, selectedInCandidateOrder(selected))
+            testerProgress.mark(TesterBeacon.PLAYLIST_TRACKS_ADDED)
             _saved.emit(Unit)
         }
     }

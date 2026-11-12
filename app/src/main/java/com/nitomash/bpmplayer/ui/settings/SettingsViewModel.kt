@@ -1,10 +1,12 @@
-package com.nitomash.bpmplayer.ui.settings
+﻿package com.nitomash.bpmplayer.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nitomash.bpmplayer.data.settings.AppSettings
 import com.nitomash.bpmplayer.data.settings.SettingsMapper
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
+import com.nitomash.bpmplayer.data.testing.TesterBeacon
+import com.nitomash.bpmplayer.data.testing.TesterProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +17,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
+    private val testerProgress: TesterProgress,
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings?> = repository.observe()
@@ -26,6 +29,11 @@ class SettingsViewModel @Inject constructor(
 
     fun setDetectorRange(min: Double, max: Double) {
         val (low, high) = SettingsMapper.normalizeRange(min, max)
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.SETTINGS_DETECTOR_RANGE_SAVED) }
         update { it.copy(detectorMinBpm = low, detectorMaxBpm = high) }
+    }
+
+    fun markDetectorRangeReset() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.SETTINGS_DETECTOR_RANGE_RESET) }
     }
 }

@@ -1,4 +1,4 @@
-package com.nitomash.bpmplayer.ui.playlists
+﻿package com.nitomash.bpmplayer.ui.playlists
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -16,6 +16,8 @@ import com.nitomash.bpmplayer.data.playlist.PlaylistListSorter
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
+import com.nitomash.bpmplayer.data.testing.TesterBeacon
+import com.nitomash.bpmplayer.data.testing.TesterProgress
 import com.nitomash.bpmplayer.domain.playlist.PlaylistGenerator
 import com.nitomash.bpmplayer.domain.playlist.PlaylistNameSpec
 import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
@@ -44,6 +46,7 @@ class GeneratorViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val playbackSession: PlaybackSession,
     private val generatedPlaylistStore: GeneratedPlaylistStore,
+    private val testerProgress: TesterProgress,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -89,6 +92,10 @@ class GeneratorViewModel @Inject constructor(
         PlaylistListSorter.sort(summaries, settings.playlistListSort)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    fun markAdvancedOpened() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.GENERATOR_ADVANCED_OPENED) }
+    }
+
     fun generate(
         scope: GenerationScope,
         allFolders: Boolean,
@@ -102,6 +109,21 @@ class GeneratorViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             _generating.value = true
+            if (minText.isNotBlank() || maxText.isNotBlank()) {
+                testerProgress.mark(TesterBeacon.GENERATOR_BPM_RANGE_SET)
+            }
+            if (countText.isNotBlank()) {
+                testerProgress.mark(TesterBeacon.GENERATOR_COUNT_SET)
+            }
+            if (order != PlaylistOrder.RANDOM) {
+                testerProgress.mark(TesterBeacon.GENERATOR_ORDER_CHANGED)
+            }
+            when (scope) {
+                GenerationScope.FOLDERS -> if (!allFolders || folderIds.isNotEmpty()) {
+                    testerProgress.mark(TesterBeacon.GENERATOR_SCOPE_FOLDERS_USED)
+                }
+                GenerationScope.PLAYLISTS -> testerProgress.mark(TesterBeacon.GENERATOR_SCOPE_PLAYLISTS_USED)
+            }
             val tracks = when (scope) {
                 GenerationScope.FOLDERS -> selectTracksByFolders(
                     allTracks = repository.getTracksWithBpm(),
@@ -135,6 +157,7 @@ class GeneratorViewModel @Inject constructor(
             val selectedTracks = selected.mapNotNull { byId[it.trackId] }
             _result.value = selectedTracks
             if (selectedTracks.isNotEmpty()) {
+                testerProgress.mark(TesterBeacon.GENERATOR_GENERATED)
                 generatedPlaylistStore.put(
                     GeneratedPlaylist(
                         name = renderPlaylistName(spec, order),
@@ -157,6 +180,7 @@ class GeneratorViewModel @Inject constructor(
             if (playbackSession.isGeneratedQueue.value) {
                 playbackSession.setCurrentPlaylistId(playlistId)
             }
+            testerProgress.mark(TesterBeacon.GENERATOR_SAVED_TO_PLAYLIST)
             _savedToPlaylist.emit(Unit)
         }
     }
@@ -172,6 +196,7 @@ class GeneratorViewModel @Inject constructor(
             generated = savedPlaylistId == null,
             randomStart = true,
         )
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.GENERATOR_RESULT_OPEN_PLAYER) }
     }
 
     fun playFrom(index: Int) {
@@ -184,6 +209,7 @@ class GeneratorViewModel @Inject constructor(
             startIndex = index,
             generated = savedPlaylistId == null,
         )
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.GENERATOR_RESULT_PLAY_FROM_TRACK) }
     }
 
     private fun renderPlaylistName(spec: PlaylistNameSpec, order: PlaylistOrder): String {

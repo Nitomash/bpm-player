@@ -12,12 +12,15 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,6 +37,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.nitomash.bpmplayer.R
+import com.nitomash.bpmplayer.data.testing.TesterBeacon
 import com.nitomash.bpmplayer.ui.about.ABOUT_ROUTE
 import com.nitomash.bpmplayer.ui.about.AboutScreen
 import com.nitomash.bpmplayer.ui.editor.MassBpmScreen
@@ -47,17 +52,37 @@ import com.nitomash.bpmplayer.ui.playlists.PlaylistsTab
 import com.nitomash.bpmplayer.ui.settings.SETTINGS_ROUTE
 import com.nitomash.bpmplayer.ui.settings.SettingsScreen
 import com.nitomash.bpmplayer.ui.settings.SettingsViewModel
+import com.nitomash.bpmplayer.ui.testing.BetaIntroViewModel
+import com.nitomash.bpmplayer.ui.testing.TESTING_ROUTE
+import com.nitomash.bpmplayer.ui.testing.TestingScreen
 
 @Composable
 fun BpmPlayerApp() {
     val navController = rememberNavController()
     val playerViewModel: PlayerViewModel = hiltViewModel()
+    val betaIntroViewModel: BetaIntroViewModel = hiltViewModel()
+    val introAccepted by betaIntroViewModel.introAccepted.collectAsStateWithLifecycle()
     var pendingPlaylistId by rememberSaveable { mutableStateOf<Long?>(null) }
     var pendingGeneratedPlaylist by rememberSaveable { mutableStateOf(false) }
 
     val nestedOffsetPx = rememberNestedOffsetPx()
 
+    LaunchedEffect(Unit) {
+        betaIntroViewModel.mark(TesterBeacon.NAV_LIBRARY_OPENED)
+    }
+
+    fun markDestination(destination: TopLevelDestination) {
+        val beacon = when (destination) {
+            TopLevelDestination.LIBRARY -> TesterBeacon.NAV_LIBRARY_OPENED
+            TopLevelDestination.PLAYLISTS -> TesterBeacon.NAV_PLAYLISTS_OPENED
+            TopLevelDestination.GENERATOR -> TesterBeacon.NAV_GENERATOR_OPENED
+            TopLevelDestination.PLAYER -> TesterBeacon.NAV_PLAYER_OPENED
+        }
+        betaIntroViewModel.mark(beacon)
+    }
+
     val selectTopLevel: (TopLevelDestination) -> Unit = { destination ->
+        markDestination(destination)
         navController.navigate(destination.route) {
             popUpTo(navController.graph.findStartDestination().id) {
                 saveState = false
@@ -65,6 +90,19 @@ fun BpmPlayerApp() {
             launchSingleTop = true
             restoreState = true
         }
+    }
+
+    if (!introAccepted) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.testing_intro_title)) },
+            text = { Text(stringResource(R.string.testing_intro_message)) },
+            confirmButton = {
+                TextButton(onClick = { betaIntroViewModel.accept() }) {
+                    Text(stringResource(R.string.testing_intro_accept))
+                }
+            },
+        )
     }
 
     Scaffold(
@@ -111,6 +149,7 @@ fun BpmPlayerApp() {
                         },
                         onOpenSettings = { if (entry.isForeground()) navController.navigate(SETTINGS_ROUTE) { launchSingleTop = true } },
                         onOpenAbout = { if (entry.isForeground()) navController.navigate(ABOUT_ROUTE) { launchSingleTop = true } },
+                        onOpenTesting = { if (entry.isForeground()) navController.navigate(TESTING_ROUTE) { launchSingleTop = true } },
                     )
                 }
             }
@@ -189,16 +228,24 @@ fun BpmPlayerApp() {
                 )
             }
             composable(ABOUT_ROUTE) { entry ->
+                LaunchedEffect(Unit) { betaIntroViewModel.mark(TesterBeacon.SCREEN_ABOUT_OPENED) }
                 AboutScreen(
                     onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                 )
             }
             composable(SETTINGS_ROUTE) { entry ->
+                LaunchedEffect(Unit) { betaIntroViewModel.mark(TesterBeacon.SCREEN_SETTINGS_OPENED) }
                 val settingsViewModel: SettingsViewModel = hiltViewModel()
                 val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
                 SettingsScreen(
                     settings = settings,
                     onDetectorRangeChange = settingsViewModel::setDetectorRange,
+                    onDetectorRangeReset = settingsViewModel::markDetectorRangeReset,
+                    onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
+                )
+            }
+            composable(TESTING_ROUTE) { entry ->
+                TestingScreen(
                     onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                 )
             }

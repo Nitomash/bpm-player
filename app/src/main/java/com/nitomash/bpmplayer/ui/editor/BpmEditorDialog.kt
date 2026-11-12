@@ -68,6 +68,7 @@ fun BpmEditorDialog(
     onAutoDetect: () -> Unit,
     onCancelAutoDetect: () -> Unit,
     onDismiss: () -> Unit,
+    onTapUsed: () -> Unit = {},
 ) {
     val detector = remember(track.id) { TapBpmDetector() }
     var bpm by remember(track.id) { mutableStateOf(track.bpm) }
@@ -142,6 +143,7 @@ fun BpmEditorDialog(
 
                 TapTempoArea(
                     onTap = { timestampMs ->
+                        onTapUsed()
                         source = BpmSource.TAP
                         detector.tap(timestampMs)?.let { result ->
                             bpm = result.toDouble()

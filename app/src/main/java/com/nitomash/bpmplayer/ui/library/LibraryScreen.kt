@@ -79,6 +79,7 @@ fun LibraryScreen(
     onOpenMassBpm: (MassBpmScope, Set<Long>) -> Unit = { _, _ -> },
     onOpenSettings: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
+    onOpenTesting: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val foldersOrNull by viewModel.folders.collectAsStateWithLifecycle()
@@ -201,7 +202,15 @@ fun LibraryScreen(
                             text = { Text(stringResource(R.string.library_mass_bpm)) },
                             onClick = {
                                 moreMenuOpen = false
+                                viewModel.markMassBpmSetupOpened()
                                 showMassSetup = true
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.testing_menu)) },
+                            onClick = {
+                                moreMenuOpen = false
+                                onOpenTesting()
                             },
                         )
                         DropdownMenuItem(
@@ -325,7 +334,10 @@ fun LibraryScreen(
                                                     title = track.title,
                                                     bpm = track.bpm,
                                                     bpmSource = track.bpmSource,
-                                                    onClick = { editorViewModel.open(track) },
+                                                    onClick = {
+                                                        viewModel.markTrackEditorOpened()
+                                                        editorViewModel.open(track)
+                                                    },
                                                     onLongClick = { viewModel.openPlaylistMenu(track.id) },
                                                 )
                                                 AddToPlaylistDropdown(
@@ -364,6 +376,7 @@ fun LibraryScreen(
             onAutoDetect = editorViewModel::autoDetectBpm,
             onCancelAutoDetect = editorViewModel::cancelAutoDetect,
             onDismiss = editorViewModel::dismiss,
+            onTapUsed = editorViewModel::markTapUsed,
         )
     }
 
@@ -443,6 +456,7 @@ fun LibraryScreen(
                         horizontalArrangement = Arrangement.End,
                     ) {
                         TextButton(onClick = {
+                            viewModel.markBpmPromptDismissed()
                             if (bpmPromptDontShow) {
                                 viewModel.suppressBpmPromptAfterScan()
                             }
@@ -451,6 +465,7 @@ fun LibraryScreen(
                             Text(stringResource(R.string.library_bpm_prompt_later))
                         }
                         TextButton(onClick = {
+                            viewModel.markBpmPromptAccepted()
                             if (bpmPromptDontShow) {
                                 viewModel.suppressBpmPromptAfterScan()
                             }

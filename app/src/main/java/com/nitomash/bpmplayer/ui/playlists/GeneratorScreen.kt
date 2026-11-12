@@ -223,6 +223,9 @@ fun GeneratorScreen(
                     }
 
                     var advancedExpanded by remember { mutableStateOf(initialInputs.advancedExpanded) }
+                    LaunchedEffect(advancedExpanded) {
+                        if (advancedExpanded) viewModel.markAdvancedOpened()
+                    }
                     LaunchedEffect(advancedExpanded, orderExpanded) {
                         GeneratorInputStore.update {
                             it.copy(advancedExpanded = advancedExpanded, orderExpanded = orderExpanded)

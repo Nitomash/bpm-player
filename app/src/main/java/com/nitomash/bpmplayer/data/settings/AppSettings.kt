@@ -1,4 +1,4 @@
-package com.nitomash.bpmplayer.data.settings
+﻿package com.nitomash.bpmplayer.data.settings
 
 import androidx.media3.common.Player
 import com.nitomash.bpmplayer.data.bpm.PcmBpmDetector
@@ -15,6 +15,8 @@ data class AppSettings(
     val suppressBpmPromptAfterScan: Boolean = false,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val betaIntroAccepted: Boolean = false,
+    val testerBeacons: Set<String> = emptySet(),
 ) {
     companion object {
         const val SCHEMA_VERSION = 1

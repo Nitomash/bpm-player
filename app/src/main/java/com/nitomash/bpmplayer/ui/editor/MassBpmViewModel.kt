@@ -14,6 +14,8 @@ import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.data.music.SidecarSyncManager
 import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.player.toPlayerTrack
+import com.nitomash.bpmplayer.data.testing.TesterBeacon
+import com.nitomash.bpmplayer.data.testing.TesterProgress
 import com.nitomash.bpmplayer.ui.library.AutoDetectUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -53,6 +55,7 @@ class MassBpmViewModel @Inject constructor(
     private val sidecarSync: SidecarSyncManager,
     private val playbackSession: PlaybackSession,
     private val autoBpmDetector: AutoBpmDetector,
+    private val testerProgress: TesterProgress,
 ) : ViewModel() {
 
     private val allTracks: Boolean = savedStateHandle.get<Boolean>(ARG_ALL_TRACKS) ?: true
@@ -96,6 +99,7 @@ class MassBpmViewModel @Inject constructor(
     private var singleDetectJob: Job? = null
 
     init {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.MASS_BPM_SCREEN_OPENED) }
         viewModelScope.launch {
             try {
                 val folders = repository.getFolders().filter { it.id in folderIds }
@@ -131,6 +135,7 @@ class MassBpmViewModel @Inject constructor(
         val tracks = base.filter { it.id !in completedIds }
         if (tracks.isEmpty()) return
         _detecting.value = true
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.MASS_BPM_BATCH_DETECT_STARTED) }
         batchJob = viewModelScope.launch {
             val queue = ConcurrentLinkedQueue(tracks)
             val results = Channel<Pair<TrackEntity, BpmDetectionResult>>(tracks.size)
@@ -217,6 +222,7 @@ class MassBpmViewModel @Inject constructor(
             failedIds.clear()
             completedIds.clear()
             publish()
+            testerProgress.mark(TesterBeacon.MASS_BPM_SAVED)
             _saved.emit(Unit)
         }
     }
@@ -225,6 +231,7 @@ class MassBpmViewModel @Inject constructor(
         cancelDetection()
         cancelSingleDetect()
         playbackSession.endPreview()
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.MASS_BPM_DISCARDED) }
     }
 
     fun openTarget(trackId: Long) {
@@ -253,6 +260,7 @@ class MassBpmViewModel @Inject constructor(
         pending[target.id] = PendingBpm(bpm, source)
         failedIds.remove(target.id)
         publish()
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.MASS_BPM_ITEM_EDITED) }
         dismissEditor()
     }
 

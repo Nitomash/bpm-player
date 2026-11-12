@@ -1,4 +1,4 @@
-package com.nitomash.bpmplayer.ui.library
+﻿package com.nitomash.bpmplayer.ui.library
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -12,6 +12,8 @@ import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.data.music.SidecarSyncManager
 import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.player.toPlayerTrack
+import com.nitomash.bpmplayer.data.testing.TesterBeacon
+import com.nitomash.bpmplayer.data.testing.TesterProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -35,6 +37,7 @@ class BpmEditorViewModel @Inject constructor(
     private val playbackSession: PlaybackSession,
     private val sidecarSync: SidecarSyncManager,
     private val autoBpmDetector: AutoBpmDetector,
+    private val testerProgress: TesterProgress,
 ) : ViewModel() {
 
     private val _selectedTrack = MutableStateFlow<TrackEntity?>(null)
@@ -62,11 +65,17 @@ class BpmEditorViewModel @Inject constructor(
 
     fun togglePlayback() {
         val track = _selectedTrack.value ?: return
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.BPM_EDITOR_PREVIEW_PLAY) }
         playbackSession.togglePreviewPlayback(track.toPlayerTrack())
     }
 
     fun skipForward() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.BPM_EDITOR_SKIP_FORWARD) }
         playbackSession.skipForward()
+    }
+
+    fun markTapUsed() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.BPM_TAP_USED) }
     }
 
     fun saveBpm(bpm: Double, source: BpmSource) {
@@ -74,12 +83,18 @@ class BpmEditorViewModel @Inject constructor(
         viewModelScope.launch {
             repository.updateBpm(track.id, bpm, source)
             sidecarSync.requestFlush(track.folderId)
+            when (source) {
+                BpmSource.MANUAL -> testerProgress.mark(TesterBeacon.BPM_MANUAL_SAVED)
+                BpmSource.TAP -> testerProgress.mark(TesterBeacon.BPM_TAP_SAVED)
+                BpmSource.AUTO -> testerProgress.mark(TesterBeacon.BPM_AUTO_DETECT_SAVED)
+            }
         }
     }
 
     fun autoDetectBpm() {
         val track = _selectedTrack.value ?: return
         if (detectJob?.isActive == true) return
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.BPM_AUTO_DETECT_STARTED) }
         android.util.Log.i("BpmDetect", "autoDetectBpm start for ${track.title}")
         _autoDetectState.value = AutoDetectUiState.Detecting
         detectJob = viewModelScope.launch {
@@ -95,6 +110,7 @@ class BpmEditorViewModel @Inject constructor(
                 when (result) {
                     is BpmDetectionResult.Success -> {
                         _autoDetectState.value = AutoDetectUiState.Detected(result.bpm)
+                        testerProgress.mark(TesterBeacon.BPM_AUTO_DETECT_SUCCEEDED)
                         android.util.Log.i("BpmDetect", "autoDetect success bpm=${result.bpm} quality=${result.quality}")
                     }
                     is BpmDetectionResult.Failure -> {

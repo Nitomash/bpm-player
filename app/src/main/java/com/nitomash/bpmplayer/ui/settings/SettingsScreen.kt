@@ -43,6 +43,7 @@ const val SETTINGS_ROUTE = "settings"
 fun SettingsScreen(
     settings: AppSettings?,
     onDetectorRangeChange: (Double, Double) -> Unit,
+    onDetectorRangeReset: () -> Unit = {},
     onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -175,6 +176,7 @@ fun SettingsScreen(
             ) {
                 TextButton(
                     onClick = {
+                        onDetectorRangeReset()
                         minText = PcmBpmDetector.DEFAULT_MIN_BPM.toInt().toString()
                         maxText = PcmBpmDetector.DEFAULT_MAX_BPM.toInt().toString()
                         minError = false

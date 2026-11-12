@@ -1,4 +1,4 @@
-package com.nitomash.bpmplayer.ui.player
+﻿package com.nitomash.bpmplayer.ui.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +11,8 @@ import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.data.settings.AppSettings
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
+import com.nitomash.bpmplayer.data.testing.TesterBeacon
+import com.nitomash.bpmplayer.data.testing.TesterProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,6 +32,7 @@ class PlayerViewModel @Inject constructor(
     private val musicRepository: MusicRepository,
     private val playlistRepository: PlaylistRepository,
     private val settingsRepository: SettingsRepository,
+    private val testerProgress: TesterProgress,
 ) : ViewModel() {
 
     init {
@@ -115,23 +118,40 @@ class PlayerViewModel @Inject constructor(
                 playlistRepository.removeTracks(playlistId, setOf(trackId))
             } else {
                 playlistRepository.addTracks(playlistId, listOf(trackId))
+                testerProgress.mark(TesterBeacon.PLAYER_ADD_CURRENT_TO_PLAYLIST)
             }
         }
     }
 
-    fun togglePlayback() = playbackSession.togglePlayback()
+    fun markOpenPlaylist() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_OPEN_PLAYLIST_FROM_PLAYER) }
+    }
+
+    fun markEditBpm() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_EDIT_BPM) }
+    }
+
+    fun togglePlayback() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_PLAY_PAUSE_TOGGLED) }
+        playbackSession.togglePlayback()
+    }
 
     fun setPlaybackProcessingEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            if (enabled) testerProgress.mark(TesterBeacon.PLAYER_INTERVAL_ENABLED)
+        }
         updateSettings { it.copy(playbackProcessingEnabled = enabled) }
     }
 
     fun setPlaybackLimitSeconds(seconds: Int) {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_INTERVAL_LIMIT_CHANGED) }
         updateSettings {
             it.copy(playbackLimitSeconds = seconds.coerceIn(0, AppSettings.PLAYBACK_LIMIT_MAX))
         }
     }
 
     fun setPlaybackGapSeconds(seconds: Int) {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_INTERVAL_GAP_CHANGED) }
         updateSettings {
             it.copy(playbackGapSeconds = seconds.coerceIn(0, AppSettings.PLAYBACK_GAP_MAX))
         }
@@ -141,15 +161,30 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.update(transform) }
     }
 
-    fun next() = playbackSession.next()
+    fun next() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_NEXT) }
+        playbackSession.next()
+    }
 
-    fun previous() = playbackSession.previous()
+    fun previous() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_PREVIOUS) }
+        playbackSession.previous()
+    }
 
-    fun toggleShuffle() = playbackSession.toggleShuffle()
+    fun toggleShuffle() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_SHUFFLE_TOGGLED) }
+        playbackSession.toggleShuffle()
+    }
 
-    fun cycleRepeat() = playbackSession.cycleRepeat()
+    fun cycleRepeat() {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_REPEAT_CYCLED) }
+        playbackSession.cycleRepeat()
+    }
 
-    fun seekTo(positionMs: Long) = playbackSession.seekTo(positionMs)
+    fun seekTo(positionMs: Long) {
+        viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_SEEK_USED) }
+        playbackSession.seekTo(positionMs)
+    }
 
     fun isRepeatOn(mode: Int) = mode != Player.REPEAT_MODE_OFF
 }
