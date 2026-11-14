@@ -31,6 +31,7 @@ import com.nitomash.bpmplayer.R
 private const val AUTHOR_URL = "https://t.me/nitomash"
 private const val SOURCE_URL = "https://github.com/Nitomash/bpm-player"
 private const val LICENSE_URL = "https://github.com/Nitomash/bpm-player/blob/main/LICENSE"
+private const val PRIVACY_POLICY_URL = "https://github.com/Nitomash/bpm-player/blob/main/privacy-policy.md"
 
 const val ABOUT_ROUTE = "about"
 
@@ -150,6 +151,26 @@ fun AboutScreen(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                     contentDescription = stringResource(R.string.about_open_license),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL))
+                        runCatching { context.startActivity(intent) }
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.about_privacy_policy),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = stringResource(R.string.about_open_privacy_policy),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 4.dp),
                 )

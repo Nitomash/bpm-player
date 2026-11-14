@@ -232,6 +232,8 @@
     <string name="about_license">Лицензия: GNU GPL v3.0</string>
     <string name="about_open_license">Открыть текст лицензии</string>
     <string name="about_third_party">Используется TarsosDSP 2.5 (GPL-3.0). Подробности: THIRD_PARTY_NOTICES.md в репозитории.</string>
+    <string name="about_privacy_policy">Политика конфиденциальности</string>
+    <string name="about_open_privacy_policy">Открыть политику конфиденциальности</string>
     <string name="testing_menu">Тестирование</string>
     <string name="testing_title">Тестирование</string>
     <string name="testing_intro_title">Бета-тестирование</string>
