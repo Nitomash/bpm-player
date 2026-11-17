@@ -74,7 +74,12 @@ fun MassBpmScreen(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.mass_title)) },
+                title = {
+                    Text(
+                        text = stringResource(R.string.mass_title),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = requestBack) {
                         Icon(

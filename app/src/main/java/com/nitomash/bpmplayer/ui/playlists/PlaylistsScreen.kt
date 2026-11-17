@@ -28,11 +28,12 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -207,7 +208,7 @@ fun PlaylistsScreen(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = {
                     Text(
                         text = when {
@@ -308,12 +309,6 @@ fun PlaylistsScreen(
                                 }
                             }
                         }
-                        IconButton(onClick = { viewModel.create() }) {
-                            Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = stringResource(R.string.playlist_create),
-                            )
-                        }
                         IconButton(onClick = { importPicker.launch(arrayOf("application/xspf+xml", "application/xml", "text/xml")) }) {
                             Icon(
                                 imageVector = Icons.Filled.FileDownload,
@@ -323,6 +318,16 @@ fun PlaylistsScreen(
                     }
                 },
             )
+        },
+        floatingActionButton = {
+            if (!isReorderMode && !isSelectionMode) {
+                FloatingActionButton(onClick = { viewModel.create() }) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.playlist_create),
+                    )
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
@@ -347,7 +352,7 @@ fun PlaylistsScreen(
                         modifier = Modifier
                             .padding(innerPadding)
                             .fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 8.dp),
+                        contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = 88.dp),
                         itemContent = { summary, rowModifier, handleModifier, isDragging ->
                             PlaylistReorderRow(
                                 summary = summary,
@@ -365,7 +370,7 @@ fun PlaylistsScreen(
                     modifier = Modifier
                         .padding(innerPadding)
                         .fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp),
+                    contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = 88.dp),
                 ) {
                     items(items = playlists, key = { it.id }) { summary ->
                         Box {

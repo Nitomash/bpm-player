@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -28,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -255,35 +259,43 @@ private fun TopLevelScreen(
     miniPlayer: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                content()
+            }
+            NavigationBar(
+                modifier = Modifier.height(48.dp),
+                windowInsets = WindowInsets(0, 0, 0, 0),
+            ) {
+                TopLevelDestination.entries.forEach { item ->
+                    NavigationBarItem(
+                        selected = item == destination,
+                        onClick = { onSelect(item) },
+                        icon = {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = stringResource(item.labelRes),
+                            )
+                        },
+                    )
+                }
+            }
+        }
         Box(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 52.dp),
         ) {
-            content()
-        }
-        miniPlayer?.invoke()
-        NavigationBar(
-            windowInsets = WindowInsets(0, 0, 0, 0),
-        ) {
-            TopLevelDestination.entries.forEach { item ->
-                NavigationBarItem(
-                    selected = item == destination,
-                    onClick = { onSelect(item) },
-                    icon = {
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = null,
-                        )
-                    },
-                    label = { Text(stringResource(item.labelRes)) },
-                )
-            }
+            miniPlayer?.invoke()
         }
     }
 }

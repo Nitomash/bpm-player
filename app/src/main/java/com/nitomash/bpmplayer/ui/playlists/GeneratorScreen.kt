@@ -9,17 +9,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
@@ -27,7 +29,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,6 +67,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
+import com.nitomash.bpmplayer.ui.common.CompactOutlinedTextField
 import com.nitomash.bpmplayer.ui.common.FolderMultiSelector
 import com.nitomash.bpmplayer.ui.common.PlaylistMultiSelector
 import com.nitomash.bpmplayer.ui.editor.formatBpm
@@ -127,8 +130,13 @@ fun GeneratorScreen(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.playlist_generator_title)) },
+            TopAppBar(
+                title = {
+                    Text(
+                        text = stringResource(R.string.playlist_generator_title),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -155,39 +163,36 @@ fun GeneratorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        OutlinedTextField(
+                        CompactOutlinedTextField(
                             value = minText,
                             onValueChange = { minText = it },
-                            label = { Text(stringResource(R.string.playlist_min_bpm)) },
+                            label = stringResource(R.string.playlist_min_bpm),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
                             modifier = Modifier.weight(1f),
                         )
-                        OutlinedTextField(
+                        CompactOutlinedTextField(
                             value = maxText,
                             onValueChange = { maxText = it },
-                            label = { Text(stringResource(R.string.playlist_max_bpm)) },
+                            label = stringResource(R.string.playlist_max_bpm),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
                             modifier = Modifier.weight(1f),
                         )
                     }
 
-                    OutlinedTextField(
+                    CompactOutlinedTextField(
                         value = countText,
                         onValueChange = { countText = it },
-                        label = { Text(stringResource(R.string.playlist_count_label)) },
+                        label = stringResource(R.string.playlist_count_label),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
 
@@ -197,11 +202,11 @@ fun GeneratorScreen(
                         onExpandedChange = { orderExpanded = it },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        OutlinedTextField(
+                        CompactOutlinedTextField(
                             value = stringResource(playlistOrderLabelRes(order)),
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text(stringResource(R.string.playlist_order_label)) },
+                            label = stringResource(R.string.playlist_order_label),
                             trailingIcon = {
                                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = orderExpanded)
                             },
@@ -212,6 +217,7 @@ fun GeneratorScreen(
                         ExposedDropdownMenu(
                             expanded = orderExpanded,
                             onDismissRequest = { orderExpanded = false },
+                            shape = RoundedCornerShape(16.dp),
                         ) {
                             PlaylistOrder.entries.forEach { option ->
                                 DropdownMenuItem(
@@ -253,7 +259,7 @@ fun GeneratorScreen(
                         )
                     }
                     AnimatedVisibility(visible = advancedExpanded) {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                                 GenerationScope.entries.forEachIndexed { index, option ->
                                     SegmentedButton(

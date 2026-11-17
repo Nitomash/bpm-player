@@ -6,7 +6,6 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
@@ -20,28 +19,30 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
@@ -109,23 +110,7 @@ fun PlayerScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.nav_player)) },
-                actions = {
-                    val playlistId = currentPlaylistId
-                    if (playlistId != null) {
-                        TextButton(onClick = { viewModel.markOpenPlaylist(); onOpenPlaylist(playlistId) }) {
-                            Text(stringResource(R.string.player_open_playlist))
-                        }
-                    } else if (isGeneratedQueue) {
-                        TextButton(onClick = { viewModel.markOpenPlaylist(); onOpenGenerated() }) {
-                            Text(stringResource(R.string.player_open_playlist))
-                        }
-                    }
-                },
-            )
-        },
+        topBar = {},
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -151,24 +136,117 @@ fun PlayerScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    NowPlayingInfo(viewModel)
-                    CurrentBpmBadge(
-                        currentBpm = viewModel.currentBpm,
-                        playlists = viewModel.playlists,
-                        playlistsContainingTrack = viewModel.playlistsContainingCurrentTrack,
-                        onEditBpm = {
-                            viewModel.markEditBpm()
-                            val id = viewModel.currentTrackId.value
-                            if (id != null) {
-                                scope.launch {
-                                    viewModel.getTrack(id)?.let { track ->
-                                        editorViewModel.show(track)
+                    val isPreview by viewModel.isPreview.collectAsStateWithLifecycle()
+                    val currentTitle by viewModel.currentTitle.collectAsStateWithLifecycle()
+                    val currentBpm by viewModel.currentBpm.collectAsStateWithLifecycle()
+                    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+                    val containing by viewModel.playlistsContainingCurrentTrack.collectAsStateWithLifecycle()
+                    var playlistMenuOpen by remember { mutableStateOf(false) }
+                    var moreMenuOpen by remember { mutableStateOf(false) }
+
+                    if (isPreview) {
+                        Text(
+                            text = stringResource(R.string.player_preview_badge),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 4.dp),
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            key(currentTitle) {
+                                Text(
+                                    text = currentTitle ?: stringResource(R.string.player_no_track),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .basicMarquee(repeatDelayMillis = 2000),
+                                )
+                            }
+                            Text(
+                                text = currentBpm?.let { value ->
+                                    stringResource(R.string.bpm_value, formatBpm(value))
+                                } ?: stringResource(R.string.bpm_unknown),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        Row(modifier = Modifier.offset(x = 20.dp)) {
+                            Box {
+                                IconButton(onClick = { playlistMenuOpen = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Add,
+                                        contentDescription = stringResource(R.string.player_add_to_playlist),
+                                    )
+                                }
+                                AddToPlaylistDropdown(
+                                    expanded = playlistMenuOpen,
+                                    playlists = playlists,
+                                    containing = containing,
+                                    onDismiss = { playlistMenuOpen = false },
+                                    onToggle = { playlistId ->
+                                        playlistMenuOpen = false
+                                        viewModel.toggleCurrentTrackInPlaylist(playlistId)
+                                    },
+                                )
+                            }
+                            Box {
+                                IconButton(onClick = { moreMenuOpen = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.MoreVert,
+                                        contentDescription = stringResource(R.string.library_more),
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = moreMenuOpen,
+                                    onDismissRequest = { moreMenuOpen = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.player_edit_bpm)) },
+                                        onClick = {
+                                            moreMenuOpen = false
+                                            viewModel.markEditBpm()
+                                            val id = viewModel.currentTrackId.value
+                                            if (id != null) {
+                                                scope.launch {
+                                                    viewModel.getTrack(id)?.let { track ->
+                                                        editorViewModel.show(track)
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    )
+                                    if (currentPlaylistId != null || isGeneratedQueue) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.player_open_playlist)) },
+                                            onClick = {
+                                                moreMenuOpen = false
+                                                viewModel.markOpenPlaylist()
+                                                val playlistId = currentPlaylistId
+                                                if (playlistId != null) {
+                                                    onOpenPlaylist(playlistId)
+                                                } else {
+                                                    onOpenGenerated()
+                                                }
+                                            },
+                                        )
                                     }
                                 }
                             }
-                        },
-                        onToggleInPlaylist = viewModel::toggleCurrentTrackInPlaylist,
-                    )
+                        }
+                    }
                     SeekBarRow(
                         positionMs = viewModel.positionMs,
                         durationMs = viewModel.durationMs,
@@ -219,104 +297,6 @@ fun PlayerScreen(
             onDismiss = editorViewModel::dismiss,
             onTapUsed = editorViewModel::markTapUsed,
         )
-    }
-}
-
-@Composable
-private fun NowPlayingInfo(viewModel: PlayerViewModel) {
-    val currentNumber by viewModel.currentNumber.collectAsStateWithLifecycle()
-    val queueSize by viewModel.queueSize.collectAsStateWithLifecycle()
-    val isPreview by viewModel.isPreview.collectAsStateWithLifecycle()
-    val currentTitle by viewModel.currentTitle.collectAsStateWithLifecycle()
-
-    Text(
-        text = stringResource(R.string.player_position, currentNumber, queueSize),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-
-    if (isPreview) {
-        Text(
-            text = stringResource(R.string.player_preview_badge),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-    }
-
-    key(currentTitle) {
-        Text(
-            text = currentTitle ?: stringResource(R.string.player_no_track),
-            style = MaterialTheme.typography.titleLarge,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp)
-                .basicMarquee(repeatDelayMillis = 2000),
-        )
-    }
-}
-
-@Composable
-private fun CurrentBpmBadge(
-    currentBpm: StateFlow<Double?>,
-    playlists: StateFlow<List<PlaylistSummary>>,
-    playlistsContainingTrack: StateFlow<Set<Long>>,
-    onEditBpm: () -> Unit,
-    onToggleInPlaylist: (Long) -> Unit,
-) {
-    val bpm by currentBpm.collectAsStateWithLifecycle()
-    val playlistItems by playlists.collectAsStateWithLifecycle()
-    val containing by playlistsContainingTrack.collectAsStateWithLifecycle()
-    var menuOpen by remember { mutableStateOf(false) }
-
-    Box(
-        modifier = Modifier
-            .padding(top = 4.dp)
-            .height(48.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = bpm?.let { value ->
-                    stringResource(R.string.bpm_value, formatBpm(value))
-                } ?: stringResource(R.string.bpm_unknown),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
-            )
-            IconButton(onClick = onEditBpm) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = stringResource(R.string.player_edit_bpm),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-            Box {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.player_add_to_playlist),
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clickable { menuOpen = true },
-                )
-                AddToPlaylistDropdown(
-                    expanded = menuOpen,
-                    playlists = playlistItems,
-                    containing = containing,
-                    onDismiss = { menuOpen = false },
-                    onToggle = { playlistId ->
-                        menuOpen = false
-                        onToggleInPlaylist(playlistId)
-                    },
-                )
-            }
-        }
     }
 }
 

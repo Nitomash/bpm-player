@@ -27,7 +27,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -188,8 +188,13 @@ fun LibraryScreen(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.nav_library)) },
+            TopAppBar(
+                title = {
+                    Text(
+                        text = stringResource(R.string.nav_library),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                },
                 actions = {
                     IconButton(onClick = { moreMenuOpen = true }) {
                         Icon(
@@ -299,7 +304,7 @@ fun LibraryScreen(
                         ) {
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(16.dp),
+                                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 library.visibleFolders.forEach { folder ->
@@ -546,30 +551,33 @@ private fun FolderHeader(
                 )
             }
         }
-        IconButton(onClick = { sortMenuOpen = true }) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.Sort,
-                contentDescription = stringResource(R.string.library_sort),
-            )
-        }
-        DropdownMenu(
-            expanded = sortMenuOpen,
-            onDismissRequest = { sortMenuOpen = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.library_sort_by_name)) },
-                onClick = {
-                    onSortChange(TrackSort.BY_NAME)
-                    sortMenuOpen = false
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.library_sort_by_bpm)) },
-                onClick = {
-                    onSortChange(TrackSort.BY_BPM)
-                    sortMenuOpen = false
-                },
-            )
+        Box {
+            IconButton(onClick = { sortMenuOpen = true }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                    contentDescription = stringResource(R.string.library_sort),
+                )
+            }
+            DropdownMenu(
+                expanded = sortMenuOpen,
+                onDismissRequest = { sortMenuOpen = false },
+                offset = androidx.compose.ui.unit.DpOffset(x = (-72).dp, y = 0.dp),
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.library_sort_by_name)) },
+                    onClick = {
+                        onSortChange(TrackSort.BY_NAME)
+                        sortMenuOpen = false
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.library_sort_by_bpm)) },
+                    onClick = {
+                        onSortChange(TrackSort.BY_BPM)
+                        sortMenuOpen = false
+                    },
+                )
+            }
         }
         Box {
             IconButton(onClick = { actionsMenuOpen = true }) {

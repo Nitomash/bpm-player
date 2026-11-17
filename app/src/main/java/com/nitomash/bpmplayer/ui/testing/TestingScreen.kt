@@ -42,7 +42,12 @@ fun TestingScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.testing_title)) },
+                title = {
+                    Text(
+                        text = stringResource(R.string.testing_title),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(

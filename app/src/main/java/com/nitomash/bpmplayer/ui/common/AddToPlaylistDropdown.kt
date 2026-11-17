@@ -1,5 +1,6 @@
 package com.nitomash.bpmplayer.ui.common
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -29,7 +30,7 @@ fun AddToPlaylistDropdown(
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
-        modifier = modifier,
+        modifier = modifier.heightIn(max = 340.dp),
     ) {
         Text(
             text = stringResource(R.string.player_add_to_playlist),

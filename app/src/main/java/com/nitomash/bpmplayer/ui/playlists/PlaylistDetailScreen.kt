@@ -1,6 +1,7 @@
 package com.nitomash.bpmplayer.ui.playlists
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,10 +26,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -106,26 +108,30 @@ fun PlaylistDetailScreen(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = {
-                    Text(
-                        text = when {
-                            selectionMode -> stringResource(R.string.playlist_selected_count, selectedIds.size)
-                            isReorderMode -> stringResource(R.string.playlist_reorder_hint)
-                            else -> stringResource(R.string.playlist_detail_title)
-                        },
-                        style = if (isReorderMode) {
-                            MaterialTheme.typography.bodyMedium
-                        } else {
-                            MaterialTheme.typography.titleLarge
-                        },
-                        color = if (isReorderMode) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            Color.Unspecified
-                        },
-                        maxLines = 1,
-                    )
+                    when {
+                        selectionMode -> Text(
+                            text = stringResource(R.string.playlist_selected_count, selectedIds.size),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+
+                        isReorderMode -> Text(
+                            text = stringResource(R.string.playlist_reorder_hint),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+
+                        else -> Text(
+                            text = playlist?.name.orEmpty(),
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 1,
+                            modifier = Modifier.clickable { if (playlist != null) renameOpen = true },
+                        )
+                    }
                 },
                 navigationIcon = {
                     if (selectionMode) {
@@ -214,40 +220,35 @@ fun PlaylistDetailScreen(
                                     }
                                 }
                             }
-                            IconButton(onClick = { onAddTracks(viewModel.playlistId) }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Add,
-                                    contentDescription = stringResource(R.string.playlist_add_tracks),
-                                )
-                            }
                         }
                     }
                 },
             )
         },
+        floatingActionButton = {
+            if (!selectionMode && !isReorderMode && playlist != null) {
+                FloatingActionButton(onClick = { onAddTracks(viewModel.playlistId) }) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.playlist_add_tracks),
+                    )
+                }
+            }
+        },
     ) { innerPadding ->
         val listModifier = Modifier
             .padding(innerPadding)
             .fillMaxSize()
-        val header: @Composable (Modifier) -> Unit = { headerModifier ->
-            PlaylistHeader(
-                name = playlist?.name.orEmpty(),
-                trackCount = tracks.size,
-                onRename = { renameOpen = true },
-                modifier = headerModifier,
-            )
-        }
         when {
             !detail.loaded -> LoadingPlaceholder(listModifier)
             playlist == null -> MissingPlaylist(listModifier)
             isReorderMode && reorderState != null -> Column(modifier = listModifier) {
-                header(Modifier.padding(horizontal = 16.dp))
                 key(reorderSession) {
                     ReorderableList(
                         items = tracks,
                         key = { it.id },
                         onMove = viewModel::onReorderMove,
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 88.dp),
                         modifier = Modifier.fillMaxSize(),
                         itemContent = { track, rowModifier, handleModifier, isDragging ->
                             TrackRow(
@@ -269,7 +270,6 @@ fun PlaylistDetailScreen(
             else -> TrackList(
                 tracks = tracks,
                 modifier = listModifier,
-                header = { header(Modifier) },
                 emptyText = stringResource(R.string.playlist_detail_empty),
                 currentTrackId = if (!isPreview && currentPlaylistId == viewModel.playlistId) {
                     currentTrackId
