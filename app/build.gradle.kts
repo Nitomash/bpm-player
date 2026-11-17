@@ -48,8 +48,12 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("release")
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
 
@@ -82,6 +86,29 @@ androidComponents {
                     "bpm-player-${variant.name}_v$appVersionName.apk"
                 },
             )
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "signReleaseBundle") {
+        val outputDir = layout.buildDirectory.dir("outputs/bundle/release")
+        val targetName = "bpm-player_v$appVersionName.aab"
+        doLast {
+            val dir = outputDir.get().asFile
+            dir.listFiles()?.filter { it.extension == "aab" && it.name != targetName }?.forEach {
+                it.copyTo(File(dir, targetName), overwrite = true)
+            }
+        }
+    }
+    if (name == "signDebugBundle") {
+        val outputDir = layout.buildDirectory.dir("outputs/bundle/debug")
+        val targetName = "bpm-player-debug_v$appVersionName.aab"
+        doLast {
+            val dir = outputDir.get().asFile
+            dir.listFiles()?.filter { it.extension == "aab" && it.name != targetName }?.forEach {
+                it.copyTo(File(dir, targetName), overwrite = true)
+            }
         }
     }
 }
