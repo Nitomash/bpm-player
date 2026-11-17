@@ -1,6 +1,7 @@
 package com.nitomash.bpmplayer.ui.playlists
 
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -44,7 +45,7 @@ fun GeneratedPlaylistScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        contentWindowInsets = WindowInsets.statusBars,
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.playlist_detail_title)) },

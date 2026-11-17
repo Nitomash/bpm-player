@@ -8,15 +8,16 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -105,16 +106,11 @@ fun BpmPlayerApp() {
         )
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = TopLevelDestination.LIBRARY.route,
-            modifier = Modifier
-                .padding(innerPadding)
-                .consumeWindowInsets(innerPadding),
-            enterTransition = {
+    NavHost(
+        navController = navController,
+        startDestination = TopLevelDestination.LIBRARY.route,
+        modifier = Modifier.fillMaxSize(),
+        enterTransition = {
                 if (isBetweenTopLevelDestinations()) {
                     fadeIn(NavigationMotion.fadeInSpec)
                 } else {
@@ -250,7 +246,6 @@ fun BpmPlayerApp() {
                 )
             }
         }
-    }
 }
 
 @Composable
@@ -260,12 +255,22 @@ private fun TopLevelScreen(
     miniPlayer: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
             content()
         }
         miniPlayer?.invoke()
-        NavigationBar {
+        NavigationBar(
+            windowInsets = WindowInsets(0, 0, 0, 0),
+        ) {
             TopLevelDestination.entries.forEach { item ->
                 NavigationBarItem(
                     selected = item == destination,
