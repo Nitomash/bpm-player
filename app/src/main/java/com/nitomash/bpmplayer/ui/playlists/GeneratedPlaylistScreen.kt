@@ -51,12 +51,7 @@ fun GeneratedPlaylistScreen(
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(R.string.playlist_detail_title),
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                },
+                title = { Text(playlist?.name.orEmpty()) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -85,7 +80,7 @@ fun GeneratedPlaylistScreen(
                 .fillMaxSize(),
             header = {
                 PlaylistHeader(
-                    name = playlist?.name.orEmpty(),
+                    name = "",
                     trackCount = tracks.size,
                 )
             },

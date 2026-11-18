@@ -35,10 +35,12 @@ internal fun PlaylistHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column {
-            Text(
-                text = name,
-                style = MaterialTheme.typography.titleMedium,
-            )
+            if (name.isNotEmpty()) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
             Text(
                 text = pluralStringResource(R.plurals.track_count, trackCount, trackCount),
                 style = MaterialTheme.typography.bodyMedium,

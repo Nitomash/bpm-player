@@ -270,6 +270,12 @@ fun PlaylistDetailScreen(
             else -> TrackList(
                 tracks = tracks,
                 modifier = listModifier,
+                header = {
+                    PlaylistHeader(
+                        name = "",
+                        trackCount = tracks.size,
+                    )
+                },
                 emptyText = stringResource(R.string.playlist_detail_empty),
                 currentTrackId = if (!isPreview && currentPlaylistId == viewModel.playlistId) {
                     currentTrackId
