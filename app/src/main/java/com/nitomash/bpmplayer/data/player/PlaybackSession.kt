@@ -258,6 +258,10 @@ class PlaybackSession @Inject constructor(
         restoreQueue()
     }
 
+    fun stopPreviewOnFocusLoss() {
+        endPreview()
+    }
+
     fun setStopOnTrackEnd(enabled: Boolean) {
         stopOnTrackEnd = enabled
     }

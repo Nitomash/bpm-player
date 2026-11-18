@@ -45,6 +45,7 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
+        runCatching { playbackSession.stopPreviewOnFocusLoss() }
         runCatching { playbackSession.saveResumeState() }
         mediaSession?.run {
             player.removeListener(playerListener)
@@ -55,6 +56,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: android.content.Intent?) {
+        runCatching { playbackSession.stopPreviewOnFocusLoss() }
         runCatching { playbackSession.saveResumeState() }
         stopSelf()
         super.onTaskRemoved(rootIntent)

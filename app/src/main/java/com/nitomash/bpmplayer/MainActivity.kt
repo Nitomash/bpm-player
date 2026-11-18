@@ -26,7 +26,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onPause(owner: LifecycleOwner) {
+                playbackSession.stopPreviewOnFocusLoss()
+            }
+
             override fun onStop(owner: LifecycleOwner) {
+                playbackSession.stopPreviewOnFocusLoss()
                 sidecarSync.flushAll()
                 playbackSession.saveResumeState()
             }
