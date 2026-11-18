@@ -38,9 +38,9 @@ import com.nitomash.bpmplayer.data.settings.AppSettings
 import kotlin.math.roundToInt
 
 private const val MAX_INPUT_LENGTH = 4
-private const val SWITCH_SCALE = 0.75f
+internal const val SWITCH_SCALE = 0.75f
 
-private fun Modifier.scaledLayout(scale: Float): Modifier =
+internal fun Modifier.scaledLayout(scale: Float): Modifier =
     this.layout { measurable, constraints ->
         val placeable = measurable.measure(constraints)
         val width = (placeable.width * scale).roundToInt()
@@ -120,7 +120,7 @@ internal fun IntervalPlaybackControl(
 }
 
 @Composable
-private fun IntervalSecondsField(
+internal fun IntervalSecondsField(
     value: Int,
     maxValue: Int,
     onCommit: (Int) -> Unit,

@@ -128,12 +128,14 @@ class SettingsMapperTest {
     }
 
     @Test
-    fun `playback settings default to disabled with 90s limit and 10s gap`() {
+    fun `playback settings default to disabled with 90s limit and 10s pauses`() {
         val settings = SettingsMapper.toSettings(emptyPreferences())
 
         assertFalse(settings.playbackProcessingEnabled)
         assertEquals(90, settings.playbackLimitSeconds)
         assertEquals(10, settings.playbackGapSeconds)
+        assertFalse(settings.playbackStartDelayEnabled)
+        assertEquals(10, settings.playbackStartDelaySeconds)
     }
 
     @Test
@@ -146,6 +148,8 @@ class SettingsMapperTest {
                 playbackProcessingEnabled = false,
                 playbackLimitSeconds = 45,
                 playbackGapSeconds = 12,
+                playbackStartDelayEnabled = true,
+                playbackStartDelaySeconds = 7,
             ),
         )
 
@@ -153,6 +157,8 @@ class SettingsMapperTest {
         assertFalse(settings.playbackProcessingEnabled)
         assertEquals(45, settings.playbackLimitSeconds)
         assertEquals(12, settings.playbackGapSeconds)
+        assertTrue(settings.playbackStartDelayEnabled)
+        assertEquals(7, settings.playbackStartDelaySeconds)
     }
 
     @Test
@@ -160,12 +166,14 @@ class SettingsMapperTest {
         val prefs = mutablePreferencesOf(
             intPreferencesKey("playback_limit_seconds") to -5,
             intPreferencesKey("playback_gap_seconds") to 100_000,
+            intPreferencesKey("playback_start_delay_seconds") to 100_000,
         )
 
         val settings = SettingsMapper.toSettings(prefs)
 
         assertEquals(0, settings.playbackLimitSeconds)
         assertEquals(AppSettings.PLAYBACK_GAP_MAX, settings.playbackGapSeconds)
+        assertEquals(AppSettings.PLAYBACK_START_DELAY_MAX, settings.playbackStartDelaySeconds)
     }
 
     @Test
@@ -174,12 +182,17 @@ class SettingsMapperTest {
 
         SettingsMapper.write(
             prefs,
-            AppSettings(playbackLimitSeconds = 999_999, playbackGapSeconds = -1),
+            AppSettings(
+                playbackLimitSeconds = 999_999,
+                playbackGapSeconds = -1,
+                playbackStartDelaySeconds = -1,
+            ),
         )
 
         val settings = SettingsMapper.toSettings(prefs)
         assertEquals(AppSettings.PLAYBACK_LIMIT_MAX, settings.playbackLimitSeconds)
         assertEquals(0, settings.playbackGapSeconds)
+        assertEquals(0, settings.playbackStartDelaySeconds)
     }
 
     @Test

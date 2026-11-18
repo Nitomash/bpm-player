@@ -89,6 +89,7 @@ fun PlayerScreen(
     val currentPlaylistId by viewModel.currentPlaylistId.collectAsStateWithLifecycle()
     val isGeneratedQueue by viewModel.isGeneratedQueue.collectAsStateWithLifecycle()
     val appSettings by viewModel.appSettings.collectAsStateWithLifecycle()
+    val gapRemainingMs by viewModel.gapRemainingMs.collectAsStateWithLifecycle()
     val selectedTrack by editorViewModel.selectedTrack.collectAsStateWithLifecycle()
     val editorAutoDetect by editorViewModel.autoDetectState.collectAsStateWithLifecycle()
 
@@ -107,8 +108,9 @@ fun PlayerScreen(
         }
     }
 
+    Box(modifier = modifier.fillMaxSize()) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         topBar = {},
     ) { innerPadding ->
@@ -276,8 +278,17 @@ fun PlayerScreen(
                     onGapCommit = viewModel::setPlaybackGapSeconds,
                     modifier = Modifier.padding(top = 24.dp),
                 )
+                PlaybackStartDelayControl(
+                    settings = appSettings,
+                    onEnabledChange = viewModel::setPlaybackStartDelayEnabled,
+                    onSecondsCommit = viewModel::setPlaybackStartDelaySeconds,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
             }
         }
+    }
+
+    VisualCountdown(remainingMs = gapRemainingMs)
     }
 
     selectedTrack?.let { track ->

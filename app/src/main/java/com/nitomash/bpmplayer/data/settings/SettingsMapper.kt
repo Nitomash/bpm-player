@@ -17,6 +17,8 @@ object SettingsMapper {
     private val PLAYBACK_PROCESSING_KEY = booleanPreferencesKey("playback_processing_enabled")
     private val PLAYBACK_LIMIT_KEY = intPreferencesKey("playback_limit_seconds")
     private val PLAYBACK_GAP_KEY = intPreferencesKey("playback_gap_seconds")
+    private val PLAYBACK_START_DELAY_ENABLED_KEY = booleanPreferencesKey("playback_start_delay_enabled")
+    private val PLAYBACK_START_DELAY_KEY = intPreferencesKey("playback_start_delay_seconds")
     private val SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY = booleanPreferencesKey("suppress_bpm_prompt_after_scan")
     private val SHUFFLE_ENABLED_KEY = booleanPreferencesKey("shuffle_enabled")
     private val REPEAT_MODE_KEY = intPreferencesKey("repeat_mode")
@@ -45,6 +47,12 @@ object SettingsMapper {
                 prefs[PLAYBACK_GAP_KEY] ?: defaults.playbackGapSeconds,
                 AppSettings.PLAYBACK_GAP_MAX,
             ),
+            playbackStartDelayEnabled = prefs[PLAYBACK_START_DELAY_ENABLED_KEY]
+                ?: defaults.playbackStartDelayEnabled,
+            playbackStartDelaySeconds = normalizePlaybackSeconds(
+                prefs[PLAYBACK_START_DELAY_KEY] ?: defaults.playbackStartDelaySeconds,
+                AppSettings.PLAYBACK_START_DELAY_MAX,
+            ),
             suppressBpmPromptAfterScan = prefs[SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY]
                 ?: defaults.suppressBpmPromptAfterScan,
             shuffleEnabled = prefs[SHUFFLE_ENABLED_KEY] ?: defaults.shuffleEnabled,
@@ -68,6 +76,11 @@ object SettingsMapper {
         prefs[PLAYBACK_GAP_KEY] = normalizePlaybackSeconds(
             settings.playbackGapSeconds,
             AppSettings.PLAYBACK_GAP_MAX,
+        )
+        prefs[PLAYBACK_START_DELAY_ENABLED_KEY] = settings.playbackStartDelayEnabled
+        prefs[PLAYBACK_START_DELAY_KEY] = normalizePlaybackSeconds(
+            settings.playbackStartDelaySeconds,
+            AppSettings.PLAYBACK_START_DELAY_MAX,
         )
         prefs[SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY] = settings.suppressBpmPromptAfterScan
         prefs[SHUFFLE_ENABLED_KEY] = settings.shuffleEnabled

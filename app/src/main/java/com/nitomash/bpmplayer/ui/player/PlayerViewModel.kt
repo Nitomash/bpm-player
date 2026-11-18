@@ -67,6 +67,7 @@ class PlayerViewModel @Inject constructor(
     val currentTrackId = playbackSession.currentTrackId
     val currentPlaylistId = playbackSession.currentPlaylistId
     val isGeneratedQueue = playbackSession.isGeneratedQueue
+    val gapRemainingMs = playbackSession.gapRemainingMs
 
     val isPlaylistActive: StateFlow<Boolean> = combine(
         playbackSession.currentPlaylistId,
@@ -154,6 +155,16 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch { testerProgress.mark(TesterBeacon.PLAYER_INTERVAL_GAP_CHANGED) }
         updateSettings {
             it.copy(playbackGapSeconds = seconds.coerceIn(0, AppSettings.PLAYBACK_GAP_MAX))
+        }
+    }
+
+    fun setPlaybackStartDelayEnabled(enabled: Boolean) {
+        updateSettings { it.copy(playbackStartDelayEnabled = enabled) }
+    }
+
+    fun setPlaybackStartDelaySeconds(seconds: Int) {
+        updateSettings {
+            it.copy(playbackStartDelaySeconds = seconds.coerceIn(0, AppSettings.PLAYBACK_START_DELAY_MAX))
         }
     }
 

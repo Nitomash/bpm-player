@@ -48,6 +48,7 @@ class PlaybackSession @Inject constructor(
     private var virtualPlayer: VirtualQueuePlayer? = null
     private var tickerJob: Job? = null
     private var gapJob: Job? = null
+    private var startDelayJob: Job? = null
     private var shuffleJob: Job? = null
     private var mode: Mode = Mode.Empty
     private var previewSnapshot: QueueSnapshot? = null
@@ -62,6 +63,9 @@ class PlaybackSession @Inject constructor(
     private val resumeWrites = Channel<ResumeWrite>(Channel.UNLIMITED)
     private var resumeLoaded = false
     private var lastResumeSaveMs = 0L
+    private var startDelayEnabled = false
+    private var startDelaySeconds = 10
+    private var startDelayActive = false
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -120,6 +124,9 @@ class PlaybackSession @Inject constructor(
     private val _gapActive = MutableStateFlow(false)
     val gapActive: StateFlow<Boolean> = _gapActive.asStateFlow()
 
+    private val _gapRemainingMs = MutableStateFlow<Long?>(null)
+    val gapRemainingMs: StateFlow<Long?> = _gapRemainingMs.asStateFlow()
+
     private val _limits = MutableStateFlow(PlaybackLimits())
 
     init {
@@ -128,12 +135,18 @@ class PlaybackSession @Inject constructor(
         scope.launch {
             settingsRepository.observe().collect { settings ->
                 onLimitsChanged(settings.toPlaybackLimits())
+                startDelayEnabled = settings.playbackStartDelayEnabled
+                startDelaySeconds = settings.playbackStartDelaySeconds
             }
         }
     }
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (!isPlaying && (startDelayActive || gapJob?.isActive == true)) {
+                _isPlaying.value = true
+                return
+            }
             _isPlaying.value = isPlaying
             if (isPlaying) {
                 startTicker()
@@ -163,6 +176,7 @@ class PlaybackSession @Inject constructor(
 
         override fun onPlayerError(error: PlaybackException) {
             cancelGap()
+            cancelStartDelay()
         }
     }
 
@@ -182,6 +196,7 @@ class PlaybackSession @Inject constructor(
                 "start=$start randomStart=$randomStart name=$playlistName",
         )
         cancelGap()
+        cancelStartDelay()
         mode = Mode.Playlist
         _hasUserStarted.value = true
         _isPreview.value = false
@@ -208,7 +223,13 @@ class PlaybackSession @Inject constructor(
                     "shuffle=$shuffle repeat=${_repeatMode.value}",
             )
             syncQueueMetadata()
-            startPlayback { loadTrack(queue.index, play = true) }
+            startPlayback {
+                loadTrack(queue.index, play = false)
+                startPlaybackAfterDelay(
+                    enabled = settings.playbackStartDelayEnabled,
+                    seconds = settings.playbackStartDelaySeconds,
+                )
+            }
         }
     }
 
@@ -255,6 +276,7 @@ class PlaybackSession @Inject constructor(
     fun previewTrack(track: PlayerTrack) {
         Log.i(TAG, "previewTrack: ${track.title}")
         cancelGap()
+        cancelStartDelay()
         val snapshot = if (mode == Mode.Preview) previewSnapshot else captureQueue()
         previewSnapshot = snapshot
         mode = Mode.Preview
@@ -494,6 +516,7 @@ class PlaybackSession @Inject constructor(
         if (current.mediaItemCount == 0 || current.playbackState == Player.STATE_IDLE) return
         Log.i(TAG, "interval settings changed, restarting current track from 0")
         cancelGap()
+        cancelStartDelay()
         current.pause()
         current.seekTo(0L)
         _positionMs.value = 0L
@@ -544,10 +567,20 @@ class PlaybackSession @Inject constructor(
         Log.i(TAG, "starting gap of ${gapMs}ms")
         controller?.pause()
         _gapActive.value = true
+        _isPlaying.value = true
         gapJob?.cancel()
         gapJob = scope.launch {
-            delay(gapMs)
+            val endsAtMs = SystemClock.elapsedRealtime() + gapMs
+            while (isActive) {
+                val remainingMs = (endsAtMs - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+                _gapRemainingMs.value = remainingMs
+                if (remainingMs == 0L) break
+                delay(minOf(GAP_COUNTDOWN_UPDATE_INTERVAL_MS, remainingMs))
+            }
+            if (!isActive) return@launch
             _gapActive.value = false
+            _gapRemainingMs.value = null
+            gapJob = null
             controller?.play()
         }
     }
@@ -556,21 +589,77 @@ class PlaybackSession @Inject constructor(
         gapJob?.cancel()
         gapJob = null
         _gapActive.value = false
+        _gapRemainingMs.value = null
         restoreVolume()
+    }
+
+    private fun startPlaybackAfterDelay(
+        enabled: Boolean = startDelayEnabled,
+        seconds: Int = startDelaySeconds,
+    ) {
+        if (!enabled || seconds <= 0) {
+            controller?.play()
+            return
+        }
+        val delayMs = seconds.toLong() * SECOND_MS
+        Log.i(TAG, "starting playback after ${delayMs}ms delay")
+        controller?.pause()
+        startDelayJob?.cancel()
+        startDelayActive = true
+        _isPlaying.value = true
+        startDelayJob = scope.launch {
+            val endsAtMs = SystemClock.elapsedRealtime() + delayMs
+            while (isActive) {
+                val remainingMs = (endsAtMs - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+                _gapRemainingMs.value = remainingMs
+                if (remainingMs == 0L) break
+                delay(minOf(GAP_COUNTDOWN_UPDATE_INTERVAL_MS, remainingMs))
+            }
+            if (!isActive) return@launch
+            startDelayActive = false
+            startDelayJob = null
+            _gapRemainingMs.value = null
+            controller?.play()
+        }
+    }
+
+    private fun cancelStartDelay() {
+        val wasActive = startDelayActive
+        startDelayJob?.cancel()
+        startDelayJob = null
+        startDelayActive = false
+        if (wasActive) {
+            _gapRemainingMs.value = null
+            _isPlaying.value = false
+        }
     }
 
     fun pause() {
         cancelGap()
+        cancelStartDelay()
         controller?.pause()
     }
 
     fun togglePlayback() {
         if (queue.size == 0 && mode != Mode.Preview) return
         _hasUserStarted.value = true
+        if (startDelayActive) {
+            cancelStartDelay()
+            return
+        }
+        if (gapJob?.isActive == true) {
+            cancelGap()
+            _isPlaying.value = false
+            controller?.pause()
+            return
+        }
         val current = controller
         if (current == null) {
             if (mode == Mode.Preview) return
-            startPlayback { loadTrack(queue.index, play = true, positionMs = _positionMs.value) }
+            startPlayback {
+                loadTrack(queue.index, play = false, positionMs = _positionMs.value)
+                startPlaybackAfterDelay()
+            }
             return
         }
         cancelGap()
@@ -586,10 +675,11 @@ class PlaybackSession @Inject constructor(
                         current.play()
                     }
                 } else {
-                    loadTrack(queue.index, play = true)
+                    loadTrack(queue.index, play = false)
+                    startPlaybackAfterDelay()
                 }
             }
-            else -> current.play()
+            else -> startPlaybackAfterDelay()
         }
     }
 
@@ -625,6 +715,7 @@ class PlaybackSession @Inject constructor(
         _hasUserStarted.value = true
         val play = isPlayIntentActive()
         cancelGap()
+        cancelStartDelay()
         val q = queue
         when {
             q.index < q.order.lastIndex -> loadTrack(q.index + 1, play)
@@ -638,6 +729,7 @@ class PlaybackSession @Inject constructor(
         _hasUserStarted.value = true
         val play = isPlayIntentActive()
         cancelGap()
+        cancelStartDelay()
         val q = queue
         when {
             q.index > 0 -> loadTrack(q.index - 1, play)
@@ -1009,6 +1101,7 @@ class PlaybackSession @Inject constructor(
         const val TICKER_INTERVAL_MS = 250L
         const val RESUME_SAVE_INTERVAL_MS = 15_000L
         const val FADE_STEP_MS = 50L
+        const val GAP_COUNTDOWN_UPDATE_INTERVAL_MS = 100L
         const val SECOND_MS = 1000L
         const val SKIP_FORWARD_STEP_MS = 15_000L
         const val TRACK_END_TOLERANCE_MS = 1_000L

@@ -12,6 +12,8 @@ data class AppSettings(
     val playbackProcessingEnabled: Boolean = false,
     val playbackLimitSeconds: Int = 90,
     val playbackGapSeconds: Int = 10,
+    val playbackStartDelayEnabled: Boolean = false,
+    val playbackStartDelaySeconds: Int = 10,
     val suppressBpmPromptAfterScan: Boolean = false,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
@@ -25,5 +27,6 @@ data class AppSettings(
         const val BPM_STEP = 1.0
         const val PLAYBACK_LIMIT_MAX = 3600
         const val PLAYBACK_GAP_MAX = 600
+        const val PLAYBACK_START_DELAY_MAX = 600
     }
 }

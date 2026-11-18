@@ -48,6 +48,9 @@
     <string name="player_interval_prefix">Интервал</string>
     <string name="player_interval_middle">сек трека с паузой</string>
     <string name="player_interval_end">сек</string>
+    <string name="player_start_delay_off">Пауза перед началом</string>
+    <string name="player_start_delay_prefix">Пауза</string>
+    <string name="player_start_delay_end">сек перед началом</string>
     <plurals name="playlist_result_count">
         <item quantity="one">Плейлист: %d трек</item>
         <item quantity="few">Плейлист: %d трека</item>
