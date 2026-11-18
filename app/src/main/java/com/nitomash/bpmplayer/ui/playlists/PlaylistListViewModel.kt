@@ -101,7 +101,14 @@ class PlaylistListViewModel @Inject constructor(
         viewModelScope.launch {
             val tracks = playlistRepository.getTracksInDisplayOrder(playlistId)
             if (tracks.isEmpty()) return@launch
-            playbackSession.openQueue(tracks.map { it.toPlayerTrack() }, playlistId, 0, randomStart = true)
+            val playlistName = playlists.value.firstOrNull { it.id == playlistId }?.name
+            playbackSession.openQueue(
+                tracks.map { it.toPlayerTrack() },
+                playlistId,
+                0,
+                randomStart = true,
+                playlistName = playlistName,
+            )
             testerProgress.mark(TesterBeacon.PLAYLIST_PLAY_STARTED)
             onStarted()
         }

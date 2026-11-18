@@ -10,6 +10,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.nitomash.bpmplayer.data.music.MusicRepository
@@ -33,6 +34,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Singleton
 class PlaybackSession @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -43,6 +45,7 @@ class PlaybackSession @Inject constructor(
 ) {
     private var controller: MediaController? = null
     private var pendingAction: ((MediaController) -> Unit)? = null
+    private var virtualPlayer: VirtualQueuePlayer? = null
     private var tickerJob: Job? = null
     private var gapJob: Job? = null
     private var shuffleJob: Job? = null
@@ -50,6 +53,9 @@ class PlaybackSession @Inject constructor(
     private var previewSnapshot: QueueSnapshot? = null
     private var queue: PlaybackQueue = PlaybackQueue.Empty
     private var appliedLimits: PlaybackLimits? = null
+    private var currentPlaylistName: String? = null
+    private var appliedPlaylistMetadata: androidx.media3.common.MediaMetadata? = null
+    private var lastNotifiedVirtualState: VirtualPlayerState? = null
     @Volatile
     private var stopOnTrackEnd = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -140,22 +146,12 @@ class PlaybackSession @Inject constructor(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             restoreVolume()
-            updateNavigation()
+            refreshPosition()
             saveResumeState()
         }
 
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-            updateNavigation()
-        }
-
-        override fun onRepeatModeChanged(repeatMode: Int) {
-            _repeatMode.value = repeatMode
-            updateNavigation()
-        }
-
-        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-            _shuffleEnabled.value = shuffleModeEnabled
-            updateNavigation()
+            refreshPosition()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -176,10 +172,15 @@ class PlaybackSession @Inject constructor(
         startIndex: Int = 0,
         generated: Boolean = false,
         randomStart: Boolean = false,
+        playlistName: String? = null,
     ) {
         if (items.isEmpty()) return
         val start = startIndex.coerceIn(0, items.lastIndex)
-        Log.i(TAG, "openQueue: ${items.size} items")
+        Log.i(
+            TAG,
+            "openQueue: items=${items.size} playlistId=$playlistId generated=$generated " +
+                "start=$start randomStart=$randomStart name=$playlistName",
+        )
         cancelGap()
         mode = Mode.Playlist
         _hasUserStarted.value = true
@@ -187,6 +188,7 @@ class PlaybackSession @Inject constructor(
         _previewTrackId.value = null
         _currentPlaylistId.value = playlistId
         _isGeneratedQueue.value = generated
+        currentPlaylistName = playlistName
         previewSnapshot = null
         pendingAction = null
         scope.launch {
@@ -199,6 +201,11 @@ class PlaybackSession @Inject constructor(
                 source = items.toList(),
                 order = buildPlaybackOrder(items, actualStart, shuffle),
                 index = if (shuffle) 0 else actualStart.coerceIn(0, items.lastIndex),
+            )
+            Log.i(
+                TAG,
+                "openQueue prepared: size=${queue.size} index=${queue.index} " +
+                    "shuffle=$shuffle repeat=${_repeatMode.value}",
             )
             syncQueueMetadata()
             startPlayback { loadTrack(queue.index, play = true) }
@@ -217,12 +224,18 @@ class PlaybackSession @Inject constructor(
     fun clearPlaylistIdIf(playlistId: Long) {
         if (_currentPlaylistId.value == playlistId) {
             _currentPlaylistId.value = null
+            currentPlaylistName = null
+            updatePlaylistMetadata()
+            notifyVirtualPlayer()
         }
     }
 
-    fun setCurrentPlaylistId(playlistId: Long?) {
+    fun setCurrentPlaylistId(playlistId: Long?, playlistName: String? = currentPlaylistName) {
         _currentPlaylistId.value = playlistId
         _isGeneratedQueue.value = playlistId == null
+        currentPlaylistName = playlistName
+        updatePlaylistMetadata()
+        notifyVirtualPlayer()
     }
 
     fun setCurrentBpm(bpm: Double?) {
@@ -250,6 +263,7 @@ class PlaybackSession @Inject constructor(
         _currentTrackId.value = track.trackId
         _currentTitle.value = track.title
         _currentBpm.value = track.bpm
+        notifyVirtualPlayer()
         startPlayback { player -> startPreview(player, track) }
     }
 
@@ -282,7 +296,7 @@ class PlaybackSession @Inject constructor(
     }
 
     private fun startPreview(player: MediaController, track: PlayerTrack) {
-        player.setMediaItems(listOf(track.toMediaItem()), 0, 0L)
+        player.setMediaItems(listOf(buildMediaItem(track)), 0, 0L)
         player.prepare()
         player.play()
     }
@@ -300,6 +314,7 @@ class PlaybackSession @Inject constructor(
             mode = Mode.Empty
             queue = PlaybackQueue.Empty
             _isGeneratedQueue.value = false
+            currentPlaylistName = null
             _currentBpm.value = null
             _currentTrackId.value = null
             _currentTitle.value = null
@@ -311,6 +326,8 @@ class PlaybackSession @Inject constructor(
             _durationMs.value = 0L
             player?.stop()
             player?.clearMediaItems()
+            updatePlaylistMetadata()
+            notifyVirtualPlayer()
             return
         }
         Log.i(
@@ -319,6 +336,7 @@ class PlaybackSession @Inject constructor(
                 "wasPlaying=${snapshot.wasPlaying}",
         )
         mode = Mode.Playlist
+        notifyVirtualPlayer()
         loadTrack(snapshot.index, play = snapshot.wasPlaying, positionMs = snapshot.positionMs)
     }
 
@@ -394,6 +412,7 @@ class PlaybackSession @Inject constructor(
             _previewTrackId.value = null
             _currentPlaylistId.value = state.playlistId
             _isGeneratedQueue.value = state.playlistId == null
+            currentPlaylistName = state.name
             if (state.playlistId == null) {
                 generatedPlaylistStore.put(GeneratedPlaylist(name = state.name ?: "Сгенерированный плейлист", tracks = entities))
             }
@@ -483,7 +502,10 @@ class PlaybackSession @Inject constructor(
     private fun finishSegment(cause: SegmentEnd) {
         val player = controller ?: return
         if (mode == Mode.Preview) {
-            restoreQueue()
+            Log.i(TAG, "preview finished ($cause), stopping at track end")
+            player.pause()
+            player.seekTo(0L)
+            _positionMs.value = 0L
             return
         }
         if (mode != Mode.Playlist) return
@@ -555,7 +577,17 @@ class PlaybackSession @Inject constructor(
         when {
             current.isPlaying -> current.pause()
             current.playbackState == Player.STATE_ENDED -> {
-                if (mode == Mode.Preview) restoreQueue() else loadTrack(queue.index, play = true)
+                if (mode == Mode.Preview) {
+                    val track = queue.current?.takeIf { _previewTrackId.value == it.trackId }
+                    if (track != null) {
+                        startPreview(current, track)
+                    } else {
+                        current.seekTo(0L)
+                        current.play()
+                    }
+                } else {
+                    loadTrack(queue.index, play = true)
+                }
             }
             else -> current.play()
         }
@@ -565,9 +597,17 @@ class PlaybackSession @Inject constructor(
         val current = controller
         if (current != null) {
             val targetId = if (_isPreview.value) _previewTrackId.value else _currentTrackId.value
-            if (current.mediaItemCount > 0 && targetId == track.trackId && !isAtTrackEnd(current)) {
+            val isSameTrack = current.mediaItemCount > 0 && targetId == track.trackId
+            if (isSameTrack) {
                 cancelGap()
-                if (current.isPlaying) current.pause() else current.play()
+                when {
+                    current.playbackState == Player.STATE_ENDED -> {
+                        if (mode == Mode.Preview) startPreview(current, track) else current.seekTo(0L).also { current.play() }
+                    }
+                    isAtTrackEnd(current) -> previewTrack(track)
+                    current.isPlaying -> current.pause()
+                    else -> current.play()
+                }
                 return
             }
         }
@@ -613,7 +653,7 @@ class PlaybackSession @Inject constructor(
         _durationMs.value = 0L
         val player = controller ?: return
         if (!play) player.pause()
-        player.setMediaItems(listOf(track.toMediaItem()), 0, _positionMs.value)
+        player.setMediaItems(listOf(buildMediaItem(track)), 0, _positionMs.value)
         player.prepare()
         if (play) player.play()
     }
@@ -638,8 +678,13 @@ class PlaybackSession @Inject constructor(
     }
 
     fun toggleShuffle() {
-        val desired = !_shuffleEnabled.value
-        _shuffleEnabled.value = desired
+        setShuffleEnabled(!_shuffleEnabled.value)
+    }
+
+    fun setShuffleEnabled(enabled: Boolean) {
+        if (_shuffleEnabled.value == enabled) return
+        _shuffleEnabled.value = enabled
+        notifyVirtualPlayer()
         shuffleJob?.cancel()
         shuffleJob = scope.launch {
             val q = queue
@@ -647,17 +692,17 @@ class PlaybackSession @Inject constructor(
             val newOrder = withContext(Dispatchers.Default) {
                 if (q.size == 0) {
                     emptyList()
-                } else if (desired) {
+                } else if (enabled) {
                     val rest = q.source.filter { it.trackId != curTrack?.trackId }.shuffled()
                     if (curTrack != null) listOf(curTrack) + rest else q.source.shuffled()
                 } else {
                     q.source.toList()
                 }
             }
-            if (desired != _shuffleEnabled.value) return@launch
+            if (enabled != _shuffleEnabled.value) return@launch
             withContext(Dispatchers.Main) {
-                if (desired != _shuffleEnabled.value) return@withContext
-                val newIndex = if (desired) {
+                if (enabled != _shuffleEnabled.value) return@withContext
+                val newIndex = if (enabled) {
                     0
                 } else {
                     newOrder.indexOfFirst { it.trackId == curTrack?.trackId }.coerceAtLeast(0)
@@ -672,7 +717,7 @@ class PlaybackSession @Inject constructor(
                 } else {
                     syncQueueMetadata()
                 }
-                settingsRepository.update { it.copy(shuffleEnabled = desired) }
+                settingsRepository.update { it.copy(shuffleEnabled = enabled) }
             }
         }
     }
@@ -683,33 +728,56 @@ class PlaybackSession @Inject constructor(
             Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
             else -> Player.REPEAT_MODE_OFF
         }
-        _repeatMode.value = newMode
-        controller?.repeatMode = Player.REPEAT_MODE_OFF
+        setRepeatMode(newMode)
+    }
+
+    fun setRepeatMode(mode: Int) {
+        if (_repeatMode.value == mode) return
+        _repeatMode.value = mode
         syncNavigationFlags()
-        scope.launch { settingsRepository.update { it.copy(repeatMode = newMode) } }
+        scope.launch { settingsRepository.update { it.copy(repeatMode = mode) } }
     }
 
     fun seekTo(positionMs: Long) {
-        val current = controller ?: return
-        if (current.isPlayingAd) return
+        val player = seekablePlayer() ?: return
+        if (controller?.isPlayingAd == true) return
         val wasGapActive = _gapActive.value
         cancelGap()
-        current.seekTo(positionMs)
+        player.seekTo(positionMs)
         _positionMs.value = positionMs.coerceIn(0L, _durationMs.value.coerceAtLeast(positionMs))
-        if (wasGapActive) current.play()
+        if (wasGapActive) player.play()
     }
 
     fun skipForward() {
-        val current = controller ?: return
-        val duration = current.duration
+        val state = seekablePlayer() ?: return
+        val duration = state.duration
         if (duration <= 0L) return
-        val target = current.currentPosition + SKIP_FORWARD_STEP_MS
+        val target = state.currentPosition + SKIP_FORWARD_STEP_MS
         if (target >= duration) {
-            seekTo(duration)
-            if (!_isPreview.value) current.pause()
+            if (_isPreview.value) {
+                state.pause()
+                state.seekTo(0L)
+                _positionMs.value = 0L
+            } else {
+                seekTo(duration)
+                state.pause()
+            }
             return
         }
         seekTo(target)
+    }
+
+    fun skipBack() {
+        val state = seekablePlayer() ?: return
+        val target = (state.currentPosition - SKIP_FORWARD_STEP_MS).coerceAtLeast(0L)
+        seekTo(target)
+    }
+
+    private fun seekablePlayer(): Player? =
+        virtualPlayer?.wrappedPlayer ?: controller
+
+    fun seekToDefaultPosition() {
+        seekTo(0L)
     }
 
     private fun startTicker() {
@@ -806,12 +874,18 @@ class PlaybackSession @Inject constructor(
         _currentTitle.value = current?.title
         _currentNumber.value = if (current == null) 0 else q.index + 1
         syncNavigationFlags()
+        updatePlaylistMetadata()
     }
 
     private fun syncNavigationFlags() {
         val q = queue
         _hasPrevious.value = q.index > 0 || repeatModeValue() != RepeatMode.OFF
         _hasNext.value = q.index < q.order.lastIndex || repeatModeValue() != RepeatMode.OFF
+        notifyVirtualPlayer(
+            log = "nav state: mode=$mode size=${q.size} index=${q.index} " +
+                "hasPrev=${_hasPrevious.value} hasNext=${_hasNext.value} " +
+                "repeat=${_repeatMode.value} shuffle=${_shuffleEnabled.value}",
+        )
     }
 
     private fun updateNavigation() {
@@ -821,6 +895,7 @@ class PlaybackSession @Inject constructor(
             syncQueueMetadata()
         } else {
             _queueSize.value = queue.size
+            notifyVirtualPlayer()
         }
         refreshPosition()
     }
@@ -831,6 +906,7 @@ class PlaybackSession @Inject constructor(
         _isPreview.value = false
         _previewTrackId.value = null
         previewSnapshot = null
+        notifyVirtualPlayer()
     }
 
     private fun repeatModeValue(): RepeatMode = when (_repeatMode.value) {
@@ -841,6 +917,67 @@ class PlaybackSession @Inject constructor(
 
     private fun isPlayIntentActive(): Boolean =
         controller?.playWhenReady == true || _gapActive.value
+
+    fun attachVirtualPlayer(player: VirtualQueuePlayer?) {
+        virtualPlayer = player
+        appliedPlaylistMetadata = null
+        lastNotifiedVirtualState = null
+        Log.i(
+            TAG,
+            "attachVirtualPlayer: attached=${player != null} queueSize=${queue.size} " +
+                "hasPrev=${_hasPrevious.value} hasNext=${_hasNext.value} mode=$mode",
+        )
+        player?.notifyStateChanged()
+    }
+
+    fun hasQueueLoaded(): Boolean = queue.size > 0
+
+    fun canSeekInCurrentItem(): Boolean = controller?.mediaItemCount?.let { it > 0 } == true
+
+    suspend fun awaitResumeReady() {
+        while (!resumeLoaded) {
+            delay(50)
+        }
+    }
+
+    fun currentResumptionMediaItem(): MediaItem? =
+        queue.current?.let(::buildMediaItem)
+
+    fun currentResumptionPositionMs(): Long = _positionMs.value.coerceAtLeast(0L)
+
+    private fun notifyVirtualPlayer(log: String? = null) {
+        val player = virtualPlayer ?: return
+        val state = VirtualPlayerState(
+            hasQueue = queue.size > 0,
+            hasPrevious = _hasPrevious.value,
+            hasNext = _hasNext.value,
+            shuffleEnabled = _shuffleEnabled.value,
+            repeatMode = _repeatMode.value,
+        )
+        if (lastNotifiedVirtualState == state) return
+        lastNotifiedVirtualState = state
+        if (log != null) Log.i(TAG, log)
+        player.notifyStateChanged()
+    }
+
+    private fun buildMediaItem(track: PlayerTrack): MediaItem =
+        track.toMediaItem(_currentPlaylistId.value, currentPlaylistName)
+
+    private fun updatePlaylistMetadata() {
+        val player = controller ?: return
+        val name = currentPlaylistName
+        val playlistId = _currentPlaylistId.value
+        val metadata = if (mode == Mode.Playlist && (name != null || playlistId != null)) {
+            androidx.media3.common.MediaMetadata.Builder()
+                .setTitle(name)
+                .build()
+        } else {
+            androidx.media3.common.MediaMetadata.EMPTY
+        }
+        if (appliedPlaylistMetadata == metadata) return
+        appliedPlaylistMetadata = metadata
+        player.setPlaylistMetadata(metadata)
+    }
 
     private enum class Mode {
         Empty,
@@ -857,6 +994,14 @@ class PlaybackSession @Inject constructor(
         val index: Int,
         val positionMs: Long,
         val wasPlaying: Boolean,
+    )
+
+    private data class VirtualPlayerState(
+        val hasQueue: Boolean,
+        val hasPrevious: Boolean,
+        val hasNext: Boolean,
+        val shuffleEnabled: Boolean,
+        val repeatMode: Int,
     )
 
     private companion object {

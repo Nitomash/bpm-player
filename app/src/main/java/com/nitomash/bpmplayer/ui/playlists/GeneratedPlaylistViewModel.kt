@@ -36,6 +36,7 @@ class GeneratedPlaylistViewModel @Inject constructor(
             playlistId = playlist.savedPlaylistId,
             startIndex = index,
             generated = playlist.savedPlaylistId == null,
+            playlistName = playlist.name,
         )
     }
 
@@ -47,7 +48,7 @@ class GeneratedPlaylistViewModel @Inject constructor(
             val id = playlistRepository.create(name)
             playlistRepository.addTracks(id, playlist.tracks.map { it.id })
             store.markSaved(id)
-            playbackSession.setCurrentPlaylistId(id)
+            playbackSession.setCurrentPlaylistId(id, playlist.name)
             _savedEvents.emit(id)
         }
     }

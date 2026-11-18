@@ -178,7 +178,7 @@ class GeneratorViewModel @Inject constructor(
             playlistRepository.addTracks(playlistId, generated.tracks.map { it.id })
             generatedPlaylistStore.markSaved(playlistId)
             if (playbackSession.isGeneratedQueue.value) {
-                playbackSession.setCurrentPlaylistId(playlistId)
+                playbackSession.setCurrentPlaylistId(playlistId, generated.name)
             }
             testerProgress.mark(TesterBeacon.GENERATOR_SAVED_TO_PLAYLIST)
             _savedToPlaylist.emit(Unit)
@@ -188,13 +188,15 @@ class GeneratorViewModel @Inject constructor(
     fun openPlayer() {
         val queue = _result.value.map { it.toPlayerTrack() }
         if (queue.isEmpty()) return
-        val savedPlaylistId = generatedPlaylistStore.current.value?.savedPlaylistId
+        val generated = generatedPlaylistStore.current.value
+        val savedPlaylistId = generated?.savedPlaylistId
         playbackSession.openQueue(
             queue,
             playlistId = savedPlaylistId,
             startIndex = 0,
             generated = savedPlaylistId == null,
             randomStart = true,
+            playlistName = generated?.name,
         )
         viewModelScope.launch { testerProgress.mark(TesterBeacon.GENERATOR_RESULT_OPEN_PLAYER) }
     }
@@ -202,12 +204,14 @@ class GeneratorViewModel @Inject constructor(
     fun playFrom(index: Int) {
         val queue = _result.value.map { it.toPlayerTrack() }
         if (queue.isEmpty()) return
-        val savedPlaylistId = generatedPlaylistStore.current.value?.savedPlaylistId
+        val generated = generatedPlaylistStore.current.value
+        val savedPlaylistId = generated?.savedPlaylistId
         playbackSession.openQueue(
             queue,
             playlistId = savedPlaylistId,
             startIndex = index,
             generated = savedPlaylistId == null,
+            playlistName = generated?.name,
         )
         viewModelScope.launch { testerProgress.mark(TesterBeacon.GENERATOR_RESULT_PLAY_FROM_TRACK) }
     }
