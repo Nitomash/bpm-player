@@ -20,30 +20,65 @@ class XspfImporter @Inject constructor(
     private val volumes: StorageVolumes,
 ) {
 
-    suspend fun import(documentUri: Uri): XspfImportResult = withContext(Dispatchers.IO) {
+    suspend fun import(documentUri: Uri): XspfImportResult = importAll(listOf(documentUri)).single()
+
+    suspend fun importAll(documentUris: List<Uri>): List<XspfImportResult> {
+        if (documentUris.isEmpty()) return emptyList()
+        val batch = beginBatch()
+        return documentUris.map { batch.import(it) }
+    }
+
+    suspend fun beginBatch(): Batch = withContext(Dispatchers.IO) {
+        Batch(
+            library = index.build(),
+            roots = volumes.knownRoots(),
+            taken = repository.getPlaylistNames().toMutableSet(),
+        )
+    }
+
+    fun documentDisplayName(documentUri: Uri): String =
+        rawDisplayNameOf(documentUri) ?: FALLBACK_NAME
+
+    inner class Batch internal constructor(
+        private val library: Map<String, Long>,
+        private val roots: List<String>,
+        private val taken: MutableSet<String>,
+    ) {
+        fun documentDisplayName(documentUri: Uri): String =
+            this@XspfImporter.documentDisplayName(documentUri)
+
+        suspend fun import(documentUri: Uri): XspfImportResult = withContext(Dispatchers.IO) {
+            importOne(documentUri, library, roots, taken)
+        }
+    }
+
+    private suspend fun importOne(
+        documentUri: Uri,
+        library: Map<String, Long>,
+        roots: List<String>,
+        taken: MutableSet<String>,
+    ): XspfImportResult {
         val fallbackName = displayNameOf(documentUri)
         val xml = readText(documentUri)
-            ?: return@withContext failure(fallbackName, XspfImportError.READ_FAILED)
+            ?: return failure(fallbackName, XspfImportError.READ_FAILED)
 
         val playlist = parse(xml)
-            ?: return@withContext failure(fallbackName, XspfImportError.NOT_XSPF)
+            ?: return failure(fallbackName, XspfImportError.NOT_XSPF)
 
         if (playlist.tracks.isEmpty()) {
-            return@withContext failure(playlist.name.ifBlank { fallbackName }, XspfImportError.EMPTY_PLAYLIST)
+            return failure(playlist.name.ifBlank { fallbackName }, XspfImportError.EMPTY_PLAYLIST)
         }
 
         val base = volumes.pathOfDocumentDirectory(documentUri)
-            ?: return@withContext failure(playlist.name.ifBlank { fallbackName }, XspfImportError.BASE_UNRESOLVED)
+            ?: return failure(playlist.name.ifBlank { fallbackName }, XspfImportError.BASE_UNRESOLVED)
 
-        val roots = volumes.knownRoots()
-        val library = index.build()
         val trackIds = playlist.tracks.mapNotNull { track ->
             val resolved = XspfLocation.resolve(base, track.location, roots) ?: return@mapNotNull null
             library[resolved.absolutePath]
         }
 
         if (trackIds.isEmpty()) {
-            return@withContext failure(
+            return failure(
                 playlist.name.ifBlank { fallbackName },
                 XspfImportError.NO_MATCHES,
                 total = playlist.tracks.size,
@@ -52,12 +87,12 @@ class XspfImporter @Inject constructor(
 
         val name = PlaylistNaming.unique(
             XspfFileName.sanitize(playlist.name.ifBlank { fallbackName }),
-            repository.getPlaylistNames().toSet(),
+            taken,
         )
-        val playlistId = repository.create(name)
-        repository.addTracks(playlistId, trackIds)
+        taken.add(name)
+        val playlistId = repository.createWithTracks(name, trackIds)
 
-        XspfImportResult(
+        return XspfImportResult(
             playlistName = name,
             playlistId = playlistId,
             matchedCount = trackIds.size,
@@ -76,9 +111,9 @@ class XspfImporter @Inject constructor(
         }
     }.getOrNull()
 
-    private fun displayNameOf(documentUri: Uri): String {
+    private fun rawDisplayNameOf(documentUri: Uri): String? {
         val column = DocumentsContract.Document.COLUMN_DISPLAY_NAME
-        val name = runCatching {
+        return runCatching {
             context.contentResolver
                 .query(documentUri, arrayOf(column), null, null, null)
                 ?.use { cursor ->
@@ -86,8 +121,10 @@ class XspfImporter @Inject constructor(
                     cursor.getString(0)
                 }
         }.getOrNull()
-        return name?.substringBeforeLast('.') ?: FALLBACK_NAME
     }
+
+    private fun displayNameOf(documentUri: Uri): String =
+        rawDisplayNameOf(documentUri)?.substringBeforeLast('.') ?: FALLBACK_NAME
 
     private fun failure(
         name: String,

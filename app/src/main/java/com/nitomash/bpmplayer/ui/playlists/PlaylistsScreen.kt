@@ -11,13 +11,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
@@ -134,12 +136,14 @@ fun PlaylistsScreen(
     }
 
     val bundleProgress by viewModel.bundleExportProgress.collectAsStateWithLifecycle()
+    val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
+    var importSummary by remember { mutableStateOf<PlaylistImportSummary?>(null) }
 
     val importPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            viewModel.importPlaylist(uri)
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            viewModel.enqueueImports(uris)
         }
     }
 
@@ -186,20 +190,34 @@ fun PlaylistsScreen(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.importEvents.collect { result ->
-            val message = when (result.error) {
-                XspfImportError.READ_FAILED -> context.getString(R.string.playlist_import_error_read)
-                XspfImportError.NOT_XSPF -> context.getString(R.string.playlist_import_error_format)
-                XspfImportError.EMPTY_PLAYLIST -> context.getString(R.string.playlist_import_error_empty)
-                XspfImportError.BASE_UNRESOLVED -> context.getString(R.string.playlist_import_error_base)
-                XspfImportError.NO_MATCHES -> context.getString(R.string.playlist_import_error_no_matches)
-                null -> context.getString(R.string.playlist_import_done, result.playlistName, result.matchedCount)
-            }
-            snackbarHostState.showSnackbar(message)
-            if (result.succeeded && result.unmatchedCount > 0) {
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.playlist_import_unmatched, result.unmatchedCount),
-                )
+        viewModel.importSummary.collect { summary ->
+            if (summary.results.size == 1) {
+                val result = summary.results.single()
+                val message = when (result.error) {
+                    XspfImportError.READ_FAILED -> context.getString(R.string.playlist_import_error_read)
+                    XspfImportError.NOT_XSPF -> context.getString(R.string.playlist_import_error_format)
+                    XspfImportError.EMPTY_PLAYLIST -> context.getString(R.string.playlist_import_error_empty)
+                    XspfImportError.BASE_UNRESOLVED -> context.getString(R.string.playlist_import_error_base)
+                    XspfImportError.NO_MATCHES -> context.getString(R.string.playlist_import_error_no_matches)
+                    null -> context.getString(R.string.playlist_import_done, result.playlistName, result.matchedCount)
+                }
+                snackbarHostState.showSnackbar(message)
+                if (result.succeeded && result.unmatchedCount > 0) {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.playlist_import_unmatched, result.unmatchedCount),
+                    )
+                }
+            } else {
+                val succeeded = summary.results.count { it.succeeded }
+                val failed = summary.results.size - succeeded
+                val unmatchedTotal = summary.results.filter { it.succeeded }.sumOf { it.unmatchedCount }
+                if (failed == 0 && unmatchedTotal == 0) {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.playlist_import_summary_count, succeeded),
+                    )
+                } else {
+                    importSummary = summary
+                }
             }
         }
     }
@@ -486,6 +504,115 @@ fun PlaylistsScreen(
             dismissButton = {
                 TextButton(onClick = viewModel::cancelBundleExport) {
                     Text(stringResource(R.string.editor_cancel))
+                }
+            },
+        )
+    }
+
+    importProgress?.let { progress ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.playlist_import_batch_title)) },
+            text = {
+                Column {
+                    Text(
+                        text = stringResource(
+                            R.string.playlist_import_progress,
+                            progress.completed,
+                            progress.total,
+                        ),
+                    )
+                    if (progress.currentName.isNotEmpty()) {
+                        Text(
+                            text = progress.currentName,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = {
+                            if (progress.total == 0) 0f else progress.completed.toFloat() / progress.total
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelImport) {
+                    Text(stringResource(R.string.editor_cancel))
+                }
+            },
+        )
+    }
+
+    importSummary?.let { summary ->
+        val succeeded = summary.results.count { it.succeeded }
+        val failed = summary.results.size - succeeded
+        val unmatchedTotal = summary.results.filter { it.succeeded }.sumOf { it.unmatchedCount }
+        val issueLines = summary.results.mapNotNull { result ->
+            when {
+                result.error != null -> {
+                    val errorText = when (result.error) {
+                        XspfImportError.READ_FAILED -> context.getString(R.string.playlist_import_error_read)
+                        XspfImportError.NOT_XSPF -> context.getString(R.string.playlist_import_error_format)
+                        XspfImportError.EMPTY_PLAYLIST -> context.getString(R.string.playlist_import_error_empty)
+                        XspfImportError.BASE_UNRESOLVED -> context.getString(R.string.playlist_import_error_base)
+                        XspfImportError.NO_MATCHES -> context.getString(R.string.playlist_import_error_no_matches)
+                    }
+                    "${result.playlistName}: $errorText"
+                }
+
+                result.unmatchedCount > 0 -> context.getString(
+                    R.string.playlist_import_item_unmatched,
+                    result.playlistName,
+                    result.unmatchedCount,
+                    result.totalCount,
+                )
+
+                else -> null
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { importSummary = null },
+            title = { Text(stringResource(R.string.playlist_import_summary_title)) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        text = context.getString(R.string.playlist_import_summary_count, succeeded),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    if (failed > 0) {
+                        Text(
+                            text = context.getString(R.string.playlist_import_summary_failed_count, failed),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    if (unmatchedTotal > 0) {
+                        Text(
+                            text = context.getString(R.string.playlist_import_summary_unmatched_total, unmatchedTotal),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    if (issueLines.isNotEmpty()) {
+                        Column(modifier = Modifier.padding(top = 12.dp)) {
+                            issueLines.forEach { line ->
+                                Text(
+                                    text = line,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { importSummary = null }) {
+                    Text(stringResource(android.R.string.ok))
                 }
             },
         )

@@ -71,6 +71,14 @@ class PlaylistRepositoryImplTest {
     }
 
     @Test
+    fun `create with tracks inserts playlist order and rows in one operation`() = runBlocking {
+        val id = repository.createWithTracks("Плейлист", listOf(10L, 10L, 11L))
+
+        assertEquals(listOf(0 to 10L, 1 to 11L), dao.rowsOf(id).map { it.position to it.trackId })
+        assertEquals(listOf(id), dao.playlistOrderOf().map { it.playlistId })
+    }
+
+    @Test
     fun `add tracks to one playlist does not shift another`() = runBlocking {
         val first = repository.create("Первый")
         val second = repository.create("Второй")

@@ -48,6 +48,20 @@ class PlaylistRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun createWithTracks(name: String, trackIds: List<Long>): Long {
+        val now = System.currentTimeMillis()
+        return playlistDao.createPlaylistWithTracks(
+            PlaylistEntity(
+                name = name,
+                conditionId = null,
+                createdAtMs = now,
+                updatedAtMs = now,
+            ),
+            trackIds,
+            now,
+        )
+    }
+
     override suspend fun getPlaylistNames(): List<String> =
         playlistDao.observeSummaries().first().map { it.name }
 

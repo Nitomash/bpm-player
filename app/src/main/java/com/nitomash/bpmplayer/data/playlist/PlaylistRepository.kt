@@ -14,6 +14,7 @@ interface PlaylistRepository {
     fun observePlaylistIdsContaining(trackId: Long): Flow<Set<Long>>
     suspend fun getPlaylists(): List<PlaylistSummary>
     suspend fun create(name: String): Long
+    suspend fun createWithTracks(name: String, trackIds: List<Long>): Long
     suspend fun getPlaylistNames(): List<String>
     suspend fun rename(playlistId: Long, name: String)
     suspend fun delete(playlistId: Long)

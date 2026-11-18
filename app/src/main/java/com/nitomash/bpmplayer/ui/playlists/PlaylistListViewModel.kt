@@ -27,6 +27,7 @@ import com.nitomash.bpmplayer.ui.common.SelectAll
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -37,7 +38,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -273,25 +279,140 @@ class PlaylistListViewModel @Inject constructor(
         }
     }
 
-    private val _importEvents = MutableSharedFlow<XspfImportResult>(extraBufferCapacity = 1)
-    val importEvents: SharedFlow<XspfImportResult> = _importEvents.asSharedFlow()
+    private val _importProgress = MutableStateFlow<PlaylistImportProgress?>(null)
+    val importProgress: StateFlow<PlaylistImportProgress?> = _importProgress.asStateFlow()
 
-    private val _importing = MutableStateFlow(false)
-    val importing: StateFlow<Boolean> = _importing.asStateFlow()
+    private val _importSummary = MutableSharedFlow<PlaylistImportSummary>(extraBufferCapacity = 1)
+    val importSummary: SharedFlow<PlaylistImportSummary> = _importSummary.asSharedFlow()
 
-    fun importPlaylist(documentUri: Uri) {
-        if (_importing.value) return
+    private val importMutex = Mutex()
+    private val importQueue = ArrayDeque<Uri>()
+    private val importQueuedKeys = mutableSetOf<String>()
+    private var importJob: Job? = null
+    private var importCompleted = 0
+    private var importCurrentName: String? = null
+    private val importResults = mutableListOf<XspfImportResult>()
+
+    fun enqueueImports(uris: List<Uri>) {
+        if (uris.isEmpty()) return
         viewModelScope.launch {
-            _importing.value = true
-            try {
-                val result = xspfImporter.import(documentUri)
-                if (result.succeeded) {
-                    testerProgress.mark(TesterBeacon.XSPF_IMPORT)
+            importMutex.withLock {
+                var added = false
+                uris.forEach { uri ->
+                    if (importQueuedKeys.add(uri.toString())) {
+                        importQueue.addLast(uri)
+                        added = true
+                    }
                 }
-                _importEvents.emit(result)
-            } finally {
-                _importing.value = false
+                if (!added) return@withLock
+                if (importJob == null) {
+                    importJob = viewModelScope.launch { runImportConsumer() }
+                }
+                updateImportProgressLocked()
             }
         }
     }
+
+    fun cancelImport() {
+        importJob?.cancel()
+    }
+
+    private suspend fun runImportConsumer() {
+        val batch = xspfImporter.beginBatch()
+        var finalized = false
+        try {
+            while (currentCoroutineContext().isActive) {
+                val item = importMutex.withLock {
+                    importQueue.removeFirstOrNull()?.also {
+                        importCurrentName = batch.documentDisplayName(it)
+                        updateImportProgressLocked()
+                    }
+                }
+                if (item == null) {
+                    val summary = importMutex.withLock {
+                        if (importQueue.isNotEmpty()) {
+                            null
+                        } else {
+                            val result = PlaylistImportSummary(importResults.toList())
+                            importResults.clear()
+                            importCompleted = 0
+                            importCurrentName = null
+                            importQueuedKeys.clear()
+                            _importProgress.value = null
+                            importJob = null
+                            finalized = true
+                            result
+                        }
+                    }
+                    if (summary != null) {
+                        emitImportSummary(summary)
+                        return
+                    }
+                    continue
+                }
+
+                val result = batch.import(item)
+                importMutex.withLock {
+                    importResults += result
+                    importCompleted++
+                    importQueuedKeys.remove(item.toString())
+                    importCurrentName = null
+                    updateImportProgressLocked()
+                }
+            }
+        } finally {
+            if (!finalized) {
+                withContext(NonCancellable) {
+                    val summary = importMutex.withLock {
+                        val result = if (importResults.isNotEmpty()) {
+                            PlaylistImportSummary(importResults.toList())
+                        } else {
+                            null
+                        }
+                        importQueue.clear()
+                        importQueuedKeys.clear()
+                        importResults.clear()
+                        importCompleted = 0
+                        importCurrentName = null
+                        _importProgress.value = null
+                        importJob = null
+                        result
+                    }
+                    if (summary != null) {
+                        emitImportSummary(summary)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun updateImportProgressLocked() {
+        val total = importCompleted + (if (importCurrentName != null) 1 else 0) + importQueue.size
+        _importProgress.value = if (total == 0) {
+            null
+        } else {
+            PlaylistImportProgress(
+                completed = importCompleted,
+                total = total,
+                currentName = importCurrentName.orEmpty(),
+            )
+        }
+    }
+
+    private suspend fun emitImportSummary(summary: PlaylistImportSummary) {
+        if (summary.results.any { it.succeeded }) {
+            testerProgress.mark(TesterBeacon.XSPF_IMPORT)
+        }
+        _importSummary.emit(summary)
+    }
 }
+
+data class PlaylistImportProgress(
+    val completed: Int,
+    val total: Int,
+    val currentName: String,
+)
+
+data class PlaylistImportSummary(
+    val results: List<XspfImportResult>,
+)

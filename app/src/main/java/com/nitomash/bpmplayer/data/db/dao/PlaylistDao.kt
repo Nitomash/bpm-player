@@ -31,6 +31,32 @@ interface PlaylistDao {
         return id
     }
 
+    @Transaction
+    suspend fun createPlaylistWithTracks(
+        playlist: PlaylistEntity,
+        trackIds: List<Long>,
+        addedAtMs: Long,
+    ): Long {
+        val id = insert(playlist)
+        upsertPlaylistOrder(
+            listOf(PlaylistOrderEntity(playlistId = id, position = getMaxPlaylistOrderPosition() + 1)),
+        )
+        val distinct = trackIds.distinct()
+        if (distinct.isNotEmpty()) {
+            insertTracks(
+                distinct.mapIndexed { index, trackId ->
+                    PlaylistTrackEntity(
+                        playlistId = id,
+                        trackId = trackId,
+                        position = index,
+                        addedAtMs = addedAtMs,
+                    )
+                },
+            )
+        }
+        return id
+    }
+
     @Query(
         "SELECT p.id AS id, p.name AS name, p.updated_at_ms AS updated_at_ms, " +
             "COALESCE(po.position, 2147483647) AS sort_position, " +

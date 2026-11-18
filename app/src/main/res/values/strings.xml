@@ -197,7 +197,7 @@
     <string name="bundle_export_error_folder">Не удалось создать папку</string>
     <string name="bundle_export_error_copy">Не удалось скопировать «%1$s»</string>
     <string name="bundle_export_error_write">Не удалось записать файл «%1$s»</string>
-    <string name="playlist_import">Импорт плейлиста</string>
+    <string name="playlist_import">Импорт плейлистов</string>
     <string name="playlist_import_done">Импортирован «%1$s», треков: %2$d</string>
     <string name="playlist_import_unmatched">%1$d треков не найдено в аудиотеке</string>
     <string name="playlist_import_error_read">Не удалось прочитать файл</string>
@@ -205,6 +205,13 @@
     <string name="playlist_import_error_empty">В плейлисте нет треков</string>
     <string name="playlist_import_error_base">Не удалось определить папку с плейлистом</string>
     <string name="playlist_import_error_no_matches">Ни один трек не найден в аудиотеке</string>
+    <string name="playlist_import_batch_title">Импорт плейлистов</string>
+    <string name="playlist_import_progress">Импортировано %1$d из %2$d</string>
+    <string name="playlist_import_summary_title">Результат импорта</string>
+    <string name="playlist_import_summary_count">Импортировано плейлистов: %1$d</string>
+    <string name="playlist_import_summary_failed_count">С ошибкой: %1$d</string>
+    <string name="playlist_import_summary_unmatched_total">Не найдено треков: %1$d</string>
+    <string name="playlist_import_item_unmatched">%1$s: не найдено треков %2$d из %3$d</string>
 
     <string name="player_open_playlist">Открыть плейлист</string>
     <string name="player_add_to_playlist">Добавить в плейлист</string>
