@@ -51,6 +51,10 @@
     <string name="player_start_delay_off">Пауза перед началом</string>
     <string name="player_start_delay_prefix">Пауза</string>
     <string name="player_start_delay_end">сек перед началом</string>
+    <string name="player_tempo_adjustment_off">Изменение темпа</string>
+    <string name="player_tempo_adjustment_bpm">Темп: %1$s BPM</string>
+    <string name="player_tempo_adjustment_percent">Темп: %1$s%%</string>
+    <string name="player_tempo_adjustment_reset">Сбросить изменение темпа</string>
     <plurals name="playlist_result_count">
         <item quantity="one">Плейлист: %d трек</item>
         <item quantity="few">Плейлист: %d трека</item>

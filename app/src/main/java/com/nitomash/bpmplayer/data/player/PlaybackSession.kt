@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
@@ -32,6 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 import kotlin.random.Random
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -66,6 +68,10 @@ class PlaybackSession @Inject constructor(
     private var startDelayEnabled = false
     private var startDelaySeconds = 10
     private var startDelayActive = false
+    private var tempoAdjustmentEnabled = false
+    private var tempoAdjustmentPosition = 0f
+    private var transientTempoAdjustmentPosition: Float? = null
+    private var tempoAdjustmentJob: Job? = null
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -137,6 +143,9 @@ class PlaybackSession @Inject constructor(
                 onLimitsChanged(settings.toPlaybackLimits())
                 startDelayEnabled = settings.playbackStartDelayEnabled
                 startDelaySeconds = settings.playbackStartDelaySeconds
+                tempoAdjustmentEnabled = settings.tempoAdjustmentEnabled
+                tempoAdjustmentPosition = settings.tempoAdjustmentPosition
+                applyTempoAdjustment()
             }
         }
     }
@@ -261,6 +270,7 @@ class PlaybackSession @Inject constructor(
 
     fun setCurrentBpm(bpm: Double?) {
         _currentBpm.value = bpm
+        applyTempoAdjustment()
     }
 
     fun updatePlaybackOrderBpm(trackId: Long, bpm: Double?) {
@@ -270,7 +280,27 @@ class PlaybackSession @Inject constructor(
         )
         if (_currentTrackId.value == trackId) {
             _currentBpm.value = bpm
+            applyTempoAdjustment()
         }
+    }
+
+    fun setTempoAdjustmentEnabled(enabled: Boolean) {
+        tempoAdjustmentEnabled = enabled
+        if (!enabled) transientTempoAdjustmentPosition = null
+        applyTempoAdjustment()
+    }
+
+    fun previewTempoAdjustmentPosition(position: Float) {
+        transientTempoAdjustmentPosition = TempoAdjustment.normalizedPosition(position)
+        scheduleTempoAdjustment()
+    }
+
+    fun setTempoAdjustmentPosition(position: Float) {
+        transientTempoAdjustmentPosition = null
+        tempoAdjustmentPosition = TempoAdjustment.normalizedPosition(position)
+        tempoAdjustmentJob?.cancel()
+        tempoAdjustmentJob = null
+        applyTempoAdjustment()
     }
 
     fun previewTrack(track: PlayerTrack) {
@@ -320,6 +350,7 @@ class PlaybackSession @Inject constructor(
     private fun startPreview(player: MediaController, track: PlayerTrack) {
         player.setMediaItems(listOf(buildMediaItem(track)), 0, 0L)
         player.prepare()
+        applyTempoAdjustment()
         player.play()
     }
 
@@ -398,6 +429,7 @@ class PlaybackSession @Inject constructor(
                         pendingAction = null
                     }
                     updateNavigation()
+                    applyTempoAdjustment()
                     if (built.isPlaying) startTicker()
                 }.onFailure { e ->
                     Log.e(TAG, "controller build failed", e)
@@ -499,6 +531,7 @@ class PlaybackSession @Inject constructor(
 
     private fun onLimitsChanged(limits: PlaybackLimits) {
         val previous = appliedLimits
+        if (previous == limits) return
         appliedLimits = limits
         _limits.value = limits
         Log.i(
@@ -506,7 +539,7 @@ class PlaybackSession @Inject constructor(
             "limits changed: enabled=${limits.enabled} limit=${limits.limitSeconds}s " +
                 "gap=${limits.gapSeconds}s mode=$mode",
         )
-        if (previous != null && previous != limits) {
+        if (previous != null) {
             restartCurrentTrack()
         }
     }
@@ -741,6 +774,7 @@ class PlaybackSession @Inject constructor(
         val track = queue.order.getOrNull(index) ?: return
         queue = queue.moveTo(index)
         syncQueueMetadata()
+        applyTempoAdjustment()
         _positionMs.value = positionMs.coerceAtLeast(0L)
         _durationMs.value = 0L
         val player = controller ?: return
@@ -963,6 +997,7 @@ class PlaybackSession @Inject constructor(
         _queueSize.value = q.size
         _currentTrackId.value = current?.trackId
         _currentBpm.value = current?.bpm
+        applyTempoAdjustment()
         _currentTitle.value = current?.title
         _currentNumber.value = if (current == null) 0 else q.index + 1
         syncNavigationFlags()
@@ -1071,6 +1106,35 @@ class PlaybackSession @Inject constructor(
         player.setPlaylistMetadata(metadata)
     }
 
+    private fun applyTempoAdjustment(force: Boolean = true) {
+        val player = controller ?: return
+        val speed = if (tempoAdjustmentEnabled && mode != Mode.Preview) {
+            TempoAdjustment.speed(
+                trackBpm = _currentBpm.value,
+                position = transientTempoAdjustmentPosition ?: tempoAdjustmentPosition,
+            )
+        } else {
+            1f
+        }
+        val playbackParameters = player.playbackParameters
+        val isSpeedChangeSignificant = abs(playbackParameters.speed - speed) >= TEMPO_SPEED_CHANGE_MIN
+        if (
+            playbackParameters.pitch != 1f ||
+            playbackParameters.speed != speed && (force || isSpeedChangeSignificant)
+        ) {
+            player.setPlaybackParameters(PlaybackParameters(speed, 1f))
+        }
+    }
+
+    private fun scheduleTempoAdjustment() {
+        tempoAdjustmentJob?.cancel()
+        tempoAdjustmentJob = scope.launch {
+            delay(TEMPO_ADJUSTMENT_IDLE_DELAY_MS)
+            tempoAdjustmentJob = null
+            applyTempoAdjustment(force = false)
+        }
+    }
+
     private enum class Mode {
         Empty,
         Playlist,
@@ -1105,5 +1169,7 @@ class PlaybackSession @Inject constructor(
         const val SECOND_MS = 1000L
         const val SKIP_FORWARD_STEP_MS = 15_000L
         const val TRACK_END_TOLERANCE_MS = 1_000L
+        const val TEMPO_ADJUSTMENT_IDLE_DELAY_MS = 500L
+        const val TEMPO_SPEED_CHANGE_MIN = 0.005f
     }
 }

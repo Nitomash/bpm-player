@@ -15,6 +15,8 @@ import com.nitomash.bpmplayer.data.testing.TesterBeacon
 import com.nitomash.bpmplayer.data.testing.TesterProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -34,6 +36,8 @@ class PlayerViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val testerProgress: TesterProgress,
 ) : ViewModel() {
+
+    private var tempoAdjustmentSaveJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -168,6 +172,25 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun setTempoAdjustmentEnabled(enabled: Boolean) {
+        playbackSession.setTempoAdjustmentEnabled(enabled)
+        updateSettings { it.copy(tempoAdjustmentEnabled = enabled) }
+    }
+
+    fun previewTempoAdjustmentPosition(position: Float) {
+        playbackSession.previewTempoAdjustmentPosition(position)
+    }
+
+    fun setTempoAdjustmentPosition(position: Float) {
+        val normalized = position.coerceIn(-1f, 1f)
+        tempoAdjustmentSaveJob?.cancel()
+        tempoAdjustmentSaveJob = viewModelScope.launch {
+            delay(TEMPO_ADJUSTMENT_SAVE_DELAY_MS)
+            playbackSession.setTempoAdjustmentPosition(normalized)
+            settingsRepository.update { it.copy(tempoAdjustmentPosition = normalized) }
+        }
+    }
+
     private fun updateSettings(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { settingsRepository.update(transform) }
     }
@@ -198,4 +221,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun isRepeatOn(mode: Int) = mode != Player.REPEAT_MODE_OFF
+
+    private companion object {
+        const val TEMPO_ADJUSTMENT_SAVE_DELAY_MS = 500L
+    }
 }

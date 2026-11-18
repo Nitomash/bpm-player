@@ -2,6 +2,7 @@ package com.nitomash.bpmplayer.data.settings
 
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.media3.common.Player
@@ -136,6 +137,8 @@ class SettingsMapperTest {
         assertEquals(10, settings.playbackGapSeconds)
         assertFalse(settings.playbackStartDelayEnabled)
         assertEquals(10, settings.playbackStartDelaySeconds)
+        assertFalse(settings.tempoAdjustmentEnabled)
+        assertEquals(0f, settings.tempoAdjustmentPosition, 0.001f)
     }
 
     @Test
@@ -193,6 +196,27 @@ class SettingsMapperTest {
         assertEquals(AppSettings.PLAYBACK_LIMIT_MAX, settings.playbackLimitSeconds)
         assertEquals(0, settings.playbackGapSeconds)
         assertEquals(0, settings.playbackStartDelaySeconds)
+    }
+
+    @Test
+    fun `tempo adjustment settings are written and read back`() {
+        val prefs = mutablePreferencesOf()
+
+        SettingsMapper.write(
+            prefs,
+            AppSettings(tempoAdjustmentEnabled = true, tempoAdjustmentPosition = 0.6f),
+        )
+
+        val settings = SettingsMapper.toSettings(prefs)
+        assertTrue(settings.tempoAdjustmentEnabled)
+        assertEquals(0.6f, settings.tempoAdjustmentPosition, 0.001f)
+    }
+
+    @Test
+    fun `tempo adjustment position is constrained`() {
+        val prefs = mutablePreferencesOf(floatPreferencesKey("tempo_adjustment_position") to 3f)
+
+        assertEquals(1f, SettingsMapper.toSettings(prefs).tempoAdjustmentPosition, 0.001f)
     }
 
     @Test

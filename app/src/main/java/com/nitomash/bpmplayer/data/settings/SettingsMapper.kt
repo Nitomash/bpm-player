@@ -4,6 +4,7 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
@@ -19,6 +20,8 @@ object SettingsMapper {
     private val PLAYBACK_GAP_KEY = intPreferencesKey("playback_gap_seconds")
     private val PLAYBACK_START_DELAY_ENABLED_KEY = booleanPreferencesKey("playback_start_delay_enabled")
     private val PLAYBACK_START_DELAY_KEY = intPreferencesKey("playback_start_delay_seconds")
+    private val TEMPO_ADJUSTMENT_ENABLED_KEY = booleanPreferencesKey("tempo_adjustment_enabled")
+    private val TEMPO_ADJUSTMENT_POSITION_KEY = floatPreferencesKey("tempo_adjustment_position")
     private val SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY = booleanPreferencesKey("suppress_bpm_prompt_after_scan")
     private val SHUFFLE_ENABLED_KEY = booleanPreferencesKey("shuffle_enabled")
     private val REPEAT_MODE_KEY = intPreferencesKey("repeat_mode")
@@ -53,6 +56,10 @@ object SettingsMapper {
                 prefs[PLAYBACK_START_DELAY_KEY] ?: defaults.playbackStartDelaySeconds,
                 AppSettings.PLAYBACK_START_DELAY_MAX,
             ),
+            tempoAdjustmentEnabled = prefs[TEMPO_ADJUSTMENT_ENABLED_KEY] ?: defaults.tempoAdjustmentEnabled,
+            tempoAdjustmentPosition = normalizeTempoPosition(
+                prefs[TEMPO_ADJUSTMENT_POSITION_KEY] ?: defaults.tempoAdjustmentPosition,
+            ),
             suppressBpmPromptAfterScan = prefs[SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY]
                 ?: defaults.suppressBpmPromptAfterScan,
             shuffleEnabled = prefs[SHUFFLE_ENABLED_KEY] ?: defaults.shuffleEnabled,
@@ -82,6 +89,8 @@ object SettingsMapper {
             settings.playbackStartDelaySeconds,
             AppSettings.PLAYBACK_START_DELAY_MAX,
         )
+        prefs[TEMPO_ADJUSTMENT_ENABLED_KEY] = settings.tempoAdjustmentEnabled
+        prefs[TEMPO_ADJUSTMENT_POSITION_KEY] = normalizeTempoPosition(settings.tempoAdjustmentPosition)
         prefs[SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY] = settings.suppressBpmPromptAfterScan
         prefs[SHUFFLE_ENABLED_KEY] = settings.shuffleEnabled
         prefs[REPEAT_MODE_KEY] = settings.repeatMode
@@ -90,6 +99,8 @@ object SettingsMapper {
     }
 
     fun normalizePlaybackSeconds(value: Int, max: Int): Int = value.coerceIn(0, max)
+
+    fun normalizeTempoPosition(value: Float): Float = value.takeIf { it.isFinite() }?.coerceIn(-1f, 1f) ?: 0f
 
     fun normalizeRange(min: Double, max: Double): Pair<Double, Double> {
         val lowestMin = AppSettings.BPM_LIMIT_MIN

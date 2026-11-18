@@ -64,6 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
+import com.nitomash.bpmplayer.data.player.TempoAdjustment
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.ui.common.AddToPlaylistDropdown
 import com.nitomash.bpmplayer.ui.common.LoadingPlaceholder
@@ -143,6 +144,8 @@ fun PlayerScreen(
                     val currentBpm by viewModel.currentBpm.collectAsStateWithLifecycle()
                     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
                     val containing by viewModel.playlistsContainingCurrentTrack.collectAsStateWithLifecycle()
+                    val isTempoAdjusted = appSettings.tempoAdjustmentEnabled &&
+                        appSettings.tempoAdjustmentPosition != 0f
                     var playlistMenuOpen by remember { mutableStateOf(false) }
                     var moreMenuOpen by remember { mutableStateOf(false) }
 
@@ -176,8 +179,15 @@ fun PlayerScreen(
                                         .basicMarquee(repeatDelayMillis = 2000),
                                 )
                             }
+                            val displayedBpm = currentBpm?.let { value ->
+                                if (appSettings.tempoAdjustmentEnabled) {
+                                    value * TempoAdjustment.speed(value, appSettings.tempoAdjustmentPosition)
+                                } else {
+                                    value
+                                }
+                            }
                             Text(
-                                text = currentBpm?.let { value ->
+                                text = displayedBpm?.let { value ->
                                     stringResource(R.string.bpm_value, formatBpm(value))
                                 } ?: stringResource(R.string.bpm_unknown),
                                 style = MaterialTheme.typography.bodyMedium,
@@ -217,6 +227,7 @@ fun PlayerScreen(
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.player_edit_bpm)) },
+                                        enabled = !isTempoAdjusted,
                                         onClick = {
                                             moreMenuOpen = false
                                             viewModel.markEditBpm()
@@ -282,6 +293,14 @@ fun PlayerScreen(
                     settings = appSettings,
                     onEnabledChange = viewModel::setPlaybackStartDelayEnabled,
                     onSecondsCommit = viewModel::setPlaybackStartDelaySeconds,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+                TempoAdjustmentControl(
+                    settings = appSettings,
+                    currentBpm = viewModel.currentBpm.collectAsStateWithLifecycle().value,
+                    onEnabledChange = viewModel::setTempoAdjustmentEnabled,
+                    onPositionPreview = viewModel::previewTempoAdjustmentPosition,
+                    onPositionCommit = viewModel::setTempoAdjustmentPosition,
                     modifier = Modifier.padding(top = 16.dp),
                 )
             }

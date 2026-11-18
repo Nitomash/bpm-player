@@ -14,6 +14,8 @@ data class AppSettings(
     val playbackGapSeconds: Int = 10,
     val playbackStartDelayEnabled: Boolean = false,
     val playbackStartDelaySeconds: Int = 10,
+    val tempoAdjustmentEnabled: Boolean = false,
+    val tempoAdjustmentPosition: Float = 0f,
     val suppressBpmPromptAfterScan: Boolean = false,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
