@@ -775,11 +775,12 @@ class PlaybackSession @Inject constructor(
         queue = queue.moveTo(index)
         syncQueueMetadata()
         applyTempoAdjustment()
-        _positionMs.value = positionMs.coerceAtLeast(0L)
+        val startPositionMs = positionMs.coerceAtLeast(0L)
+        _positionMs.value = startPositionMs
         _durationMs.value = 0L
         val player = controller ?: return
         if (!play) player.pause()
-        player.setMediaItems(listOf(buildMediaItem(track)), 0, _positionMs.value)
+        player.setMediaItems(listOf(buildMediaItem(track)), 0, startPositionMs)
         player.prepare()
         if (play) player.play()
     }
