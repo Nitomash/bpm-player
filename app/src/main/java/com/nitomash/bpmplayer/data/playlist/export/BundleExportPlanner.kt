@@ -42,7 +42,7 @@ object BundleExportPlanner {
         val track = job.track
         val tags = tagsByTrack[track.trackId].orEmpty()
         SidecarTrackRecord(
-            path = job.targetName,
+            fileName = job.targetName,
             title = track.title.takeIf { it.isNotEmpty() },
             artist = track.artist.takeIf { it.isNotEmpty() },
             durationMs = track.durationMs.takeIf { it > 0 },

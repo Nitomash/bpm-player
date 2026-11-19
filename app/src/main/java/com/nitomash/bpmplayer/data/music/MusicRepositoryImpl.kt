@@ -147,7 +147,7 @@ class MusicRepositoryImpl @Inject constructor(
     override suspend fun importSidecarFile(folderId: Long, fileUri: Uri): Int {
         val records = sidecarStore.readFileRecords(fileUri) ?: return 0
         val tracks = trackDao.getByFolder(folderId)
-        val patches = planImportByName(tracks, records)
+        val patches = planImport(tracks, records)
         applyPatches(folderId, tracks, patches)
         return patches.size
     }

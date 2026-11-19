@@ -13,7 +13,7 @@ class SidecarCodecTest {
     fun `full record round trip`() {
         val records = listOf(
             SidecarTrackRecord(
-                path = "tracks/01 Intro.mp3",
+                fileName = "01 Intro.mp3",
                 title = "Intro\n\"feat.\" \\ backslash",
                 artist = "Artist",
                 durationMs = 212000,
@@ -24,7 +24,7 @@ class SidecarCodecTest {
         )
         val envelope = SidecarCodec.decode(SidecarCodec.encodeAll(records))
         requireNotNull(envelope)
-        assertEquals(2, envelope.version)
+        assertEquals(3, envelope.version)
         assertEquals(records, envelope.records)
     }
 
@@ -34,19 +34,21 @@ class SidecarCodecTest {
             BpmSource.TAP,
             requireNotNull(
                 SidecarCodec.decode(
-                    SidecarCodec.encodeAll(listOf(SidecarTrackRecord(path = "a.mp3", bpm = 128.0, source = BpmSource.TAP))),
+                    SidecarCodec.encodeAll(listOf(SidecarTrackRecord(fileName = "a.mp3", bpm = 128.0, source = BpmSource.TAP))),
                 ),
             ).records.single().source,
         )
-        val encoded = SidecarCodec.encodeRecord(SidecarTrackRecord(path = "a.mp3", bpm = 128.0, source = BpmSource.MANUAL))
+        val encoded = SidecarCodec.encodeRecord(SidecarTrackRecord(fileName = "a.mp3", bpm = 128.0, source = BpmSource.MANUAL))
         assertTrue(encoded.contains("\"source\":\"manual\""))
+        assertTrue(encoded.contains("\"name\":\"a.mp3\""))
+        assertFalse(encoded.contains("\"path\""))
     }
 
     @Test
     fun `unknown or missing source decodes to null`() {
         val text = "#BPM-PLAYER-META v2\n" +
             """{"path":"a.mp3","bpm":128,"source":"quantized"}""" + "\n" +
-            """{"path":"b.mp3","bpm":100}"""
+            """{"name":"b.mp3","bpm":100}"""
         val envelope = requireNotNull(SidecarCodec.decode(text))
         assertNull(envelope.records[0].source)
         assertNull(envelope.records[1].source)
@@ -55,17 +57,32 @@ class SidecarCodecTest {
     @Test
     fun `legacy v1 file still decodes`() {
         val text = "#BPM-PLAYER-META v1\n" +
-            """{"path":"a.mp3","bpm":120,"source":"tap"}"""
+            """{"path":"sub/a.mp3","bpm":120,"source":"tap"}"""
         val envelope = requireNotNull(SidecarCodec.decode(text))
         assertEquals(1, envelope.version)
-        assertEquals(120.0, envelope.records[0].bpm)
-        assertEquals(BpmSource.TAP, envelope.records[0].source)
+        val record = envelope.records.single()
+        assertEquals("a.mp3", record.fileName)
+        assertEquals("sub/a.mp3", record.legacyPath)
+        assertEquals(120.0, record.bpm)
+        assertEquals(BpmSource.TAP, record.source)
+    }
+
+    @Test
+    fun `legacy v2 file still decodes`() {
+        val text = "#BPM-PLAYER-META v2\n" +
+            """{"path":"dir\\b.mp3","title":"B"}"""
+        val envelope = requireNotNull(SidecarCodec.decode(text))
+        assertEquals(2, envelope.version)
+        val record = envelope.records.single()
+        assertEquals("b.mp3", record.fileName)
+        assertEquals("dir/b.mp3", record.legacyPath)
+        assertEquals("B", record.title)
     }
 
     @Test
     fun `nullable and empty fields are omitted`() {
         val record = SidecarTrackRecord(
-            path = "a.mp3",
+            fileName = "a.mp3",
             title = null,
             artist = "",
             durationMs = 0,
@@ -79,18 +96,19 @@ class SidecarCodecTest {
         assertFalse(encoded.contains("duration"))
         assertFalse(encoded.contains("bpm"))
         assertFalse(encoded.contains("tags"))
-        assertEquals("""{"path":"a.mp3"}""", encoded)
+        assertFalse(encoded.contains("path"))
+        assertEquals("""{"name":"a.mp3"}""", encoded)
     }
 
     @Test
     fun `empty tags list is omitted`() {
-        val encoded = SidecarCodec.encodeRecord(SidecarTrackRecord(path = "a.mp3", tags = emptyList()))
+        val encoded = SidecarCodec.encodeRecord(SidecarTrackRecord(fileName = "a.mp3", tags = emptyList()))
         assertFalse(encoded.contains("tags"))
     }
 
     @Test
     fun `decode returns null without magic header`() {
-        assertNull(SidecarCodec.decode("""{"path":"a.mp3"}"""))
+        assertNull(SidecarCodec.decode("""{"name":"a.mp3"}"""))
         assertNull(SidecarCodec.decode("#SOMETHING-ELSE v1\n{\"path\":\"a.mp3\"}"))
         assertNull(SidecarCodec.decode(""))
     }
@@ -113,7 +131,7 @@ class SidecarCodecTest {
             """{"broken":}""" + "\n"
         val envelope = requireNotNull(SidecarCodec.decode(text))
         assertEquals(1, envelope.records.size)
-        assertEquals("a.mp3", envelope.records[0].path)
+        assertEquals("a.mp3", envelope.records[0].fileName)
         assertEquals(120.0, envelope.records[0].bpm)
     }
 
@@ -131,24 +149,24 @@ class SidecarCodecTest {
     fun `whole bpm is encoded without decimal point`() {
         val decoded = requireNotNull(
             SidecarCodec.decode(
-                SidecarCodec.encodeAll(listOf(SidecarTrackRecord(path = "a.mp3", bpm = 128.0))),
+                SidecarCodec.encodeAll(listOf(SidecarTrackRecord(fileName = "a.mp3", bpm = 128.0))),
             ),
         )
         assertEquals(128.0, decoded.records[0].bpm)
-        assertTrue(SidecarCodec.encodeRecord(SidecarTrackRecord(path = "a.mp3", bpm = 128.0)).contains("\"bpm\":128"))
+        assertTrue(SidecarCodec.encodeRecord(SidecarTrackRecord(fileName = "a.mp3", bpm = 128.0)).contains("\"bpm\":128"))
     }
 
     @Test
-    fun `record without path is dropped`() {
+    fun `record without name and path is dropped`() {
         val text = "#BPM-PLAYER-META v1\n" +
-            """{"title":"no path","bpm":100}"""
+            """{"title":"no name","bpm":100}"""
         val envelope = requireNotNull(SidecarCodec.decode(text))
         assertTrue(envelope.records.isEmpty())
     }
 
     @Test
     fun `unicode and cyrillic round trip`() {
-        val record = SidecarTrackRecord(path = "клуб/💃 track.mp3", title = "Микс")
+        val record = SidecarTrackRecord(fileName = "💃 track.mp3", title = "Микс")
         val decoded = requireNotNull(SidecarCodec.decode(SidecarCodec.encodeAll(listOf(record))))
         assertEquals(record, decoded.records.single())
     }
@@ -165,7 +183,7 @@ class SidecarCodecTest {
     fun `encodeTo produces the same text as encodeAll`() {
         val records = listOf(
             SidecarTrackRecord(
-                path = "tracks/01 Intro.mp3",
+                fileName = "01 Intro.mp3",
                 title = "Intro\n\"feat.\" \\ backslash",
                 artist = "Артист",
                 durationMs = 212000,
@@ -173,8 +191,8 @@ class SidecarCodecTest {
                 source = BpmSource.AUTO,
                 tags = listOf(SidecarTag("warm", 4), SidecarTag("late night", 5)),
             ),
-            SidecarTrackRecord(path = "b.mp3", bpm = 96.5),
-            SidecarTrackRecord(path = "клуб/💃 c.mp3", title = "Микс", durationMs = 0, tags = emptyList()),
+            SidecarTrackRecord(fileName = "b.mp3", bpm = 96.5),
+            SidecarTrackRecord(fileName = "💃 c.mp3", title = "Микс", durationMs = 0, tags = emptyList()),
         )
 
         val streamed = buildString { SidecarCodec.encodeTo(records, this) }

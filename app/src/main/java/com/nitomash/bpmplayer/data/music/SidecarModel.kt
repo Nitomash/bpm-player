@@ -4,11 +4,13 @@ import com.nitomash.bpmplayer.data.db.entity.BpmSource
 
 const val SIDECAR_EXTENSION = "bpmmeta"
 const val SIDECAR_MIME = "application/octet-stream"
-const val SIDECAR_MAGIC = "#BPM-PLAYER-META v2"
+const val SIDECAR_MAGIC = "#BPM-PLAYER-META v3"
+const val SIDECAR_MAGIC_V2 = "#BPM-PLAYER-META v2"
 const val SIDECAR_LEGACY_MAGIC = "#BPM-PLAYER-META v1"
 
 data class SidecarTrackRecord(
-    val path: String,
+    val fileName: String,
+    val legacyPath: String? = null,
     val title: String? = null,
     val artist: String? = null,
     val durationMs: Long? = null,
@@ -27,3 +29,6 @@ fun normalizePath(path: String): String =
 
 fun safeFileName(name: String): String =
     name.replace(Regex("[\\\\/:*?\"<>|]+"), "_").ifBlank { SIDECAR_EXTENSION }
+
+fun fileNameOfPath(path: String): String? =
+    normalizePath(path).substringAfterLast('/').takeIf { it.isNotEmpty() }

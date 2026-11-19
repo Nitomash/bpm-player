@@ -81,11 +81,11 @@ class BundleExportPlannerTest {
     }
 
     @Test
-    fun `record path is copied file name`() {
+    fun `record file name is copied file name`() {
         val jobs = BundleExportPlanner.planJobs(listOf(track("song.mp3", trackId = 7)))
         val records = BundleExportPlanner.buildRecords(jobs, emptyMap())
         assertEquals(1, records.size)
-        assertEquals("song.mp3", records[0].path)
+        assertEquals("song.mp3", records[0].fileName)
     }
 
     @Test
@@ -111,6 +111,7 @@ class BundleExportPlannerTest {
         assertNull(record.artist)
         assertNull(record.durationMs)
         assertNull(record.tags)
+        assertNull(record.legacyPath)
     }
 
     private fun track(

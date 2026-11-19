@@ -4,6 +4,7 @@ import com.nitomash.bpmplayer.data.db.entity.BpmSource
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SidecarImportTest {
@@ -23,11 +24,11 @@ class SidecarImportTest {
     )
 
     @Test
-    fun `paths are matched after normalization`() {
+    fun `matches track by file name`() {
         val tracks = listOf(track(10, "sub/01.mp3"), track(11, "other.mp3"))
         val records = listOf(
-            SidecarTrackRecord(path = "sub\\01.mp3", bpm = 120.0),
-            SidecarTrackRecord(path = "nope.mp3", bpm = 90.0),
+            SidecarTrackRecord(fileName = "01.mp3", bpm = 120.0),
+            SidecarTrackRecord(fileName = "nope.mp3", bpm = 90.0),
         )
         val patches = planImport(tracks, records)
         assertEquals(1, patches.size)
@@ -36,9 +37,72 @@ class SidecarImportTest {
     }
 
     @Test
+    fun `matches file name case insensitively`() {
+        val tracks = listOf(track(10, "Track.MP3"))
+        val records = listOf(SidecarTrackRecord(fileName = "track.mp3", bpm = 120.0))
+        val patch = planImport(tracks, records).single()
+        assertEquals(10, patch.trackId)
+    }
+
+    @Test
+    fun `legacy path hint disambiguates duplicate file names`() {
+        val tracks = listOf(track(10, "a/01.mp3"), track(11, "b/01.mp3"))
+        val records = listOf(SidecarTrackRecord(fileName = "01.mp3", legacyPath = "b/01.mp3", bpm = 120.0))
+        val patch = planImport(tracks, records).single()
+        assertEquals(11, patch.trackId)
+    }
+
+    @Test
+    fun `duration disambiguates duplicate file names`() {
+        val tracks = listOf(
+            track(10, "a/01.mp3").copy(durationMs = 180_000),
+            track(11, "b/01.mp3").copy(durationMs = 240_000),
+        )
+        val records = listOf(SidecarTrackRecord(fileName = "01.mp3", durationMs = 240_000, bpm = 120.0))
+        val patch = planImport(tracks, records).single()
+        assertEquals(11, patch.trackId)
+    }
+
+    @Test
+    fun `ambiguous duplicate file names without hints are ignored`() {
+        val tracks = listOf(track(10, "a/01.mp3"), track(11, "b/01.mp3"))
+        val records = listOf(SidecarTrackRecord(fileName = "01.mp3", bpm = 120.0))
+        assertTrue(planImport(tracks, records).isEmpty())
+    }
+
+    @Test
+    fun `duration mismatch prevents match`() {
+        val tracks = listOf(track(10, "a.mp3").copy(durationMs = 180_000))
+        val records = listOf(SidecarTrackRecord(fileName = "a.mp3", durationMs = 90_000, bpm = 120.0))
+        assertTrue(planImport(tracks, records).isEmpty())
+    }
+
+    @Test
+    fun `title and artist disambiguate duplicate file names`() {
+        val tracks = listOf(
+            track(10, "a/01.mp3").copy(title = "Alpha", artist = "X"),
+            track(11, "b/01.mp3").copy(title = "Beta", artist = "Y"),
+        )
+        val records = listOf(SidecarTrackRecord(fileName = "01.mp3", title = "Beta", artist = "Y", bpm = 120.0))
+        val patch = planImport(tracks, records).single()
+        assertEquals(11, patch.trackId)
+    }
+
+    @Test
+    fun `later record wins for the same track`() {
+        val tracks = listOf(track(10, "01.mp3"))
+        val records = listOf(
+            SidecarTrackRecord(fileName = "01.mp3", bpm = 100.0),
+            SidecarTrackRecord(fileName = "01.mp3", bpm = 130.0),
+        )
+        val patch = planImport(tracks, records).single()
+        assertEquals(130.0, patch.bpm)
+    }
+
+    @Test
     fun `only present fields are applied`() {
         val tracks = listOf(track(10, "a.mp3", bpm = 100.0))
-        val records = listOf(SidecarTrackRecord(path = "a.mp3", title = "Title"))
+        val records = listOf(SidecarTrackRecord(fileName = "a.mp3", title = "Title"))
         val patch = planImport(tracks, records).single()
         assertEquals("Title", patch.title)
         assertNull(patch.artist)
@@ -51,7 +115,7 @@ class SidecarImportTest {
     @Test
     fun `source is carried into patch when present`() {
         val tracks = listOf(track(10, "a.mp3"))
-        val records = listOf(SidecarTrackRecord(path = "a.mp3", bpm = 128.0, source = BpmSource.TAP))
+        val records = listOf(SidecarTrackRecord(fileName = "a.mp3", bpm = 128.0, source = BpmSource.TAP))
         val patch = planImport(tracks, records).single()
         assertEquals(BpmSource.TAP, patch.source)
     }
@@ -60,7 +124,7 @@ class SidecarImportTest {
     fun `record without file is ignored`() {
         val patches = planImport(
             tracks = listOf(track(10, "a.mp3")),
-            records = listOf(SidecarTrackRecord(path = "ghost.mp3", bpm = 120.0)),
+            records = listOf(SidecarTrackRecord(fileName = "ghost.mp3", bpm = 120.0)),
         )
         assertEquals(0, patches.size)
     }
@@ -69,7 +133,7 @@ class SidecarImportTest {
     fun `file without record is ignored`() {
         val patches = planImport(
             tracks = listOf(track(10, "a.mp3"), track(11, "b.mp3")),
-            records = listOf(SidecarTrackRecord(path = "a.mp3", bpm = 120.0)),
+            records = listOf(SidecarTrackRecord(fileName = "a.mp3", bpm = 120.0)),
         )
         assertEquals(1, patches.size)
         assertEquals(10, patches[0].trackId)
@@ -78,14 +142,14 @@ class SidecarImportTest {
     @Test
     fun `bpm outside editor range is dropped`() {
         val tracks = listOf(track(10, "a.mp3"))
-        val records = listOf(SidecarTrackRecord(path = "a.mp3", bpm = 1200.0))
+        val records = listOf(SidecarTrackRecord(fileName = "a.mp3", bpm = 1200.0))
         assertNull(planImport(tracks, records).single().bpm)
     }
 
     @Test
     fun `empty tags list is kept as clear signal`() {
         val tracks = listOf(track(10, "a.mp3"))
-        val records = listOf(SidecarTrackRecord(path = "a.mp3", bpm = 120.0, tags = emptyList()))
+        val records = listOf(SidecarTrackRecord(fileName = "a.mp3", bpm = 120.0, tags = emptyList()))
         val patch = planImport(tracks, records).single()
         assertEquals(emptyList<SidecarTag>(), patch.tags)
     }
@@ -94,6 +158,8 @@ class SidecarImportTest {
     fun `track to record omits empty and unknown values`() {
         val trackEntity = track(10, "a.mp3")
         val record = trackToRecord(trackEntity, emptyList())
+        assertEquals("a.mp3", record.fileName)
+        assertNull(record.legacyPath)
         assertNull(record.title)
         assertNull(record.artist)
         assertNull(record.durationMs)
@@ -103,7 +169,7 @@ class SidecarImportTest {
 
     @Test
     fun `track to record keeps meaningful values`() {
-        val trackEntity = track(10, "a.mp3").copy(
+        val trackEntity = track(10, "sub/a.mp3").copy(
             title = "A",
             artist = "B",
             durationMs = 300_000,
@@ -114,6 +180,8 @@ class SidecarImportTest {
             track = trackEntity,
             tags = listOf(SidecarTag("warm", 4)),
         )
+        assertEquals("a.mp3", record.fileName)
+        assertNull(record.legacyPath)
         assertEquals("A", record.title)
         assertEquals("B", record.artist)
         assertEquals(300_000L, record.durationMs)
@@ -121,7 +189,7 @@ class SidecarImportTest {
         assertEquals(listOf(SidecarTag("warm", 4)), record.tags)
     }
 
-@Test
+    @Test
     fun `normalize path handles separators and whitespace`() {
         assertEquals("a/b/c.mp3", normalizePath(" a\\b//c.mp3 "))
         assertEquals("a/b.mp3", normalizePath("a\\b.mp3"))
@@ -137,33 +205,41 @@ class SidecarImportTest {
     }
 
     @Test
-    fun `merge sidecar sources prefixes nested paths and keeps root`() {
+    fun `merge sidecar sources prefixes nested legacy paths and keeps root`() {
         val sources = listOf(
-            SidecarSource(directoryPath = "sub", records = listOf(SidecarTrackRecord(path = "a.mp3", bpm = 120.0))),
-            SidecarSource(directoryPath = "", records = listOf(SidecarTrackRecord(path = "b.mp3", bpm = 90.0))),
+            SidecarSource(directoryPath = "sub", records = listOf(SidecarTrackRecord(fileName = "a.mp3", legacyPath = "a.mp3", bpm = 120.0))),
+            SidecarSource(directoryPath = "", records = listOf(SidecarTrackRecord(fileName = "b.mp3", legacyPath = "b.mp3", bpm = 90.0))),
         )
         val merged = mergeSidecarSources(sources)
         assertEquals(2, merged.size)
-        assertEquals("sub/a.mp3", merged[0].path)
-        assertEquals("b.mp3", merged[1].path)
+        assertEquals("sub/a.mp3", merged[0].legacyPath)
+        assertEquals("b.mp3", merged[1].legacyPath)
     }
 
     @Test
     fun `merge sidecar sources nests deeper directories`() {
         val sources = listOf(
-            SidecarSource(directoryPath = "sub/deep", records = listOf(SidecarTrackRecord(path = "a.mp3"))),
-            SidecarSource(directoryPath = "sub", records = listOf(SidecarTrackRecord(path = "b.mp3"))),
+            SidecarSource(directoryPath = "sub/deep", records = listOf(SidecarTrackRecord(fileName = "a.mp3", legacyPath = "a.mp3"))),
+            SidecarSource(directoryPath = "sub", records = listOf(SidecarTrackRecord(fileName = "b.mp3", legacyPath = "b.mp3"))),
         )
         val merged = mergeSidecarSources(sources)
-        assertEquals("sub/deep/a.mp3", merged[0].path)
-        assertEquals("sub/b.mp3", merged[1].path)
+        assertEquals("sub/deep/a.mp3", merged[0].legacyPath)
+        assertEquals("sub/b.mp3", merged[1].legacyPath)
     }
 
     @Test
-    fun `merge sidecar sources with duplicate paths last wins`() {
+    fun `merge sidecar sources preserves root records without legacy path`() {
+        val record = SidecarTrackRecord(fileName = "a.mp3", bpm = 120.0)
+        val merged = mergeSidecarSources(listOf(SidecarSource(directoryPath = "sub", records = listOf(record))))
+        assertEquals("a.mp3", merged.single().fileName)
+        assertNull(merged.single().legacyPath)
+    }
+
+    @Test
+    fun `merge sidecar sources with duplicate legacy paths last wins`() {
         val sources = listOf(
-            SidecarSource(directoryPath = "sub", records = listOf(SidecarTrackRecord(path = "a.mp3", bpm = 100.0))),
-            SidecarSource(directoryPath = "", records = listOf(SidecarTrackRecord(path = "sub/a.mp3", bpm = 130.0))),
+            SidecarSource(directoryPath = "sub", records = listOf(SidecarTrackRecord(fileName = "a.mp3", legacyPath = "a.mp3", bpm = 100.0))),
+            SidecarSource(directoryPath = "", records = listOf(SidecarTrackRecord(fileName = "a.mp3", legacyPath = "sub/a.mp3", bpm = 130.0))),
         )
         val tracks = listOf(track(10, "sub/a.mp3"))
         val patches = planImport(tracks, mergeSidecarSources(sources))
@@ -174,57 +250,5 @@ class SidecarImportTest {
     @Test
     fun `merge sidecar sources with empty list`() {
         assertEquals(emptyList<SidecarTrackRecord>(), mergeSidecarSources(emptyList()))
-    }
-
-    @Test
-    fun `import by name matches track by file name ignoring directories`() {
-        val tracks = listOf(track(10, "sub/01.mp3"))
-        val records = listOf(SidecarTrackRecord(path = "other/deep/01.mp3", bpm = 120.0))
-        val patches = planImportByName(tracks, records)
-        assertEquals(1, patches.size)
-        assertEquals(10, patches[0].trackId)
-        assertEquals(120.0, patches[0].bpm)
-    }
-
-    @Test
-    fun `import by name first duplicate record wins`() {
-        val tracks = listOf(track(10, "01.mp3"))
-        val records = listOf(
-            SidecarTrackRecord(path = "a/01.mp3", bpm = 100.0),
-            SidecarTrackRecord(path = "b/01.mp3", bpm = 130.0),
-        )
-        val patch = planImportByName(tracks, records).single()
-        assertEquals(100.0, patch.bpm)
-    }
-
-    @Test
-    fun `import by name ignores records without matching file`() {
-        val tracks = listOf(track(10, "01.mp3"))
-        val records = listOf(
-            SidecarTrackRecord(path = "a/01.mp3", bpm = 120.0),
-            SidecarTrackRecord(path = "ghost.mp3", bpm = 90.0),
-        )
-        val patches = planImportByName(tracks, records)
-        assertEquals(1, patches.size)
-        assertEquals(10, patches[0].trackId)
-    }
-
-    @Test
-    fun `import by name ignores tracks without record`() {
-        val tracks = listOf(track(10, "01.mp3"), track(11, "02.mp3"))
-        val records = listOf(SidecarTrackRecord(path = "01.mp3", bpm = 120.0))
-        val patches = planImportByName(tracks, records)
-        assertEquals(1, patches.size)
-        assertEquals(10, patches[0].trackId)
-    }
-
-    @Test
-    fun `import by name only source fields are applied`() {
-        val tracks = listOf(track(10, "01.mp3"))
-        val records = listOf(SidecarTrackRecord(path = "anywhere/01.mp3", title = "Title", bpm = 128.0))
-        val patch = planImportByName(tracks, records).single()
-        assertEquals("Title", patch.title)
-        assertEquals(128.0, patch.bpm)
-        assertNull(patch.artist)
     }
 }

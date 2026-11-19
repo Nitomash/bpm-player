@@ -96,8 +96,14 @@ class SidecarStore @Inject constructor(
 
     private suspend fun findSidecarDoc(treeUri: Uri): Uri? {
         val candidate = scanner.findByExtension(treeUri, SIDECAR_EXTENSION) ?: return null
-        val header = readText(candidate)?.take(SIDECAR_MAGIC.length) ?: return null
-        return if (header == SIDECAR_MAGIC || header == SIDECAR_LEGACY_MAGIC) candidate else null
+        val header = readText(candidate)?.lineSequence()?.firstOrNull() ?: return null
+        return if (header in SIDECAR_MAGICS) candidate else null
+    }
+
+    private companion object {
+        const val TAG = "BpmSidecar"
+        const val WRITE_BUFFER_CHARS = 8 * 1024
+        val SIDECAR_MAGICS = setOf(SIDECAR_MAGIC, SIDECAR_MAGIC_V2, SIDECAR_LEGACY_MAGIC)
     }
 
     private fun readText(uri: Uri): String? = try {
@@ -113,9 +119,4 @@ class SidecarStore @Inject constructor(
         name.replace(Regex("[\\\\/:*?\"<>|\\s]+"), "_")
             .take(64)
             .ifBlank { "music" }
-
-    private companion object {
-        const val TAG = "BpmSidecar"
-        const val WRITE_BUFFER_CHARS = 8 * 1024
-    }
 }

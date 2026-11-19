@@ -24,8 +24,8 @@ object SidecarCodec {
 
     private fun encodeRecordTo(record: SidecarTrackRecord, out: Appendable) {
         out.append('{')
-        out.append("\"path\":")
-        out.append(Json.encodeString(record.path))
+        out.append("\"name\":")
+        out.append(Json.encodeString(record.fileName))
         record.title?.takeIf { it.isNotEmpty() }?.let {
             out.append(",\"title\":")
             out.append(Json.encodeString(it))
@@ -68,6 +68,7 @@ object SidecarCodec {
         if (lines.isEmpty()) return null
         val version = when (lines[0]) {
             SIDECAR_MAGIC -> VERSION
+            SIDECAR_MAGIC_V2 -> VERSION_V2
             SIDECAR_LEGACY_MAGIC -> LEGACY_VERSION
             else -> return null
         }
@@ -83,7 +84,10 @@ object SidecarCodec {
 
     private fun toRecord(node: JsonValue): SidecarTrackRecord? {
         val obj = node as? JsonValue.Object ?: return null
-        val path = obj.string("path") ?: return null
+        val legacyPath = obj.stringOrNull("path")?.let(::normalizePath)
+        val fileName = obj.stringOrNull("name")?.takeIf { it.isNotBlank() }
+            ?: legacyPath?.let(::fileNameOfPath)
+            ?: return null
         val tags = obj.list("tags")?.mapNotNull { tagNode ->
             val tagObj = tagNode as? JsonValue.Object ?: return@mapNotNull null
             val name = tagObj.string("name") ?: return@mapNotNull null
@@ -91,7 +95,8 @@ object SidecarCodec {
             SidecarTag(name, rating)
         }
         return SidecarTrackRecord(
-            path = path,
+            fileName = fileName,
+            legacyPath = legacyPath,
             title = obj.stringOrNull("title"),
             artist = obj.stringOrNull("artist"),
             durationMs = obj.rawLong("duration_ms"),
@@ -119,7 +124,8 @@ object SidecarCodec {
         else -> null
     }
 
-    private const val VERSION = 2
+    private const val VERSION = 3
+    private const val VERSION_V2 = 2
     private const val LEGACY_VERSION = 1
 }
 
