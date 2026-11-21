@@ -48,6 +48,11 @@ import com.nitomash.bpmplayer.ui.about.ABOUT_ROUTE
 import com.nitomash.bpmplayer.ui.about.AboutScreen
 import com.nitomash.bpmplayer.ui.editor.MassBpmScreen
 import com.nitomash.bpmplayer.ui.editor.MassBpmViewModel
+import com.nitomash.bpmplayer.ui.importlink.IMPORT_ARG_JOB_ID
+import com.nitomash.bpmplayer.ui.importlink.IMPORT_ROUTE
+import com.nitomash.bpmplayer.ui.importlink.ImportNavigation
+import com.nitomash.bpmplayer.ui.importlink.ImportScreen
+import com.nitomash.bpmplayer.ui.importlink.importRoute
 import com.nitomash.bpmplayer.ui.library.LibraryScreen
 import com.nitomash.bpmplayer.ui.player.PlayerMiniBar
 import com.nitomash.bpmplayer.ui.player.PlayerScreen
@@ -62,18 +67,27 @@ import com.nitomash.bpmplayer.ui.testing.TESTING_ROUTE
 import com.nitomash.bpmplayer.ui.testing.TestingScreen
 
 @Composable
-fun BpmPlayerApp() {
+fun BpmPlayerApp(importNavigation: ImportNavigation) {
     val navController = rememberNavController()
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val betaIntroViewModel: BetaIntroViewModel = hiltViewModel()
     val introAccepted by betaIntroViewModel.introAccepted.collectAsStateWithLifecycle()
     var pendingPlaylistId by rememberSaveable { mutableStateOf<Long?>(null) }
     var pendingGeneratedPlaylist by rememberSaveable { mutableStateOf(false) }
+    var handledImportRequestId by rememberSaveable { mutableStateOf(0L) }
 
     val nestedOffsetPx = rememberNestedOffsetPx()
+    val importRequest by importNavigation.openRequests.collectAsStateWithLifecycle(initialValue = null)
 
     LaunchedEffect(Unit) {
         betaIntroViewModel.mark(TesterBeacon.NAV_LIBRARY_OPENED)
+    }
+
+    LaunchedEffect(importRequest?.id) {
+        val request = importRequest ?: return@LaunchedEffect
+        if (request.id == handledImportRequestId) return@LaunchedEffect
+        handledImportRequestId = request.id
+        navController.navigate(importRoute(request.jobId)) { launchSingleTop = true }
     }
 
     fun markDestination(destination: TopLevelDestination) {
@@ -150,6 +164,7 @@ fun BpmPlayerApp() {
                         onOpenSettings = { if (entry.isForeground()) navController.navigate(SETTINGS_ROUTE) { launchSingleTop = true } },
                         onOpenAbout = { if (entry.isForeground()) navController.navigate(ABOUT_ROUTE) { launchSingleTop = true } },
                         onOpenTesting = { if (entry.isForeground()) navController.navigate(TESTING_ROUTE) { launchSingleTop = true } },
+                        onOpenImport = { if (entry.isForeground()) navController.navigate(IMPORT_ROUTE) { launchSingleTop = true } },
                     )
                 }
             }
@@ -248,6 +263,25 @@ fun BpmPlayerApp() {
                 TestingScreen(
                     onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                 )
+            }
+            composable(
+                route = "$IMPORT_ROUTE?$IMPORT_ARG_JOB_ID={$IMPORT_ARG_JOB_ID}",
+                arguments = listOf(
+                    navArgument(IMPORT_ARG_JOB_ID) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { entry ->
+                TopLevelScreen(
+                    destination = TopLevelDestination.LIBRARY,
+                    onSelect = selectTopLevel,
+                ) {
+                    ImportScreen(
+                        onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
+                    )
+                }
             }
         }
 }

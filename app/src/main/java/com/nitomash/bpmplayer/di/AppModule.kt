@@ -9,6 +9,7 @@ import com.nitomash.bpmplayer.data.bpm.BpmDetectionDispatcher
 import com.nitomash.bpmplayer.data.bpm.PcmBpmDetector
 import com.nitomash.bpmplayer.data.db.BpmDatabase
 import com.nitomash.bpmplayer.data.db.dao.FolderDao
+import com.nitomash.bpmplayer.data.db.dao.ImportJobDao
 import com.nitomash.bpmplayer.data.db.dao.PlaylistDao
 import com.nitomash.bpmplayer.data.db.dao.TagDao
 import com.nitomash.bpmplayer.data.db.dao.TrackDao
@@ -40,7 +41,12 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): BpmDatabase =
         Room.databaseBuilder(context, BpmDatabase::class.java, "bpm_player.db")
-            .addMigrations(BpmDatabase.MIGRATION_1_2, BpmDatabase.MIGRATION_2_3)
+            .addMigrations(
+                BpmDatabase.MIGRATION_1_2,
+                BpmDatabase.MIGRATION_2_3,
+                BpmDatabase.MIGRATION_3_4,
+                BpmDatabase.MIGRATION_4_5,
+            )
             .build()
 
     @Provides
@@ -57,6 +63,9 @@ object AppModule {
 
     @Provides
     fun providePlaylistDao(database: BpmDatabase): PlaylistDao = database.playlistDao()
+
+    @Provides
+    fun provideImportJobDao(database: BpmDatabase): ImportJobDao = database.importJobDao()
 
     @Provides
     @Singleton

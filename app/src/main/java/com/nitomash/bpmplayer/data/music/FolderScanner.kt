@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
+import com.nitomash.bpmplayer.domain.linkimport.SupportedImportFormats
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -31,7 +32,7 @@ class FolderScanner @Inject constructor(
     private val scannerLogTag = "BpmScanner"
 
     suspend fun scan(treeUri: Uri): List<TrackDraft> = withContext(Dispatchers.IO) {
-        val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
+        val rootDocumentId = startingDocumentId(treeUri)
         Log.i(scannerLogTag, "Scan started: $treeUri, rootId=$rootDocumentId")
         val drafts = mutableListOf<TrackDraft>()
         collectAudio(treeUri, rootDocumentId, "", drafts, rootDocumentId)
@@ -46,7 +47,7 @@ class FolderScanner @Inject constructor(
     }
 
     suspend fun findSidecarDocs(treeUri: Uri): List<SidecarDoc> = withContext(Dispatchers.IO) {
-        val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
+        val rootDocumentId = startingDocumentId(treeUri)
         val docs = mutableListOf<SidecarDoc>()
         collectSidecarDocs(treeUri, rootDocumentId, "", docs, rootDocumentId)
         docs
@@ -57,7 +58,7 @@ class FolderScanner @Inject constructor(
     }
 
     private suspend fun listChildrenIds(treeUri: Uri): List<Pair<Uri, String>> {
-        val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
+        val rootDocumentId = startingDocumentId(treeUri)
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, rootDocumentId)
         val children = mutableListOf<Pair<Uri, String>>()
         contentResolver.query(childrenUri, COLUMNS, null, null, null)?.use { cursor ->
@@ -195,14 +196,16 @@ class FolderScanner @Inject constructor(
     companion object {
         private const val DIRECTORY_MIME_TYPE = DocumentsContract.Document.MIME_TYPE_DIR
         private const val AUDIO_MIME_PREFIX = "audio/"
-        private val AUDIO_EXTENSIONS = setOf(
-            "mp3", "m4a", "flac", "wav", "ogg", "oga", "opus", "aac", "wma", "aiff", "aif", "ape",
-        )
+        private val AUDIO_EXTENSIONS = SupportedImportFormats.AUDIO_EXTENSIONS
         private val COLUMNS = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME,
             DocumentsContract.Document.COLUMN_MIME_TYPE,
         )
+
+        fun startingDocumentId(uri: Uri): String =
+            runCatching { DocumentsContract.getDocumentId(uri) }
+                .getOrElse { DocumentsContract.getTreeDocumentId(uri) }
 
         fun displayName(treeUri: Uri): String {
             val lastSegment = treeUri.lastPathSegment ?: return treeUri.toString()

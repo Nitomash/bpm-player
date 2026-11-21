@@ -7,6 +7,7 @@ import android.os.Environment
 import android.os.storage.StorageManager
 import android.provider.DocumentsContract
 import androidx.annotation.RequiresApi
+import com.nitomash.bpmplayer.data.music.FolderScanner
 import com.nitomash.bpmplayer.data.playlist.xspf.StoragePath
 import com.nitomash.bpmplayer.data.playlist.xspf.segmentsOf
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -22,7 +23,7 @@ class StorageVolumes @Inject constructor(
     private val roots: Map<String, String> by lazy { buildRoots() }
 
     fun pathOfTree(treeUri: Uri, relativeInside: String): StoragePath? {
-        val treeId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull() ?: return null
+        val treeId = runCatching { FolderScanner.startingDocumentId(treeUri) }.getOrNull() ?: return null
         return pathOfDocumentId(treeId, relativeInside)
     }
 

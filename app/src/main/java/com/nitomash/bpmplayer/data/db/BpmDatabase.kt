@@ -6,6 +6,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.nitomash.bpmplayer.data.db.dao.FolderDao
+import com.nitomash.bpmplayer.data.db.dao.ImportJobDao
 import com.nitomash.bpmplayer.data.db.dao.PlaylistDao
 import com.nitomash.bpmplayer.data.db.dao.TagDao
 import com.nitomash.bpmplayer.data.db.dao.TrackDao
@@ -14,6 +15,7 @@ import com.nitomash.bpmplayer.data.db.entity.BpmSource
 import com.nitomash.bpmplayer.data.db.entity.ConditionEntity
 import com.nitomash.bpmplayer.data.db.entity.ConditionTagEntity
 import com.nitomash.bpmplayer.data.db.entity.FolderEntity
+import com.nitomash.bpmplayer.data.db.entity.ImportJobEntity
 import com.nitomash.bpmplayer.data.db.entity.PlaylistEntity
 import com.nitomash.bpmplayer.data.db.entity.PlaylistOrderEntity
 import com.nitomash.bpmplayer.data.db.entity.PlaylistTrackEntity
@@ -32,8 +34,9 @@ import com.nitomash.bpmplayer.data.db.entity.TrackTagEntity
         PlaylistEntity::class,
         PlaylistTrackEntity::class,
         PlaylistOrderEntity::class,
+        ImportJobEntity::class,
     ],
-    version = 3,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -43,6 +46,7 @@ abstract class BpmDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
     abstract fun trackTagDao(): TrackTagDao
     abstract fun playlistDao(): PlaylistDao
+    abstract fun importJobDao(): ImportJobDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -77,6 +81,41 @@ abstract class BpmDatabase : RoomDatabase() {
                         "WHERE p2.created_at_ms > p.created_at_ms " +
                         "OR (p2.created_at_ms = p.created_at_ms AND p2.id > p.id)) " +
                         "FROM playlists p",
+                )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS import_jobs (" +
+                        "id TEXT NOT NULL PRIMARY KEY, " +
+                        "source_link TEXT, " +
+                        "provider_id TEXT, " +
+                        "target_folder_name TEXT, " +
+                        "destination_uri TEXT, " +
+                        "folder_id INTEGER NOT NULL, " +
+                        "status TEXT NOT NULL, " +
+                        "source_name TEXT, " +
+                        "current_path TEXT, " +
+                        "created_at_ms INTEGER NOT NULL, " +
+                        "updated_at_ms INTEGER NOT NULL, " +
+                        "downloaded_files INTEGER NOT NULL, " +
+                        "skipped_files INTEGER NOT NULL, " +
+                        "downloaded_bytes INTEGER NOT NULL, " +
+                        "total_files INTEGER NOT NULL, " +
+                        "total_bytes INTEGER, " +
+                        "error_message TEXT)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_import_jobs_status ON import_jobs(status)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_import_jobs_created_at_ms ON import_jobs(created_at_ms)")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE import_jobs ADD COLUMN up_to_date_files INTEGER NOT NULL DEFAULT 0",
                 )
             }
         }

@@ -1,8 +1,9 @@
 package com.nitomash.bpmplayer.data.music
 
 import com.nitomash.bpmplayer.data.db.entity.BpmSource
+import com.nitomash.bpmplayer.domain.linkimport.SupportedImportFormats
 
-const val SIDECAR_EXTENSION = "bpmmeta"
+const val SIDECAR_EXTENSION = SupportedImportFormats.SIDECAR_EXTENSION
 const val SIDECAR_MIME = "application/octet-stream"
 const val SIDECAR_MAGIC = "#BPM-PLAYER-META v3"
 const val SIDECAR_MAGIC_V2 = "#BPM-PLAYER-META v2"

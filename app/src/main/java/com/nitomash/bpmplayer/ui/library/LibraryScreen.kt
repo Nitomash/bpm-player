@@ -83,6 +83,7 @@ fun LibraryScreen(
     onOpenSettings: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
     onOpenTesting: () -> Unit = {},
+    onOpenImport: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val foldersOrNull by viewModel.folders.collectAsStateWithLifecycle()
@@ -103,6 +104,7 @@ fun LibraryScreen(
     val context = LocalContext.current
     var folderToDelete by remember { mutableStateOf<FolderEntity?>(null) }
     var moreMenuOpen by remember { mutableStateOf(false) }
+    var addMenuOpen by remember { mutableStateOf(false) }
     var showMassSetup by remember { mutableStateOf(false) }
     var importTargetFolder by remember { mutableStateOf<FolderEntity?>(null) }
     var exportTargetFolder by remember { mutableStateOf<FolderEntity?>(null) }
@@ -240,11 +242,32 @@ fun LibraryScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { folderPicker.launch(null) }) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.library_add_folder),
-                )
+            Box {
+                FloatingActionButton(onClick = { addMenuOpen = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.library_add_folder),
+                    )
+                }
+                DropdownMenu(
+                    expanded = addMenuOpen,
+                    onDismissRequest = { addMenuOpen = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.library_add_folder)) },
+                        onClick = {
+                            addMenuOpen = false
+                            folderPicker.launch(null)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.import_menu)) },
+                        onClick = {
+                            addMenuOpen = false
+                            onOpenImport()
+                        },
+                    )
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },

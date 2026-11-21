@@ -66,7 +66,7 @@ class SidecarStore @Inject constructor(
                             .onFailure { Log.w(TAG, "cleanup delete failed for $name", it) }
                     }
                 }
-                val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
+                val rootDocumentId = FolderScanner.startingDocumentId(treeUri)
                 val rootDocumentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, rootDocumentId)
                 val tmpUri = DocumentsContract.createDocument(contentResolver, rootDocumentUri, SIDECAR_MIME, tmpName)
                     ?: run {

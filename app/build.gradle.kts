@@ -145,4 +145,8 @@ dependencies {
     testImplementation(libs.net.sf.kxml.kxml2)
     implementation(libs.tarsos.dsp)
     implementation(libs.sh.calvin.reorderable)
+    implementation(libs.square.okhttp)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
 }

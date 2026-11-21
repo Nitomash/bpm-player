@@ -62,7 +62,7 @@
         <item quantity="other">Плейлист: %d треков</item>
     </plurals>
 
-    <string name="library_add_folder">Добавить папку</string>
+    <string name="library_add_folder">Выбрать папку</string>
     <string name="library_sort">Сортировать</string>
     <string name="library_refresh">Обновить</string>
     <string name="library_collapse">Свернуть папку</string>
@@ -258,4 +258,30 @@
     <string name="testing_local_note">Данные хранятся локально на устройстве и не передаются.</string>
     <string name="testing_section_completed">Проверено</string>
     <string name="testing_section_pending">Осталось проверить</string>
+    <string name="import_menu">Загрузить по ссылке</string>
+    <string name="import_title">Импорт по ссылке</string>
+    <string name="import_link_label">Ссылка на коллекцию</string>
+    <string name="import_folder_label">Название коллекции</string>
+    <string name="import_folder_hint">Из имени источника</string>
+    <string name="import_root_not_selected">Хранилище не выбрано</string>
+    <string name="import_root_change">Изменить</string>
+    <string name="import_root_value">Хранилище: %1$s</string>
+    <string name="import_info_title">Информация о загрузке</string>
+    <string name="import_start">Скачать</string>
+    <string name="import_cancel">Отменить</string>
+    <string name="import_preview_summary">Файлов в коллекции: %1$d, папок: %2$d</string>
+    <string name="import_progress">%1$d / %2$d</string>
+    <string name="import_state_queued">В очереди</string>
+    <string name="import_state_planning">Читаю структуру…</string>
+    <string name="import_state_indexing">Добавляю в аудиотеку…</string>
+    <string name="import_state_completed">Загружено: %1$d</string>
+    <string name="import_complete">Загрузка завершена</string>
+    <string name="import_state_cancelled">Отменено</string>
+    <string name="import_state_failed">Ошибка: %1$s</string>
+    <string name="import_error_unsupported">Неизвестный тип ссылки</string>
+    <string name="import_error_no_files">Нет поддерживаемых файлов</string>
+    <string name="import_error_link">Проверьте ссылку и попробуйте снова</string>
+    <string name="import_error_root">Выберите хранилище</string>
+    <string name="import_notification_title">Импорт музыки</string>
+    <string name="import_notification_preparing">Подготовка…</string>
 </resources>
