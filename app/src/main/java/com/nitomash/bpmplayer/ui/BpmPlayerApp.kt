@@ -50,7 +50,9 @@ import com.nitomash.bpmplayer.ui.editor.MassBpmScreen
 import com.nitomash.bpmplayer.ui.editor.MassBpmViewModel
 import com.nitomash.bpmplayer.ui.importlink.IMPORT_ARG_FOLDER_ID
 import com.nitomash.bpmplayer.ui.importlink.IMPORT_ARG_JOB_ID
+import com.nitomash.bpmplayer.ui.importlink.IMPORT_ARG_LINKS
 import com.nitomash.bpmplayer.ui.importlink.IMPORT_ROUTE
+import com.nitomash.bpmplayer.ui.importlink.IMPORT_ROUTE_PATTERN
 import com.nitomash.bpmplayer.ui.importlink.ImportNavigation
 import com.nitomash.bpmplayer.ui.importlink.ImportScreen
 import com.nitomash.bpmplayer.ui.importlink.importRoute
@@ -88,7 +90,7 @@ fun BpmPlayerApp(importNavigation: ImportNavigation) {
         val request = importRequest ?: return@LaunchedEffect
         if (request.id == handledImportRequestId) return@LaunchedEffect
         handledImportRequestId = request.id
-        navController.navigate(importRoute(request.jobId)) { launchSingleTop = true }
+        navController.navigate(importRoute(request.jobId, links = request.links)) { launchSingleTop = true }
     }
 
     fun markDestination(destination: TopLevelDestination) {
@@ -271,7 +273,7 @@ fun BpmPlayerApp(importNavigation: ImportNavigation) {
                 )
             }
             composable(
-                route = "$IMPORT_ROUTE?$IMPORT_ARG_JOB_ID={$IMPORT_ARG_JOB_ID}&$IMPORT_ARG_FOLDER_ID={$IMPORT_ARG_FOLDER_ID}",
+                route = IMPORT_ROUTE_PATTERN,
                 arguments = listOf(
                     navArgument(IMPORT_ARG_JOB_ID) {
                         type = NavType.StringType
@@ -281,6 +283,11 @@ fun BpmPlayerApp(importNavigation: ImportNavigation) {
                     navArgument(IMPORT_ARG_FOLDER_ID) {
                         type = NavType.LongType
                         defaultValue = -1L
+                    },
+                    navArgument(IMPORT_ARG_LINKS) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
                     },
                 ),
             ) { entry ->

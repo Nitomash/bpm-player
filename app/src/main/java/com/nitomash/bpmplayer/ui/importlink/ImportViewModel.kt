@@ -18,6 +18,8 @@ import com.nitomash.bpmplayer.domain.linkimport.ImportRequest
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkException
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkImportUseCase
 import com.nitomash.bpmplayer.domain.linkimport.SupportedImportFormats
+import com.nitomash.bpmplayer.domain.sharing.CollectionShareLink
+import com.nitomash.bpmplayer.domain.sharing.CollectionShareLinks
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -40,6 +42,7 @@ data class UpdateLinkState(
 data class ImportUiState(
     val loaded: Boolean = false,
     val isUpdateMode: Boolean = false,
+    val isCollectionMode: Boolean = false,
     val folderDisplayName: String? = null,
     val link: String = "",
     val folderName: String = "",
@@ -126,6 +129,19 @@ class ImportViewModel @Inject constructor(
                     )
                     startUpdate()
                 } else {
+                    val initialLinks = CollectionShareLinks.decode(
+                        savedStateHandle.get<String>(IMPORT_ARG_LINKS),
+                    )
+                    if (initialLinks.isNotEmpty()) {
+                        _uiState.value = _uiState.value.copy(
+                            root = root,
+                            folders = folders,
+                            isCollectionMode = true,
+                            updateLinks = initialLinks.map(::UpdateLinkState),
+                        )
+                        prepareCollection()
+                        return@launch
+                    }
                     val requested = savedStateHandle.get<String>(IMPORT_ARG_JOB_ID)?.let(::ImportJobId)
                     val job = importUseCase.resume(requested)
                     val initialState = job?.let { importUseCase.observe(it.id).firstOrNull() }
@@ -178,7 +194,8 @@ class ImportViewModel @Inject constructor(
         if (value.isBlank()) return
         nameLookupJob = viewModelScope.launch {
             delay(NAME_LOOKUP_DELAY_MS)
-            resolveName(value.trim())
+            val input = value.trim()
+            if (!tryOpenCollectionLink(input, autoStart = false)) resolveName(input)
         }
     }
 
@@ -187,7 +204,9 @@ class ImportViewModel @Inject constructor(
         nameLookupJob?.cancel()
         nameLookupJob = null
         if (link.isBlank()) return
-        nameLookupJob = viewModelScope.launch { resolveName(link) }
+        nameLookupJob = viewModelScope.launch {
+            if (!tryOpenCollectionLink(link, autoStart = false)) resolveName(link)
+        }
     }
 
     fun onFolderNameChange(value: String) {
@@ -215,6 +234,12 @@ class ImportViewModel @Inject constructor(
         }
         if (state.root == null) {
             setError(R.string.import_error_root)
+            return
+        }
+        if (isCollectionShareUrl(link)) {
+            nameLookupJob?.cancel()
+            nameLookupJob = null
+            viewModelScope.launch { tryOpenCollectionLink(link, autoStart = true) }
             return
         }
         val targetFolder = if (state.isSidecar) {
@@ -278,7 +303,160 @@ class ImportViewModel @Inject constructor(
         }
     }
 
-    fun resumeAll() = startUpdate()
+    fun resumeAll() {
+        if (_uiState.value.isCollectionMode) startCollection() else startUpdate()
+    }
+
+    fun startCollection() {
+        val state = _uiState.value
+        if (state.updateLinks.isEmpty()) {
+            setError(R.string.import_error_link)
+            return
+        }
+        if (state.root == null) {
+            setError(R.string.import_error_root)
+            return
+        }
+        val folderName = state.folderName.trim()
+        if (folderName.isBlank()) {
+            setError(R.string.import_error_name)
+            return
+        }
+        val targetFolder = if (state.isSidecar) {
+            state.folders.firstOrNull { it.id == state.selectedFolderId }
+        } else null
+        if (state.isSidecar && targetFolder == null) {
+            setError(R.string.import_folder_select)
+            return
+        }
+        updateObservers.forEach { it.cancel() }
+        updateObservers = emptyList()
+        updateJobIds = emptyList()
+        _uiState.value = state.copy(
+            isInspecting = true,
+            errorRes = null,
+            errorMessage = null,
+            updateLinks = state.updateLinks.map { it.copy(preview = null, jobState = null) },
+        )
+        viewModelScope.launch {
+            val requests = mutableListOf<ImportRequest>()
+            val inspected = mutableListOf<UpdateLinkState>()
+            var failed = false
+            state.updateLinks.forEach { item ->
+                val result = runCatching { importUseCase.inspect(item.link) }
+                val preview = result.getOrNull()
+                when {
+                    preview == null -> {
+                        failed = true
+                        val error = result.exceptionOrNull()
+                        setError(error?.toErrorRes() ?: R.string.import_error_link, error?.message)
+                    }
+                    preview.supportedFileCount == 0 -> {
+                        failed = true
+                        setError(R.string.import_error_no_files)
+                    }
+                    else -> requests += ImportRequest(
+                        link = item.link,
+                        targetFolderName = folderName,
+                        targetDirectoryUri = targetFolder?.rootUri,
+                    )
+                }
+                inspected += item.copy(preview = preview, jobState = null)
+                _uiState.value = _uiState.value.copy(updateLinks = inspected.toList())
+            }
+            _uiState.value = _uiState.value.copy(isInspecting = false)
+            if (failed || requests.isEmpty()) return@launch
+            runCatching { importUseCase.enqueueChain(requests) }
+                .onSuccess { ids ->
+                    updateJobIds = ids
+                    ids.forEachIndexed { index, id -> observeUpdate(id, index) }
+                }
+                .onFailure { error -> setError(error.toErrorRes(), error.message) }
+        }
+    }
+
+    private fun isCollectionShareUrl(value: String): Boolean =
+        runCatching { CollectionShareLink.parse(value) }.isSuccess
+
+    private suspend fun tryOpenCollectionLink(value: String, autoStart: Boolean): Boolean {
+        val links = runCatching { CollectionShareLink.parse(value) }.getOrNull() ?: return false
+        _uiState.value = _uiState.value.copy(
+            isInspecting = true,
+            errorRes = null,
+            errorMessage = null,
+        )
+        val supported = links.all { link ->
+            runCatching { importUseCase.resolveName(link) }.isSuccess
+        }
+        if (!supported) {
+            _uiState.value = _uiState.value.copy(isInspecting = false)
+            setError(R.string.import_error_unsupported)
+            return true
+        }
+        _uiState.value = _uiState.value.copy(
+            isCollectionMode = true,
+            updateLinks = links.map(::UpdateLinkState),
+            link = "",
+            sourceName = null,
+            preview = null,
+            jobState = null,
+            isSidecar = false,
+            selectedFolderId = null,
+            errorRes = null,
+            errorMessage = null,
+        )
+        folderNameAutoFilled = false
+        prepareCollection(autoStart = autoStart)
+        return true
+    }
+
+    private fun prepareCollection(autoStart: Boolean = false) {
+        val links = _uiState.value.updateLinks.map { it.link }
+        _uiState.value = _uiState.value.copy(
+            isInspecting = true,
+            errorRes = null,
+            errorMessage = null,
+            updateLinks = _uiState.value.updateLinks.map { it.copy(preview = null, jobState = null) },
+        )
+        viewModelScope.launch {
+            val inspected = mutableListOf<UpdateLinkState>()
+            var firstSourceName: String? = null
+            var allSidecar = links.isNotEmpty()
+            links.forEachIndexed { index, link ->
+                val nameResult = runCatching { importUseCase.resolveName(link) }
+                val resolved = nameResult.getOrNull()
+                if (resolved == null) {
+                    val error = nameResult.exceptionOrNull()
+                    setError(error?.toErrorRes() ?: R.string.import_error_link, error?.message)
+                } else {
+                    if (index == 0) firstSourceName = resolved.name
+                    if (!resolved.isSidecar) allSidecar = false
+                }
+                val previewResult = runCatching { importUseCase.inspect(link) }
+                val preview = previewResult.getOrNull()
+                when {
+                    preview == null -> {
+                        val error = previewResult.exceptionOrNull()
+                        setError(error?.toErrorRes() ?: R.string.import_error_link, error?.message)
+                    }
+                    preview.supportedFileCount == 0 -> setError(R.string.import_error_no_files)
+                }
+                if (index == 0 && firstSourceName == null) firstSourceName = preview?.sourceName
+                inspected += UpdateLinkState(link, preview, null)
+                _uiState.value = _uiState.value.copy(updateLinks = inspected.toList())
+            }
+            val current = _uiState.value
+            folderNameAutoFilled = current.folderName.isBlank()
+            _uiState.value = current.copy(
+                isInspecting = false,
+                folderName = if (current.folderName.isBlank()) firstSourceName.orEmpty() else current.folderName,
+                sourceName = firstSourceName,
+                isSidecar = allSidecar,
+                selectedFolderId = null,
+            )
+            if (autoStart && _uiState.value.errorRes == null) startCollection()
+        }
+    }
 
     fun cancelAll() {
         val ids = updateJobIds

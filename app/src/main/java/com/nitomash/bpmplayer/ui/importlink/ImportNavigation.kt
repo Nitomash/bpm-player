@@ -9,6 +9,7 @@ import javax.inject.Singleton
 
 data class ImportOpenRequest(
     val jobId: String?,
+    val links: List<String> = emptyList(),
     val id: Long,
 )
 
@@ -22,7 +23,7 @@ class ImportNavigation @Inject constructor() {
     )
     val openRequests: SharedFlow<ImportOpenRequest> = _openRequests.asSharedFlow()
 
-    fun openImport(jobId: String?) {
-        _openRequests.tryEmit(ImportOpenRequest(jobId, sequence.incrementAndGet()))
+    fun openImport(jobId: String?, links: List<String> = emptyList()) {
+        _openRequests.tryEmit(ImportOpenRequest(jobId, links, sequence.incrementAndGet()))
     }
 }

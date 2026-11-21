@@ -66,6 +66,7 @@
     <string name="library_sort">Сортировать</string>
     <string name="library_refresh">Обновить с диска</string>
     <string name="library_update_network">Обновить из сети</string>
+    <string name="library_share">Поделиться</string>
     <string name="library_detect_bpm">Определить BPM</string>
     <string name="library_source_links">Загружено по ссылке</string>
     <string name="library_collapse">Свернуть папку</string>
@@ -291,6 +292,7 @@
     <string name="import_error_no_files">Нет поддерживаемых файлов</string>
     <string name="import_error_link">Проверьте ссылку и попробуйте снова</string>
     <string name="import_error_root">Выберите хранилище</string>
+    <string name="import_error_name">Введите название коллекции</string>
     <string name="import_notification_title">Импорт музыки</string>
     <string name="import_notification_preparing">Подготовка…</string>
 </resources>

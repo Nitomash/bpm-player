@@ -54,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +76,7 @@ import com.nitomash.bpmplayer.data.db.entity.FolderEntity
 import com.nitomash.bpmplayer.data.music.SIDECAR_EXTENSION
 import com.nitomash.bpmplayer.data.music.SIDECAR_MIME
 import com.nitomash.bpmplayer.data.music.safeFileName
+import com.nitomash.bpmplayer.domain.sharing.CollectionShareLink
 import com.nitomash.bpmplayer.ui.common.AddToPlaylistDropdown
 import com.nitomash.bpmplayer.ui.common.LoadingPlaceholder
 import com.nitomash.bpmplayer.ui.common.SearchField
@@ -82,6 +84,7 @@ import com.nitomash.bpmplayer.ui.common.TrackRow
 import com.nitomash.bpmplayer.ui.editor.BpmEditorDialog
 import com.nitomash.bpmplayer.ui.editor.MassBpmScope
 import com.nitomash.bpmplayer.ui.editor.MassBpmSetupDialog
+import kotlinx.coroutines.launch
 
 private const val GLOBE_INLINE = "globe"
 
@@ -113,6 +116,7 @@ fun LibraryScreen(
     val menuTrackId by viewModel.menuTrackId.collectAsStateWithLifecycle()
     val containing by viewModel.playlistsContainingMenuTrack.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val shareErrorScope = rememberCoroutineScope()
     val context = LocalContext.current
     var folderToDelete by remember { mutableStateOf<FolderEntity?>(null) }
     var moreMenuOpen by remember { mutableStateOf(false) }
@@ -196,6 +200,27 @@ fun LibraryScreen(
                 android.util.Log.w("BpmLibrary", "takePersistableUriPermission failed for $uri", e)
             }
             viewModel.addFolder(uri)
+        }
+    }
+
+    fun shareFolder(folder: FolderEntity) {
+        val url = runCatching { CollectionShareLink.build(folder.sourceLinks) }
+            .onFailure {
+                shareErrorScope.launch {
+                    snackbarHostState.showSnackbar(context.getString(R.string.import_error_link))
+                }
+            }
+            .getOrNull() ?: return
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, url)
+        }
+        runCatching {
+            context.startActivity(Intent.createChooser(sendIntent, context.getString(R.string.library_share)))
+        }.onFailure {
+            shareErrorScope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.import_error_link))
+            }
         }
     }
 
@@ -368,6 +393,7 @@ fun LibraryScreen(
                                                 )
                                             },
                                             onUpdateNetwork = { onOpenImportUpdate(folder.id) },
+                                            onShare = { shareFolder(folder) },
                                             onDetectBpm = {
                                                 viewModel.markMassBpmSetupOpened()
                                                 massSetupInitialFolderIds = setOf(folder.id)
@@ -563,6 +589,7 @@ private fun FolderHeader(
     onImportInfo: () -> Unit,
     onExportInfo: () -> Unit,
     onUpdateNetwork: () -> Unit,
+    onShare: () -> Unit,
     onDetectBpm: () -> Unit,
 ) {
     var sortMenuOpen by remember { mutableStateOf(false) }
@@ -680,6 +707,13 @@ private fun FolderHeader(
                         onClick = {
                             actionsMenuOpen = false
                             onUpdateNetwork()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.library_share)) },
+                        onClick = {
+                            actionsMenuOpen = false
+                            onShare()
                         },
                     )
                 }

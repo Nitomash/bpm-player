@@ -56,17 +56,27 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.db.entity.FolderEntity
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobState
+import com.nitomash.bpmplayer.domain.sharing.CollectionShareLinks
 import com.nitomash.bpmplayer.ui.common.CompactOutlinedTextField
 import com.nitomash.bpmplayer.ui.common.LoadingPlaceholder
 
 const val IMPORT_ROUTE = "import"
 const val IMPORT_ARG_JOB_ID = "jobId"
 const val IMPORT_ARG_FOLDER_ID = "folderId"
+const val IMPORT_ARG_LINKS = "links"
+const val IMPORT_ROUTE_PATTERN =
+    "$IMPORT_ROUTE?$IMPORT_ARG_JOB_ID={$IMPORT_ARG_JOB_ID}&" +
+        "$IMPORT_ARG_FOLDER_ID={$IMPORT_ARG_FOLDER_ID}&$IMPORT_ARG_LINKS={$IMPORT_ARG_LINKS}"
 
-fun importRoute(jobId: String? = null, folderId: Long? = null): String {
+fun importRoute(
+    jobId: String? = null,
+    folderId: Long? = null,
+    links: List<String> = emptyList(),
+): String {
     val params = buildList {
         jobId?.takeIf { it.isNotBlank() }?.let { add("$IMPORT_ARG_JOB_ID=$it") }
         folderId?.takeIf { it > 0 }?.let { add("$IMPORT_ARG_FOLDER_ID=$it") }
+        if (links.isNotEmpty()) add("$IMPORT_ARG_LINKS=${CollectionShareLinks.encode(links)}")
     }
     return if (params.isEmpty()) IMPORT_ROUTE else "$IMPORT_ROUTE?${params.joinToString("&")}"
 }
@@ -160,13 +170,16 @@ fun ImportScreen(
                             }
                         }
                         ErrorText(state)
+                        if (state.isInspecting) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
                     }
                 }
                 itemsIndexed(
                     items = state.updateLinks,
                     key = { index, _ -> "update-link-$index" },
                 ) { _, item ->
-                    UpdateLinkCard(item = item, inspecting = state.isInspecting)
+                    UpdateLinkCard(item = item)
                 }
                 item(key = "update_controls") {
                     UpdateControls(
@@ -174,6 +187,24 @@ fun ImportScreen(
                         onCancel = viewModel::cancelAll,
                         onResume = viewModel::resumeAll,
                     )
+                }
+            } else if (state.isCollectionMode) {
+                item(key = "collection_content") {
+                    CollectionImportContent(
+                        state = state,
+                        onFolderNameChange = viewModel::onFolderNameChange,
+                        onTargetFolderPicked = viewModel::onTargetFolderPicked,
+                        onRootPicked = { treeLauncher.launch(null) },
+                        onStart = viewModel::startCollection,
+                        onCancel = viewModel::cancelAll,
+                        onResume = viewModel::resumeAll,
+                    )
+                }
+                itemsIndexed(
+                    items = state.updateLinks,
+                    key = { index, _ -> "collection-link-$index" },
+                ) { _, item ->
+                    UpdateLinkCard(item = item)
                 }
             } else {
                 item(key = "new_import") {
@@ -371,7 +402,6 @@ private fun RootInfoRow(
 @Composable
 private fun UpdateLinkCard(
     item: UpdateLinkState,
-    inspecting: Boolean,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -392,13 +422,70 @@ private fun UpdateLinkCard(
                             preview.directoriesCount,
                         ),
                     )
-                } else if (inspecting) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
                 val jobState = item.jobState
                 if (jobState != null) JobStateContent(jobState)
             }
         }
+    }
+}
+
+@Composable
+private fun CollectionImportContent(
+    state: ImportUiState,
+    onFolderNameChange: (String) -> Unit,
+    onTargetFolderPicked: (Long) -> Unit,
+    onRootPicked: () -> Unit,
+    onStart: () -> Unit,
+    onCancel: () -> Unit,
+    onResume: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        CompactOutlinedTextField(
+            value = state.folderName,
+            onValueChange = onFolderNameChange,
+            label = stringResource(R.string.import_folder_label),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (state.isSidecar) {
+            TargetFolderDropdown(
+                folders = state.folders,
+                selectedFolderId = state.selectedFolderId,
+                onSelect = onTargetFolderPicked,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Button(
+            onClick = onStart,
+            enabled = !state.isRunning && !state.isInspecting &&
+                state.folderName.isNotBlank() && state.root != null &&
+                (!state.isSidecar || state.selectedFolderId != null),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.import_start))
+        }
+        if (state.isInspecting) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+        ErrorText(state)
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                RootInfoRow(
+                    rootName = state.root?.displayName
+                        ?: stringResource(R.string.import_root_not_selected),
+                    canChange = !state.isRunning && !state.isInspecting,
+                    onChange = onRootPicked,
+                )
+            }
+        }
+        UpdateControls(
+            state = state,
+            onCancel = onCancel,
+            onResume = onResume,
+        )
     }
 }
 
@@ -412,9 +499,6 @@ private fun UpdateControls(
         item.jobState is ImportJobState.Cancelled || item.jobState is ImportJobState.Failed
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (state.isInspecting) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
         if (state.isRunning) {
             TextButton(onClick = onCancel) {
                 Text(
