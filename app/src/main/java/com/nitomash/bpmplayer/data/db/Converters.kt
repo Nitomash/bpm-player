@@ -17,4 +17,20 @@ class Converters {
 
     @TypeConverter
     fun playlistTrackSortToValue(sort: PlaylistTrackSort?): Int? = sort?.value
+
+    @TypeConverter
+    fun stringListFromValue(value: String?): List<String> =
+        value?.takeIf { it.isNotEmpty() }
+            ?.split(LINK_SEPARATOR)
+            ?.filter { it.isNotBlank() }
+            ?.distinct()
+            ?: emptyList()
+
+    @TypeConverter
+    fun stringListToValue(value: List<String>?): String =
+        value?.filter { it.isNotBlank() }?.distinct()?.joinToString(LINK_SEPARATOR).orEmpty()
+
+    private companion object {
+        const val LINK_SEPARATOR = "\u001F"
+    }
 }

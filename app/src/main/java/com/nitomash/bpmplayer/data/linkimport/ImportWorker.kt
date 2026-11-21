@@ -1,11 +1,13 @@
 package com.nitomash.bpmplayer.data.linkimport
 
 import android.content.Context
+import android.net.Uri
 import android.widget.Toast
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.nitomash.bpmplayer.R
+import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobId
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobStatus
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobStore
@@ -26,6 +28,7 @@ class ImportWorker @AssistedInject constructor(
     private val orchestrator: ImportOrchestrator,
     private val jobStore: ImportJobStore,
     private val notifier: ImportNotifier,
+    private val musicRepository: MusicRepository,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -34,6 +37,7 @@ class ImportWorker @AssistedInject constructor(
         val link = jobStore.getLink(jobId)
             ?: return Result.failure(workDataOf(KEY_ERROR to "missing link"))
         val folderName = inputData.getString(KEY_FOLDER_NAME)
+        val targetDir = inputData.getString(KEY_TARGET_DIR)
 
         var lastNotificationMs = 0L
         var lastProgressMs = 0L
@@ -48,7 +52,7 @@ class ImportWorker @AssistedInject constructor(
                     indeterminate = true,
                 ),
             )
-            val outcome = orchestrator.run(jobId, link, folderName) { progress ->
+            val outcome = orchestrator.run(jobId, link, folderName, targetDir) { progress ->
                 val now = System.currentTimeMillis()
                 if (now - lastProgressMs >= PROGRESS_INTERVAL_MS) {
                     lastProgressMs = now
@@ -95,6 +99,13 @@ class ImportWorker @AssistedInject constructor(
             }
         } catch (e: CancellationException) {
             withContext(NonCancellable) {
+                val snapshot = jobStore.get(jobId)
+                if (snapshot != null && snapshot.downloadedFiles > 0 &&
+                    snapshot.destinationUri != null
+                ) {
+                    val folder = musicRepository.addFolder(Uri.parse(snapshot.destinationUri))
+                    musicRepository.addSourceLinks(folder.folderId, listOf(link))
+                }
                 jobStore.update(
                     jobId,
                     ImportJobUpdate(status = ImportJobStatus.CANCELLED, clearLink = true),
@@ -119,6 +130,7 @@ class ImportWorker @AssistedInject constructor(
     companion object {
         const val KEY_JOB_ID = "job_id"
         const val KEY_FOLDER_NAME = "folder_name"
+        const val KEY_TARGET_DIR = "target_dir"
         const val KEY_ERROR = "error"
         const val KEY_CURRENT_PATH = "current_path"
         const val KEY_COMPLETED = "completed"

@@ -64,7 +64,9 @@
 
     <string name="library_add_folder">Выбрать папку</string>
     <string name="library_sort">Сортировать</string>
-    <string name="library_refresh">Обновить</string>
+    <string name="library_refresh">Обновить с диска</string>
+    <string name="library_update_network">Обновить из сети</string>
+    <string name="library_source_links">Загружено по ссылке</string>
     <string name="library_collapse">Свернуть папку</string>
     <string name="library_expand">Развернуть папку</string>
     <string name="library_sort_by_name">По названию</string>
@@ -263,12 +265,18 @@
     <string name="import_link_label">Ссылка на коллекцию</string>
     <string name="import_folder_label">Название коллекции</string>
     <string name="import_folder_hint">Из имени источника</string>
+    <string name="import_folder_select">Выберите коллекцию</string>
+    <string name="import_folder_empty">Нет добавленных коллекций</string>
     <string name="import_root_not_selected">Хранилище не выбрано</string>
     <string name="import_root_change">Изменить</string>
     <string name="import_root_value">Хранилище: %1$s</string>
     <string name="import_info_title">Информация о загрузке</string>
     <string name="import_start">Скачать</string>
     <string name="import_cancel">Отменить</string>
+    <string name="import_resume">Возобновить</string>
+    <string name="import_update_title">Обновление из сети</string>
+    <string name="import_update_folder">Коллекция: %1$s</string>
+    <string name="import_update_empty">У папки нет сохранённых ссылок</string>
     <string name="import_preview_summary">Файлов в коллекции: %1$d, папок: %2$d</string>
     <string name="import_progress">%1$d / %2$d</string>
     <string name="import_state_queued">В очереди</string>

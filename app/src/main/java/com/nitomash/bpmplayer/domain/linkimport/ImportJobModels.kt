@@ -6,6 +6,12 @@ value class ImportJobId(val value: String)
 data class ImportRequest(
     val link: String,
     val targetFolderName: String?,
+    val targetDirectoryUri: String? = null,
+)
+
+data class ResolvedImportName(
+    val name: String,
+    val isSidecar: Boolean,
 )
 
 data class ImportPreview(

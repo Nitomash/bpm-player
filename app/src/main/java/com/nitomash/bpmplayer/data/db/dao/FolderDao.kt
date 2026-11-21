@@ -16,6 +16,9 @@ interface FolderDao {
     @Query("UPDATE folders SET display_name = :displayName WHERE id = :id")
     suspend fun updateDisplayName(id: Long, displayName: String)
 
+    @Query("UPDATE folders SET source_links = :links WHERE id = :id")
+    suspend fun updateSourceLinks(id: Long, links: List<String>)
+
     @Query("SELECT * FROM folders WHERE root_uri = :rootUri LIMIT 1")
     suspend fun getByRootUri(rootUri: String): FolderEntity?
 

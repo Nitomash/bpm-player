@@ -15,8 +15,10 @@ interface MusicRepository {
 
     suspend fun getTracksWithBpm(): List<TrackEntity>
     suspend fun getFolders(): List<FolderEntity>
+    suspend fun getFolder(id: Long): FolderEntity?
     suspend fun getByFolder(folderId: Long): List<TrackEntity>
     suspend fun addFolder(uri: Uri): FolderScanResult
+    suspend fun addSourceLinks(folderId: Long, links: List<String>)
     suspend fun removeFolder(folderId: Long)
     suspend fun rescanFolder(folderId: Long): FolderScanResult?
     suspend fun updateBpm(trackId: Long, bpm: Double, source: BpmSource)

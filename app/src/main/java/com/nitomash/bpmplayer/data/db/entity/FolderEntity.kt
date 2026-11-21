@@ -14,4 +14,6 @@ data class FolderEntity(
     val displayName: String,
     @ColumnInfo(name = "added_at_ms")
     val addedAtMs: Long,
+    @ColumnInfo(name = "source_links")
+    val sourceLinks: List<String> = emptyList(),
 )

@@ -48,6 +48,7 @@ import com.nitomash.bpmplayer.ui.about.ABOUT_ROUTE
 import com.nitomash.bpmplayer.ui.about.AboutScreen
 import com.nitomash.bpmplayer.ui.editor.MassBpmScreen
 import com.nitomash.bpmplayer.ui.editor.MassBpmViewModel
+import com.nitomash.bpmplayer.ui.importlink.IMPORT_ARG_FOLDER_ID
 import com.nitomash.bpmplayer.ui.importlink.IMPORT_ARG_JOB_ID
 import com.nitomash.bpmplayer.ui.importlink.IMPORT_ROUTE
 import com.nitomash.bpmplayer.ui.importlink.ImportNavigation
@@ -165,6 +166,11 @@ fun BpmPlayerApp(importNavigation: ImportNavigation) {
                         onOpenAbout = { if (entry.isForeground()) navController.navigate(ABOUT_ROUTE) { launchSingleTop = true } },
                         onOpenTesting = { if (entry.isForeground()) navController.navigate(TESTING_ROUTE) { launchSingleTop = true } },
                         onOpenImport = { if (entry.isForeground()) navController.navigate(IMPORT_ROUTE) { launchSingleTop = true } },
+                        onOpenImportUpdate = { folderId ->
+                            if (entry.isForeground()) {
+                                navController.navigate(importRoute(folderId = folderId)) { launchSingleTop = true }
+                            }
+                        },
                     )
                 }
             }
@@ -265,12 +271,16 @@ fun BpmPlayerApp(importNavigation: ImportNavigation) {
                 )
             }
             composable(
-                route = "$IMPORT_ROUTE?$IMPORT_ARG_JOB_ID={$IMPORT_ARG_JOB_ID}",
+                route = "$IMPORT_ROUTE?$IMPORT_ARG_JOB_ID={$IMPORT_ARG_JOB_ID}&$IMPORT_ARG_FOLDER_ID={$IMPORT_ARG_FOLDER_ID}",
                 arguments = listOf(
                     navArgument(IMPORT_ARG_JOB_ID) {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null
+                    },
+                    navArgument(IMPORT_ARG_FOLDER_ID) {
+                        type = NavType.LongType
+                        defaultValue = -1L
                     },
                 ),
             ) { entry ->

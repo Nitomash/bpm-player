@@ -36,7 +36,7 @@ import com.nitomash.bpmplayer.data.db.entity.TrackTagEntity
         PlaylistOrderEntity::class,
         ImportJobEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -117,6 +117,12 @@ abstract class BpmDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE import_jobs ADD COLUMN up_to_date_files INTEGER NOT NULL DEFAULT 0",
                 )
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE folders ADD COLUMN source_links TEXT NOT NULL DEFAULT ''")
             }
         }
     }

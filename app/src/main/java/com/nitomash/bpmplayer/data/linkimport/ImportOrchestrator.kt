@@ -7,6 +7,7 @@ import com.nitomash.bpmplayer.domain.linkimport.AppLibraryRootRepository
 import com.nitomash.bpmplayer.domain.linkimport.DownloadedFileVerifier
 import com.nitomash.bpmplayer.domain.linkimport.ImportCounters
 import com.nitomash.bpmplayer.domain.linkimport.ImportDestination
+import com.nitomash.bpmplayer.domain.linkimport.ImportEntry
 import com.nitomash.bpmplayer.domain.linkimport.ImportFileKind
 import com.nitomash.bpmplayer.domain.linkimport.ImportFolderName
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobId
@@ -47,6 +48,7 @@ class ImportOrchestrator @Inject constructor(
         jobId: ImportJobId,
         link: String,
         targetFolderName: String?,
+        targetDirectoryUri: String? = null,
         onProgress: suspend (ImportProgress) -> Unit,
     ): ImportOutcome {
         val root = roots.getRoot() ?: throw PublicLinkException.RootMissing
@@ -56,10 +58,14 @@ class ImportOrchestrator @Inject constructor(
         jobStore.update(jobId, ImportJobUpdate(status = ImportJobStatus.PLANNING))
         val source = provider.inspect(link)
         val plan = planBuilder.build(source, limits)
-        val folderName = ImportFolderName.resolve(targetFolderName, source)
 
-        val targetDir = destination.findChild(root.uri, folderName)
-            ?: destination.createDirectory(root.uri, folderName)
+        val targetDir = if (!targetDirectoryUri.isNullOrBlank()) {
+            targetDirectoryUri
+        } else {
+            val folderName = ImportFolderName.resolve(targetFolderName, source)
+            destination.findChild(root.uri, folderName)
+                ?: destination.createDirectory(root.uri, folderName)
+        }
         jobStore.update(
             jobId,
             ImportJobUpdate(
@@ -84,6 +90,14 @@ class ImportOrchestrator @Inject constructor(
         }
 
         val downloadedUris = mutableMapOf<String, String>()
+        val entryCache = mutableMapOf<String, MutableMap<String, ImportEntry>>()
+        suspend fun entriesOf(parent: String): MutableMap<String, ImportEntry> {
+            entryCache[parent]?.let { return it }
+            val entries = destination.listChildren(parent).associateBy { it.name }.toMutableMap()
+            entryCache[parent] = entries
+            return entries
+        }
+
         var counters = ImportCounters()
         var lastCancelCheckMs = 0L
 
@@ -92,10 +106,11 @@ class ImportOrchestrator @Inject constructor(
             val parent = directoryUris[RelativeImportPath.parentOf(file.relativePath).value] ?: targetDir
             val name = RelativeImportPath.nameOf(file.relativePath)
             val remoteSize = file.source.sizeBytes
-            val present = destination.findChild(parent, name)
-            if (present != null && remoteSize != null && destination.sizeOf(present) == remoteSize) {
+            val present = entriesOf(parent)[name]
+            val upToDate = present != null && remoteSize != null && present.size == remoteSize
+            if (upToDate) {
                 counters = counters.fileAlreadyPresent()
-                downloadedUris[file.relativePath.value] = present
+                downloadedUris[file.relativePath.value] = present!!.uri
                 jobStore.update(
                     jobId,
                     ImportJobUpdate(
@@ -160,15 +175,16 @@ class ImportOrchestrator @Inject constructor(
                     )
                     continue
                 }
-                val existing = destination.findChild(parent, name)
-                if (existing != null && !destination.delete(existing)) {
+                if (present != null && !destination.delete(present.uri)) {
                     throw PublicLinkException.Protocol("cannot replace existing file")
                 }
+                if (present != null) entriesOf(parent).remove(name)
                 if (!destination.rename(part, name)) {
                     throw PublicLinkException.Protocol("cannot rename downloaded file")
                 }
                 finished = true
-                downloadedUris[file.relativePath.value] = destination.findChild(parent, name) ?: part
+                downloadedUris[file.relativePath.value] = part
+                entriesOf(parent)[name] = ImportEntry(name, part, file.source.sizeBytes)
                 counters = counters.fileDownloaded(file.source.sizeBytes)
                 jobStore.update(
                     jobId,
@@ -192,6 +208,7 @@ class ImportOrchestrator @Inject constructor(
         ensureNotCancelled(jobId)
         jobStore.update(jobId, ImportJobUpdate(status = ImportJobStatus.INDEXING))
         val scanResult = musicRepository.addFolder(Uri.parse(targetDir))
+        musicRepository.addSourceLinks(scanResult.folderId, listOf(link))
         val importedPlaylists = importPlaylists(plan.files, downloadedUris)
 
         jobStore.update(

@@ -1,7 +1,14 @@
 package com.nitomash.bpmplayer.domain.linkimport
 
+data class ImportEntry(
+    val name: String,
+    val uri: String,
+    val size: Long?,
+)
+
 interface ImportDestination {
     suspend fun findChild(parent: String, name: String): String?
+    suspend fun listChildren(parent: String): List<ImportEntry>
     suspend fun sizeOf(entry: String): Long?
     suspend fun createDirectory(parent: String, name: String): String
     suspend fun createFile(parent: String, name: String, mimeType: String): String

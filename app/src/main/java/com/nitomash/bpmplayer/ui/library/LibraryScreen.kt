@@ -5,6 +5,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
@@ -26,6 +29,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Checkbox
@@ -54,10 +58,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -74,6 +83,8 @@ import com.nitomash.bpmplayer.ui.editor.BpmEditorDialog
 import com.nitomash.bpmplayer.ui.editor.MassBpmScope
 import com.nitomash.bpmplayer.ui.editor.MassBpmSetupDialog
 
+private const val GLOBE_INLINE = "globe"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
@@ -84,6 +95,7 @@ fun LibraryScreen(
     onOpenAbout: () -> Unit = {},
     onOpenTesting: () -> Unit = {},
     onOpenImport: () -> Unit = {},
+    onOpenImportUpdate: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val foldersOrNull by viewModel.folders.collectAsStateWithLifecycle()
@@ -353,6 +365,7 @@ fun LibraryScreen(
                                                     "${safeFileName(folder.displayName)}.$SIDECAR_EXTENSION",
                                                 )
                                             },
+                                            onUpdateNetwork = { onOpenImportUpdate(folder.id) },
                                         )
                                     }
                                     if (!collapsed) {
@@ -541,9 +554,13 @@ private fun FolderHeader(
     onDelete: () -> Unit,
     onImportInfo: () -> Unit,
     onExportInfo: () -> Unit,
+    onUpdateNetwork: () -> Unit,
 ) {
     var sortMenuOpen by remember { mutableStateOf(false) }
     var actionsMenuOpen by remember { mutableStateOf(false) }
+    val hasSourceLinks = folder.sourceLinks.isNotEmpty()
+    val globeInlineContent = GLOBE_INLINE
+    val globeSize = with(LocalDensity.current) { 14.sp.toDp() }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -563,9 +580,36 @@ private fun FolderHeader(
                 ),
             )
             Column(modifier = Modifier.padding(start = 8.dp)) {
+                val title = buildAnnotatedString {
+                    append(folder.displayName)
+                    if (hasSourceLinks) {
+                        append(' ')
+                        appendInlineContent(globeInlineContent)
+                    }
+                }
                 Text(
-                    text = folder.displayName,
+                    text = title,
                     style = MaterialTheme.typography.titleMedium,
+                    inlineContent = if (hasSourceLinks) {
+                        mapOf(
+                            globeInlineContent to InlineTextContent(
+                                Placeholder(
+                                    width = 14.sp,
+                                    height = 14.sp,
+                                    placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+                                ),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Public,
+                                    contentDescription = stringResource(R.string.library_source_links),
+                                    modifier = Modifier.size(globeSize),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                )
+                            },
+                        )
+                    } else {
+                        emptyMap()
+                    },
                 )
                 Text(
                     text = pluralStringResource(R.plurals.track_count, trackCount, trackCount),
@@ -621,6 +665,15 @@ private fun FolderHeader(
                         onRefresh()
                     },
                 )
+                if (hasSourceLinks) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.library_update_network)) },
+                        onClick = {
+                            actionsMenuOpen = false
+                            onUpdateNetwork()
+                        },
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.folder_import_info)) },
                     onClick = {

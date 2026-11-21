@@ -34,6 +34,8 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun getFolders(): List<FolderEntity> = folderDao.getAll()
 
+    override suspend fun getFolder(id: Long): FolderEntity? = folderDao.getById(id)
+
     override suspend fun getByFolder(folderId: Long): List<TrackEntity> = trackDao.getByFolder(folderId)
 
     override suspend fun addFolder(uri: Uri): FolderScanResult {
@@ -60,6 +62,12 @@ class MusicRepositoryImpl @Inject constructor(
         val newUndefined = trackDao.getByFolder(folderId).count { it.bpm == null }
         Log.i(TAG, "addFolder: done for folder $folderId, $newUndefined undefined")
         return FolderScanResult(folderId = folderId, newUndefinedTracks = newUndefined)
+    }
+
+    override suspend fun addSourceLinks(folderId: Long, links: List<String>) {
+        val folder = folderDao.getById(folderId) ?: return
+        val merged = (folder.sourceLinks + links).distinct()
+        if (merged != folder.sourceLinks) folderDao.updateSourceLinks(folderId, merged)
     }
 
     override suspend fun rescanFolder(folderId: Long): FolderScanResult? {

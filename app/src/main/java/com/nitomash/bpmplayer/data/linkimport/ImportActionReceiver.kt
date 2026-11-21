@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobId
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkImportUseCase
-import com.nitomash.bpmplayer.ui.common.BpmLog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,10 +19,8 @@ class ImportActionReceiver : BroadcastReceiver() {
     lateinit var importUseCase: PublicLinkImportUseCase
 
     override fun onReceive(context: Context, intent: Intent) {
-        BpmLog.d("IMPORT_CANCEL onReceive action=${intent.action}")
         if (intent.action != ImportActions.CANCEL) return
         val jobId = intent.getStringExtra(ImportActions.EXTRA_JOB_ID)?.let(::ImportJobId) ?: return
-        BpmLog.d("IMPORT_CANCEL onReceive jobId=${jobId.value}")
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
             try {
