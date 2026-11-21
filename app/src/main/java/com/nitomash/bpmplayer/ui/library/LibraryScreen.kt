@@ -118,6 +118,7 @@ fun LibraryScreen(
     var moreMenuOpen by remember { mutableStateOf(false) }
     var addMenuOpen by remember { mutableStateOf(false) }
     var showMassSetup by remember { mutableStateOf(false) }
+    var massSetupInitialFolderIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var importTargetFolder by remember { mutableStateOf<FolderEntity?>(null) }
     var exportTargetFolder by remember { mutableStateOf<FolderEntity?>(null) }
     var bpmPromptArgs by remember { mutableStateOf<LibraryViewModel.SuggestBpmArgs?>(null) }
@@ -225,6 +226,7 @@ fun LibraryScreen(
                             onClick = {
                                 moreMenuOpen = false
                                 viewModel.markMassBpmSetupOpened()
+                                massSetupInitialFolderIds = emptySet()
                                 showMassSetup = true
                             },
                         )
@@ -366,6 +368,11 @@ fun LibraryScreen(
                                                 )
                                             },
                                             onUpdateNetwork = { onOpenImportUpdate(folder.id) },
+                                            onDetectBpm = {
+                                                viewModel.markMassBpmSetupOpened()
+                                                massSetupInitialFolderIds = setOf(folder.id)
+                                                showMassSetup = true
+                                            },
                                         )
                                     }
                                     if (!collapsed) {
@@ -432,6 +439,7 @@ fun LibraryScreen(
                 onOpenMassBpm(scope, folderIds)
             },
             onDismiss = { showMassSetup = false },
+            initialFolderIds = massSetupInitialFolderIds,
         )
     }
 
@@ -555,6 +563,7 @@ private fun FolderHeader(
     onImportInfo: () -> Unit,
     onExportInfo: () -> Unit,
     onUpdateNetwork: () -> Unit,
+    onDetectBpm: () -> Unit,
 ) {
     var sortMenuOpen by remember { mutableStateOf(false) }
     var actionsMenuOpen by remember { mutableStateOf(false) }
@@ -674,6 +683,13 @@ private fun FolderHeader(
                         },
                     )
                 }
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.library_detect_bpm)) },
+                    onClick = {
+                        actionsMenuOpen = false
+                        onDetectBpm()
+                    },
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.folder_import_info)) },
                     onClick = {

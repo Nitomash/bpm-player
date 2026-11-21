@@ -30,10 +30,11 @@ fun MassBpmSetupDialog(
     folders: List<FolderEntity>,
     onNext: (scope: MassBpmScope, folderIds: Set<Long>) -> Unit,
     onDismiss: () -> Unit,
+    initialFolderIds: Set<Long> = emptySet(),
 ) {
     var scope by rememberSaveable { mutableStateOf(MassBpmScope.UNDEFINED_ONLY) }
-    var allFolders by rememberSaveable { mutableStateOf(true) }
-    var selectedFolderIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
+    var allFolders by rememberSaveable { mutableStateOf(initialFolderIds.isEmpty()) }
+    var selectedFolderIds by rememberSaveable { mutableStateOf(initialFolderIds) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

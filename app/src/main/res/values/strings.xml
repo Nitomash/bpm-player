@@ -66,6 +66,7 @@
     <string name="library_sort">Сортировать</string>
     <string name="library_refresh">Обновить с диска</string>
     <string name="library_update_network">Обновить из сети</string>
+    <string name="library_detect_bpm">Определить BPM</string>
     <string name="library_source_links">Загружено по ссылке</string>
     <string name="library_collapse">Свернуть папку</string>
     <string name="library_expand">Развернуть папку</string>
