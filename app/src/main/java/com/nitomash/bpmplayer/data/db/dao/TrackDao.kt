@@ -33,6 +33,20 @@ interface TrackDao {
     @Query("SELECT * FROM tracks ORDER BY title")
     fun observeAll(): Flow<List<TrackEntity>>
 
+    @Query(
+        """
+        SELECT t.* FROM tracks AS t
+        WHERE NOT EXISTS (
+            SELECT 1 FROM tracks AS earlier
+            WHERE earlier.folder_id = t.folder_id
+              AND earlier.duplicate_key = t.duplicate_key
+              AND earlier.relative_path < t.relative_path
+        )
+        ORDER BY t.title
+        """,
+    )
+    fun observeFirstOccurrences(): Flow<List<TrackEntity>>
+
     @Query("SELECT * FROM tracks")
     suspend fun getAll(): List<TrackEntity>
 

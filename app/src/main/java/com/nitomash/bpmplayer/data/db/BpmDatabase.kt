@@ -36,7 +36,7 @@ import com.nitomash.bpmplayer.data.db.entity.TrackTagEntity
         PlaylistOrderEntity::class,
         ImportJobEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -123,6 +123,28 @@ abstract class BpmDatabase : RoomDatabase() {
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE folders ADD COLUMN source_links TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tracks ADD COLUMN duplicate_key TEXT NOT NULL DEFAULT ''")
+                db.query("SELECT id, file_name FROM tracks").use { cursor ->
+                    val idIndex = cursor.getColumnIndexOrThrow("id")
+                    val nameIndex = cursor.getColumnIndexOrThrow("file_name")
+                    db.compileStatement("UPDATE tracks SET duplicate_key = ? WHERE id = ?").use { statement ->
+                        while (cursor.moveToNext()) {
+                            statement.bindString(1, trackDuplicateKey(cursor.getString(nameIndex)))
+                            statement.bindLong(2, cursor.getLong(idIndex))
+                            statement.executeUpdateDelete()
+                            statement.clearBindings()
+                        }
+                    }
+                }
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_tracks_folder_id_duplicate_key_relative_path` " +
+                        "ON `tracks` (`folder_id`, `duplicate_key`, `relative_path`)",
+                )
             }
         }
     }

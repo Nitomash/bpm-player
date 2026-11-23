@@ -47,6 +47,7 @@ object AppModule {
                 BpmDatabase.MIGRATION_3_4,
                 BpmDatabase.MIGRATION_4_5,
                 BpmDatabase.MIGRATION_5_6,
+                BpmDatabase.MIGRATION_6_7,
             )
             .build()
 

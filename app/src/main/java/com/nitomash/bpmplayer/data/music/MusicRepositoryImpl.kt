@@ -5,6 +5,7 @@ import android.util.Log
 import com.nitomash.bpmplayer.data.db.dao.FolderDao
 import com.nitomash.bpmplayer.data.db.dao.TrackDao
 import com.nitomash.bpmplayer.data.db.dao.TrackTagDao
+import com.nitomash.bpmplayer.data.db.firstTrackOccurrences
 import com.nitomash.bpmplayer.data.db.entity.BpmSource
 import com.nitomash.bpmplayer.data.db.entity.FolderEntity
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
@@ -24,7 +25,7 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun observeFolders(): Flow<List<FolderEntity>> = folderDao.observeAll()
 
-    override fun observeTracks(): Flow<List<TrackEntity>> = trackDao.observeAll()
+    override fun observeTracks(): Flow<List<TrackEntity>> = trackDao.observeFirstOccurrences()
 
     override fun observeById(id: Long): Flow<TrackEntity?> = trackDao.observeById(id)
 
@@ -59,7 +60,7 @@ class MusicRepositoryImpl @Inject constructor(
         Log.i(TAG, "addFolder: ${drafts.size} drafts for folder $folderId")
         insertDrafts(folderId, drafts)
         importSidecars(uri, folderId, recursive = true)
-        val newUndefined = trackDao.getByFolder(folderId).count { it.bpm == null }
+        val newUndefined = firstTrackOccurrences(trackDao.getByFolder(folderId)).count { it.bpm == null }
         Log.i(TAG, "addFolder: done for folder $folderId, $newUndefined undefined")
         return FolderScanResult(folderId = folderId, newUndefinedTracks = newUndefined)
     }
@@ -72,7 +73,9 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun rescanFolder(folderId: Long): FolderScanResult? {
         val folder = folderDao.getById(folderId) ?: return null
-        val existingPaths = trackDao.getByFolder(folderId).map { it.relativePath }.toSet()
+        val tracksBefore = trackDao.getByFolder(folderId)
+        val existingPaths = tracksBefore.map { it.relativePath }.toSet()
+        val visiblePathsBefore = firstTrackOccurrences(tracksBefore).map { it.relativePath }.toSet()
         val drafts = folderScanner.scan(Uri.parse(folder.rootUri))
         Log.i(TAG, "rescanFolder $folderId: ${drafts.size} drafts")
         insertDrafts(folderId, drafts)
@@ -80,8 +83,8 @@ class MusicRepositoryImpl @Inject constructor(
         val missingPaths = existingPaths - scannedPaths
         trackDao.deleteByPaths(folderId, missingPaths.toList())
         importSidecars(Uri.parse(folder.rootUri), folderId, recursive = false)
-        val newUndefined = trackDao.getByFolder(folderId)
-            .count { it.relativePath !in existingPaths && it.bpm == null }
+        val newUndefined = firstTrackOccurrences(trackDao.getByFolder(folderId))
+            .count { it.relativePath !in visiblePathsBefore && it.bpm == null }
         Log.i(
             TAG,
             "rescanFolder $folderId: ${missingPaths.size} stale tracks removed, " +

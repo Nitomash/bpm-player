@@ -5,12 +5,14 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.nitomash.bpmplayer.data.db.trackDuplicateKey
 
 @Entity(
     tableName = "tracks",
     indices = [
         Index(value = ["folder_id"]),
         Index(value = ["folder_id", "relative_path"], unique = true),
+        Index(value = ["folder_id", "duplicate_key", "relative_path"]),
         Index(value = ["access_uri"], unique = true),
         Index(value = ["bpm"]),
         Index(value = ["title"]),
@@ -46,4 +48,6 @@ data class TrackEntity(
     val bpmSource: BpmSource? = null,
     @ColumnInfo(name = "added_at_ms")
     val addedAtMs: Long,
+    @ColumnInfo(name = "duplicate_key")
+    val duplicateKey: String = trackDuplicateKey(fileName),
 )
