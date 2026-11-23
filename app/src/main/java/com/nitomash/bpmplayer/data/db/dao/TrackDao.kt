@@ -22,6 +22,36 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE folder_id = :folderId ORDER BY title")
     suspend fun getByFolder(folderId: Long): List<TrackEntity>
 
+    @Query(
+        """
+        SELECT t.* FROM tracks AS t
+        WHERE t.folder_id = :folderId
+          AND NOT EXISTS (
+              SELECT 1 FROM tracks AS earlier
+              WHERE earlier.folder_id = t.folder_id
+                AND earlier.duplicate_key = t.duplicate_key
+                AND earlier.relative_path < t.relative_path
+          )
+        ORDER BY t.title
+        """,
+    )
+    fun observeFirstOccurrencesByFolder(folderId: Long): Flow<List<TrackEntity>>
+
+    @Query(
+        """
+        SELECT t.* FROM tracks AS t
+        WHERE t.folder_id = :folderId
+          AND NOT EXISTS (
+              SELECT 1 FROM tracks AS earlier
+              WHERE earlier.folder_id = t.folder_id
+                AND earlier.duplicate_key = t.duplicate_key
+                AND earlier.relative_path < t.relative_path
+          )
+        ORDER BY t.title
+        """,
+    )
+    suspend fun getFirstOccurrencesByFolder(folderId: Long): List<TrackEntity>
+
     @Query("DELETE FROM tracks WHERE folder_id = :folderId AND relative_path IN (:paths)")
     suspend fun deleteByPathsChunk(folderId: Long, paths: List<String>)
 
@@ -59,7 +89,18 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE id = :id")
     suspend fun getById(id: Long): TrackEntity?
 
-    @Query("SELECT * FROM tracks WHERE bpm IS NOT NULL")
+    @Query(
+        """
+        SELECT t.* FROM tracks AS t
+        WHERE t.bpm IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM tracks AS earlier
+              WHERE earlier.folder_id = t.folder_id
+                AND earlier.duplicate_key = t.duplicate_key
+                AND earlier.relative_path < t.relative_path
+          )
+        """,
+    )
     suspend fun getWithBpm(): List<TrackEntity>
 
     @Query("UPDATE tracks SET bpm = :bpm, bpm_source = :bpmSource WHERE id = :trackId")

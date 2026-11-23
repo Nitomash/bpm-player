@@ -37,7 +37,8 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun getFolder(id: Long): FolderEntity? = folderDao.getById(id)
 
-    override suspend fun getByFolder(folderId: Long): List<TrackEntity> = trackDao.getByFolder(folderId)
+    override suspend fun getByFolder(folderId: Long): List<TrackEntity> =
+        trackDao.getFirstOccurrencesByFolder(folderId)
 
     override suspend fun addFolder(uri: Uri): FolderScanResult {
         val rootUri = uri.toString()
