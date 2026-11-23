@@ -3,6 +3,7 @@ package com.nitomash.bpmplayer.domain.linkimport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SupportedImportFormatsTest {
@@ -28,6 +29,14 @@ class SupportedImportFormatsTest {
     @Test
     fun `non audio mime type does not override a known extension`() {
         assertEquals(ImportFileKind.PLAYLIST, SupportedImportFormats.classify("set.xspf", "application/octet-stream"))
+    }
+
+    @Test
+    fun `supported audio extension depends only on file extension`() {
+        assertTrue(SupportedImportFormats.isSupportedAudioExtension("mix.MP3"))
+        assertTrue(SupportedImportFormats.isSupportedAudioExtension("album/mix.flac"))
+        assertFalse(SupportedImportFormats.isSupportedAudioExtension("album/cover.jpg"))
+        assertFalse(SupportedImportFormats.isSupportedAudioExtension("no-extension"))
     }
 
     @Test

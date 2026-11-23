@@ -90,8 +90,8 @@ class FolderScanner @Inject constructor(
             documentId = documentId,
             relativePath = relativePath,
             rootDocumentId = rootDocumentId,
-            onFile = { childId, name, mime ->
-                if (isAudio(name, mime)) {
+            onFile = { childId, name ->
+                if (SupportedImportFormats.isSupportedAudioExtension(name)) {
                     out += TrackDraft(
                         accessUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId).toString(),
                         relativePath = if (relativePath.isEmpty()) name else "$relativePath/$name",
@@ -117,7 +117,7 @@ class FolderScanner @Inject constructor(
             documentId = documentId,
             relativePath = relativePath,
             rootDocumentId = rootDocumentId,
-            onFile = { childId, name, _ ->
+            onFile = { childId, name ->
                 if (name.endsWith(".$SIDECAR_EXTENSION", ignoreCase = true)) {
                     out += SidecarDoc(
                         uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId),
@@ -136,7 +136,7 @@ class FolderScanner @Inject constructor(
         documentId: String,
         relativePath: String,
         rootDocumentId: String,
-        onFile: (childId: String, name: String, mimeType: String?) -> Unit,
+        onFile: (childId: String, name: String) -> Unit,
         onDirectory: suspend (childId: String, childPath: String) -> Unit,
     ) {
         checkActive()
@@ -171,7 +171,7 @@ class FolderScanner @Inject constructor(
                             onDirectory(childId, childPath)
                         }
 
-                        else -> onFile(childId, name, mime)
+                        else -> onFile(childId, name)
                     }
                 }
             }
@@ -187,16 +187,8 @@ class FolderScanner @Inject constructor(
         }
     }
 
-    private fun isAudio(fileName: String, mimeType: String?): Boolean {
-        if (mimeType?.startsWith(AUDIO_MIME_PREFIX) == true) return true
-        val extension = fileName.substringAfterLast('.', "").lowercase()
-        return extension in AUDIO_EXTENSIONS
-    }
-
     companion object {
         private const val DIRECTORY_MIME_TYPE = DocumentsContract.Document.MIME_TYPE_DIR
-        private const val AUDIO_MIME_PREFIX = "audio/"
-        private val AUDIO_EXTENSIONS = SupportedImportFormats.AUDIO_EXTENSIONS
         private val COLUMNS = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME,

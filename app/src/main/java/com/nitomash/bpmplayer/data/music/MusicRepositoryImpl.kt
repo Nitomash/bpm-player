@@ -57,12 +57,19 @@ class MusicRepositoryImpl @Inject constructor(
             ),
         )
 
+        val existingPaths = trackDao.getByFolder(folderId).map { it.relativePath }.toSet()
         val drafts = folderScanner.scan(uri)
         Log.i(TAG, "addFolder: ${drafts.size} drafts for folder $folderId")
         insertDrafts(folderId, drafts)
+        val scannedPaths = drafts.map { it.relativePath }.toSet()
+        val stalePaths = staleTrackPaths(existingPaths, scannedPaths)
+        trackDao.deleteByPaths(folderId, stalePaths.toList())
         importSidecars(uri, folderId, recursive = true)
         val newUndefined = firstTrackOccurrences(trackDao.getByFolder(folderId)).count { it.bpm == null }
-        Log.i(TAG, "addFolder: done for folder $folderId, $newUndefined undefined")
+        Log.i(
+            TAG,
+            "addFolder: done for folder $folderId, ${stalePaths.size} stale tracks removed, $newUndefined undefined",
+        )
         return FolderScanResult(folderId = folderId, newUndefinedTracks = newUndefined)
     }
 
@@ -81,14 +88,14 @@ class MusicRepositoryImpl @Inject constructor(
         Log.i(TAG, "rescanFolder $folderId: ${drafts.size} drafts")
         insertDrafts(folderId, drafts)
         val scannedPaths = drafts.map { it.relativePath }.toSet()
-        val missingPaths = existingPaths - scannedPaths
-        trackDao.deleteByPaths(folderId, missingPaths.toList())
+        val stalePaths = staleTrackPaths(existingPaths, scannedPaths)
+        trackDao.deleteByPaths(folderId, stalePaths.toList())
         importSidecars(Uri.parse(folder.rootUri), folderId, recursive = false)
         val newUndefined = firstTrackOccurrences(trackDao.getByFolder(folderId))
             .count { it.relativePath !in visiblePathsBefore && it.bpm == null }
         Log.i(
             TAG,
-            "rescanFolder $folderId: ${missingPaths.size} stale tracks removed, " +
+            "rescanFolder $folderId: ${stalePaths.size} stale tracks removed, " +
                 "$newUndefined new undefined",
         )
         return FolderScanResult(folderId = folderId, newUndefinedTracks = newUndefined)

@@ -14,6 +14,9 @@ object SupportedImportFormats {
     fun extensionOf(fileName: String): String =
         fileName.substringAfterLast('.', "").lowercase()
 
+    fun isSupportedAudioExtension(fileName: String): Boolean =
+        extensionOf(fileName) in AUDIO_EXTENSIONS
+
     fun classify(fileName: String, mimeType: String? = null): ImportFileKind? {
         if (mimeType?.startsWith("audio/", ignoreCase = true) == true) return ImportFileKind.AUDIO
         return when (extensionOf(fileName)) {
