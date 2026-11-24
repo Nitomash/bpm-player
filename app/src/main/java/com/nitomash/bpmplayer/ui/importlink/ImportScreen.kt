@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenuItem
@@ -84,6 +85,10 @@ fun importRoute(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImportScreen(
+    showLinkHandlingHint: Boolean,
+    linkHandlingHintDismissed: Boolean,
+    onOpenLinkHandlingSettings: () -> Unit,
+    onDismissLinkHandlingHint: () -> Unit,
     onBack: () -> Unit,
     viewModel: ImportViewModel = hiltViewModel(),
 ) {
@@ -105,6 +110,24 @@ fun ImportScreen(
         ) {
             notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    if (showLinkHandlingHint && !linkHandlingHintDismissed) {
+        AlertDialog(
+            onDismissRequest = onDismissLinkHandlingHint,
+            title = { Text(stringResource(R.string.link_handling_hint_title)) },
+            text = { Text(stringResource(R.string.link_handling_hint_message)) },
+            confirmButton = {
+                TextButton(onClick = onOpenLinkHandlingSettings) {
+                    Text(stringResource(R.string.link_handling_hint_open_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissLinkHandlingHint) {
+                    Text(stringResource(R.string.link_handling_hint_later))
+                }
+            },
+        )
     }
 
     Scaffold(

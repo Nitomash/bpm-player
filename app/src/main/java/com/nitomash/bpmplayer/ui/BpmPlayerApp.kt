@@ -70,7 +70,15 @@ import com.nitomash.bpmplayer.ui.testing.TESTING_ROUTE
 import com.nitomash.bpmplayer.ui.testing.TestingScreen
 
 @Composable
-fun BpmPlayerApp(importNavigation: ImportNavigation) {
+fun BpmPlayerApp(
+    importNavigation: ImportNavigation,
+    showLinkHandlingHint: Boolean,
+    startupHintDismissed: Boolean,
+    importHintDismissed: Boolean,
+    onOpenLinkHandlingSettings: () -> Unit,
+    onDismissStartupHint: () -> Unit,
+    onDismissImportHint: () -> Unit,
+) {
     val navController = rememberNavController()
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val betaIntroViewModel: BetaIntroViewModel = hiltViewModel()
@@ -124,6 +132,13 @@ fun BpmPlayerApp(importNavigation: ImportNavigation) {
                     Text(stringResource(R.string.testing_intro_accept))
                 }
             },
+        )
+    }
+
+    if (showLinkHandlingHint && !startupHintDismissed) {
+        LinkHandlingHintDialog(
+            onDismiss = onDismissStartupHint,
+            onOpenSettings = onOpenLinkHandlingSettings,
         )
     }
 
@@ -296,11 +311,37 @@ fun BpmPlayerApp(importNavigation: ImportNavigation) {
                     onSelect = selectTopLevel,
                 ) {
                     ImportScreen(
+                        showLinkHandlingHint = showLinkHandlingHint,
+                        linkHandlingHintDismissed = importHintDismissed,
+                        onOpenLinkHandlingSettings = onOpenLinkHandlingSettings,
+                        onDismissLinkHandlingHint = onDismissImportHint,
                         onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                     )
                 }
             }
         }
+}
+
+@Composable
+private fun LinkHandlingHintDialog(
+    onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.link_handling_hint_title)) },
+        text = { Text(stringResource(R.string.link_handling_hint_message)) },
+        confirmButton = {
+            TextButton(onClick = onOpenSettings) {
+                Text(stringResource(R.string.link_handling_hint_open_settings))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.link_handling_hint_later))
+            }
+        },
+    )
 }
 
 @Composable

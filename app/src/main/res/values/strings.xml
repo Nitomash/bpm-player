@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">BPM Player</string>
+    <string name="link_handling_hint_title">Открытие ссылок</string>
+    <string name="link_handling_hint_message">Чтобы был доступен удобный переход из внешних приложений для скачивания коллекций по ссылкам, нужно включить открытие поддерживаемых ссылок.</string>
+    <string name="link_handling_hint_open_settings">Открыть настройки</string>
+    <string name="link_handling_hint_later">Позже</string>
     <string name="nav_library">Аудиотека</string>
     <string name="nav_playlists">Плейлисты</string>
     <string name="nav_player">Плеер</string>

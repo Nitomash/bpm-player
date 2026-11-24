@@ -90,25 +90,26 @@ androidComponents {
     }
 }
 
-tasks.configureEach {
-    if (name == "signReleaseBundle") {
-        val outputDir = layout.buildDirectory.dir("outputs/bundle/release")
-        val targetName = "bpm-player_v$appVersionName.aab"
-        doLast {
-            val dir = outputDir.get().asFile
-            dir.listFiles()?.filter { it.extension == "aab" && it.name != targetName }?.forEach {
-                it.copyTo(File(dir, targetName), overwrite = true)
-            }
+tasks.matching { it.name == "signReleaseBundle" }.configureEach {
+    val targetName = "bpm-player_v$appVersionName.aab"
+    val outputDir = layout.buildDirectory.dir("outputs/bundle/release")
+    doLast {
+        val source = outputs.files.singleFile
+        val target = File(outputDir.get().asFile, targetName)
+        if (source.absoluteFile != target.absoluteFile) {
+            source.copyTo(target, overwrite = true)
         }
     }
-    if (name == "signDebugBundle") {
-        val outputDir = layout.buildDirectory.dir("outputs/bundle/debug")
-        val targetName = "bpm-player-debug_v$appVersionName.aab"
-        doLast {
-            val dir = outputDir.get().asFile
-            dir.listFiles()?.filter { it.extension == "aab" && it.name != targetName }?.forEach {
-                it.copyTo(File(dir, targetName), overwrite = true)
-            }
+}
+
+tasks.matching { it.name == "signDebugBundle" }.configureEach {
+    val targetName = "bpm-player-debug_v$appVersionName.aab"
+    val outputDir = layout.buildDirectory.dir("outputs/bundle/debug")
+    doLast {
+        val source = outputs.files.singleFile
+        val target = File(outputDir.get().asFile, targetName)
+        if (source.absoluteFile != target.absoluteFile) {
+            source.copyTo(target, overwrite = true)
         }
     }
 }
