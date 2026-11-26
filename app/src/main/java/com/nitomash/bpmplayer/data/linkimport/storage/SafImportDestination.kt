@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import com.nitomash.bpmplayer.domain.linkimport.ImportDestination
 import com.nitomash.bpmplayer.domain.linkimport.ImportEntry
+import com.nitomash.bpmplayer.domain.linkimport.ImportNameKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -35,7 +36,7 @@ class SafImportDestination @Inject constructor(
             val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
             while (cursor.moveToNext()) {
                 if (idIndex < 0 || nameIndex < 0) continue
-                if (cursor.getString(nameIndex) == name) {
+                if (ImportNameKey.matches(cursor.getString(nameIndex), name)) {
                     return@withContext DocumentsContract.buildDocumentUriUsingTree(
                         parentUri,
                         cursor.getString(idIndex),

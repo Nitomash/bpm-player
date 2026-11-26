@@ -35,6 +35,7 @@ class ImportJobStoreImpl @Inject constructor(
                 downloadedFiles = 0,
                 skippedFiles = 0,
                 upToDateFiles = 0,
+                duplicateNameFiles = 0,
                 downloadedBytes = 0L,
                 totalFiles = 0,
                 totalBytes = null,
@@ -74,6 +75,7 @@ class ImportJobStoreImpl @Inject constructor(
                 downloadedFiles = update.downloadedFiles ?: current.downloadedFiles,
                 skippedFiles = update.skippedFiles ?: current.skippedFiles,
                 upToDateFiles = update.upToDateFiles ?: current.upToDateFiles,
+                duplicateNameFiles = update.duplicateNameFiles ?: current.duplicateNameFiles,
                 downloadedBytes = update.downloadedBytes ?: current.downloadedBytes,
                 totalFiles = update.totalFiles ?: current.totalFiles,
                 totalBytes = update.totalBytes ?: current.totalBytes,
@@ -104,6 +106,7 @@ class ImportJobStoreImpl @Inject constructor(
         downloadedFiles = entity.downloadedFiles,
         skippedFiles = entity.skippedFiles,
         upToDateFiles = entity.upToDateFiles,
+        duplicateNameFiles = entity.duplicateNameFiles,
         errorMessage = entity.errorMessage,
     )
 }

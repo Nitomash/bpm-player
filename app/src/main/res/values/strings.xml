@@ -291,6 +291,14 @@
     <string name="import_state_planning">Читаю структуру…</string>
     <string name="import_state_indexing">Добавляю в аудиотеку…</string>
     <string name="import_state_completed">Загружено: %1$d</string>
+    <string name="import_state_skipped">Пропущено: %1$d</string>
+    <string name="import_state_up_to_date">Загружено ранее: %1$d</string>
+    <string name="import_state_duplicates">Дубли по написанию имени: %1$d</string>
+    <string name="import_duplicates_clean">Убрать дубли</string>
+    <string name="import_duplicates_clean_title">Убрать дубли по написанию имени?</string>
+    <string name="import_duplicates_clean_message">Будет удалено %1$d файлов с тем же именем в другой Unicode-форме. Файлы в стандартной форме останутся.</string>
+    <string name="import_duplicates_cleaned">Удалено дублей: %1$d</string>
+    <string name="import_duplicates_error">Не удалось убрать дубли</string>
     <string name="import_complete">Загрузка завершена</string>
     <string name="import_state_cancelled">Отменено</string>
     <string name="import_state_failed">Ошибка: %1$s</string>

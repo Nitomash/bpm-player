@@ -2,10 +2,10 @@ package com.nitomash.bpmplayer.data.linkimport
 
 import android.net.Uri
 import com.nitomash.bpmplayer.data.music.MusicRepository
-import com.nitomash.bpmplayer.data.playlist.xspf.XspfImporter
 import com.nitomash.bpmplayer.domain.linkimport.AppLibraryRootRepository
 import com.nitomash.bpmplayer.domain.linkimport.DownloadedFileVerifier
 import com.nitomash.bpmplayer.domain.linkimport.ImportCounters
+import com.nitomash.bpmplayer.domain.linkimport.ImportDuplicateNames
 import com.nitomash.bpmplayer.domain.linkimport.ImportDestination
 import com.nitomash.bpmplayer.domain.linkimport.ImportEntry
 import com.nitomash.bpmplayer.domain.linkimport.ImportFileKind
@@ -15,10 +15,12 @@ import com.nitomash.bpmplayer.domain.linkimport.ImportJobStatus
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobStore
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobUpdate
 import com.nitomash.bpmplayer.domain.linkimport.ImportLimits
+import com.nitomash.bpmplayer.domain.linkimport.ImportNameKey
 import com.nitomash.bpmplayer.domain.linkimport.ImportOutcome
 import com.nitomash.bpmplayer.domain.linkimport.ImportPlanBuilder
 import com.nitomash.bpmplayer.domain.linkimport.ImportProgress
 import com.nitomash.bpmplayer.domain.linkimport.PlannedFile
+import com.nitomash.bpmplayer.domain.linkimport.PlaylistImportSupport
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkException
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkProviderRegistry
 import com.nitomash.bpmplayer.domain.linkimport.RelativeImportPath
@@ -39,7 +41,7 @@ class ImportOrchestrator @Inject constructor(
     private val destination: ImportDestination,
     private val verifier: DownloadedFileVerifier,
     private val musicRepository: MusicRepository,
-    private val xspfImporter: XspfImporter,
+    private val playlistImport: PlaylistImportSupport,
     private val jobStore: ImportJobStore,
     private val limits: ImportLimits,
 ) {
@@ -89,24 +91,25 @@ class ImportOrchestrator @Inject constructor(
             directoryUris[path.value] = created
         }
 
+        var counters = ImportCounters()
+        var lastCancelCheckMs = 0L
         val downloadedUris = mutableMapOf<String, String>()
         val entryCache = mutableMapOf<String, MutableMap<String, ImportEntry>>()
         suspend fun entriesOf(parent: String): MutableMap<String, ImportEntry> {
             entryCache[parent]?.let { return it }
-            val entries = destination.listChildren(parent).associateBy { it.name }.toMutableMap()
-            entryCache[parent] = entries
-            return entries
+            val entries = destination.listChildren(parent)
+            counters = counters.duplicatesFound(ImportDuplicateNames.extraCount(entries))
+            val indexed = ImportNameKey.index(entries).toMutableMap()
+            entryCache[parent] = indexed
+            return indexed
         }
-
-        var counters = ImportCounters()
-        var lastCancelCheckMs = 0L
 
         for (file in plan.files) {
             ensureNotCancelled(jobId)
             val parent = directoryUris[RelativeImportPath.parentOf(file.relativePath).value] ?: targetDir
             val name = RelativeImportPath.nameOf(file.relativePath)
             val remoteSize = file.source.sizeBytes
-            val present = entriesOf(parent)[name]
+            val present = entriesOf(parent)[ImportNameKey.of(name)]
             val upToDate = present != null && remoteSize != null && present.size == remoteSize
             if (upToDate) {
                 counters = counters.fileAlreadyPresent()
@@ -178,13 +181,13 @@ class ImportOrchestrator @Inject constructor(
                 if (present != null && !destination.delete(present.uri)) {
                     throw PublicLinkException.Protocol("cannot replace existing file")
                 }
-                if (present != null) entriesOf(parent).remove(name)
+                if (present != null) entriesOf(parent).remove(ImportNameKey.of(name))
                 if (!destination.rename(part, name)) {
                     throw PublicLinkException.Protocol("cannot rename downloaded file")
                 }
                 finished = true
                 downloadedUris[file.relativePath.value] = part
-                entriesOf(parent)[name] = ImportEntry(name, part, file.source.sizeBytes)
+                entriesOf(parent)[ImportNameKey.of(name)] = ImportEntry(name, part, file.source.sizeBytes)
                 counters = counters.fileDownloaded(file.source.sizeBytes)
                 jobStore.update(
                     jobId,
@@ -209,7 +212,7 @@ class ImportOrchestrator @Inject constructor(
         jobStore.update(jobId, ImportJobUpdate(status = ImportJobStatus.INDEXING))
         val scanResult = musicRepository.addFolder(Uri.parse(targetDir))
         musicRepository.addSourceLinks(scanResult.folderId, listOf(link))
-        val importedPlaylists = importPlaylists(plan.files, downloadedUris)
+        val importedPlaylists = playlistImport.import(plan.files, downloadedUris)
 
         jobStore.update(
             jobId,
@@ -220,6 +223,7 @@ class ImportOrchestrator @Inject constructor(
                 downloadedFiles = counters.downloadedFiles,
                 skippedFiles = totalSkipped,
                 upToDateFiles = counters.upToDateFiles,
+                duplicateNameFiles = counters.duplicateNameFiles,
                 clearLink = true,
             ),
         )
@@ -230,6 +234,7 @@ class ImportOrchestrator @Inject constructor(
             skippedFiles = totalSkipped,
             importedPlaylists = importedPlaylists,
             upToDateFiles = counters.upToDateFiles,
+            duplicateNameFiles = counters.duplicateNameFiles,
         )
     }
 
@@ -237,19 +242,6 @@ class ImportOrchestrator @Inject constructor(
         currentCoroutineContext().ensureActive()
         if (jobStore.getStatus(jobId) == ImportJobStatus.CANCELLED) {
             throw CancellationException("import cancelled")
-        }
-    }
-
-    private suspend fun importPlaylists(
-        files: List<PlannedFile>,
-        downloadedUris: Map<String, String>,
-    ): Int {
-        val playlists = files.filter { it.kind == ImportFileKind.PLAYLIST }
-        if (playlists.isEmpty()) return 0
-        val batch = xspfImporter.beginBatch()
-        return playlists.count { file ->
-            val uri = downloadedUris[file.relativePath.value] ?: return@count false
-            runCatching { batch.import(Uri.parse(uri)).playlistId != null }.getOrDefault(false)
         }
     }
 

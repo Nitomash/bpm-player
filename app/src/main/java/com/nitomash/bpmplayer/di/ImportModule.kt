@@ -5,9 +5,11 @@ import androidx.work.WorkManager
 import com.nitomash.bpmplayer.data.linkimport.ImportJobStoreImpl
 import com.nitomash.bpmplayer.data.linkimport.ImportPlanBuilderImpl
 import com.nitomash.bpmplayer.data.linkimport.PublicLinkImportUseCaseImpl
+import com.nitomash.bpmplayer.data.linkimport.XspfPlaylistImportSupport
 import com.nitomash.bpmplayer.data.linkimport.remote.PublicLinkProviderRegistryImpl
 import com.nitomash.bpmplayer.data.linkimport.storage.SafAppLibraryRootRepository
 import com.nitomash.bpmplayer.data.linkimport.storage.SafImportDestination
+import com.nitomash.bpmplayer.data.linkimport.storage.SafImportDuplicateCleaner
 import com.nitomash.bpmplayer.data.linkimport.verification.AndroidDownloadedFileVerifier
 import com.nitomash.bpmplayer.data.linkimport.yandex.YandexDiskApi
 import com.nitomash.bpmplayer.data.linkimport.yandex.YandexDiskApiImpl
@@ -15,11 +17,13 @@ import com.nitomash.bpmplayer.data.linkimport.yandex.YandexDiskPublicLinkProvide
 import com.nitomash.bpmplayer.domain.linkimport.AppLibraryRootRepository
 import com.nitomash.bpmplayer.domain.linkimport.DownloadedFileVerifier
 import com.nitomash.bpmplayer.domain.linkimport.ImportDestination
+import com.nitomash.bpmplayer.domain.linkimport.ImportDuplicateCleaner
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobStore
 import com.nitomash.bpmplayer.domain.linkimport.ImportLimits
 import com.nitomash.bpmplayer.domain.linkimport.ImportPlanBuilder
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkImportUseCase
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkProvider
+import com.nitomash.bpmplayer.domain.linkimport.PlaylistImportSupport
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkProviderRegistry
 import dagger.Binds
 import dagger.Module
@@ -60,6 +64,12 @@ abstract class ImportModule {
 
     @Binds
     abstract fun bindJobStore(impl: ImportJobStoreImpl): ImportJobStore
+
+    @Binds
+    abstract fun bindPlaylistImport(impl: XspfPlaylistImportSupport): PlaylistImportSupport
+
+    @Binds
+    abstract fun bindDuplicateCleaner(impl: SafImportDuplicateCleaner): ImportDuplicateCleaner
 
     @Binds
     abstract fun bindUseCase(impl: PublicLinkImportUseCaseImpl): PublicLinkImportUseCase

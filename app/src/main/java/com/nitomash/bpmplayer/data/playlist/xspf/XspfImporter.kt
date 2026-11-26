@@ -30,7 +30,7 @@ class XspfImporter @Inject constructor(
 
     suspend fun beginBatch(): Batch = withContext(Dispatchers.IO) {
         Batch(
-            library = index.build(),
+            library = TrackPathIndex.of(index.build()),
             roots = volumes.knownRoots(),
             taken = repository.getPlaylistNames().toMutableSet(),
         )
@@ -40,7 +40,7 @@ class XspfImporter @Inject constructor(
         rawDisplayNameOf(documentUri) ?: FALLBACK_NAME
 
     inner class Batch internal constructor(
-        private val library: Map<String, Long>,
+        private val library: TrackPathIndex,
         private val roots: List<String>,
         private val taken: MutableSet<String>,
     ) {
@@ -54,7 +54,7 @@ class XspfImporter @Inject constructor(
 
     private suspend fun importOne(
         documentUri: Uri,
-        library: Map<String, Long>,
+        library: TrackPathIndex,
         roots: List<String>,
         taken: MutableSet<String>,
     ): XspfImportResult {
@@ -74,7 +74,7 @@ class XspfImporter @Inject constructor(
 
         val trackIds = playlist.tracks.mapNotNull { track ->
             val resolved = XspfLocation.resolve(base, track.location, roots) ?: return@mapNotNull null
-            library[resolved.absolutePath]
+            library.find(resolved.absolutePath)
         }
 
         if (trackIds.isEmpty()) {

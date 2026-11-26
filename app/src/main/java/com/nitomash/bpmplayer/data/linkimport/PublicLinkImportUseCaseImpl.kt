@@ -138,6 +138,7 @@ class PublicLinkImportUseCaseImpl @Inject constructor(
             downloadedFiles = snapshot.downloadedFiles,
             skippedFiles = snapshot.skippedFiles,
             upToDateFiles = snapshot.upToDateFiles,
+            duplicateNameFiles = snapshot.duplicateNameFiles,
             totalFiles = snapshot.totalFiles,
         )
 

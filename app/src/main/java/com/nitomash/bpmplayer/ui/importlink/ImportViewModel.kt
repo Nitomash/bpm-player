@@ -10,6 +10,7 @@ import com.nitomash.bpmplayer.data.music.FolderScanner
 import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.domain.linkimport.AppLibraryRoot
 import com.nitomash.bpmplayer.domain.linkimport.AppLibraryRootRepository
+import com.nitomash.bpmplayer.domain.linkimport.ImportDuplicateCleaner
 import com.nitomash.bpmplayer.domain.linkimport.ImportFileKind
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobId
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobState
@@ -60,6 +61,8 @@ data class ImportUiState(
     val isInspecting: Boolean = false,
     @androidx.annotation.StringRes val errorRes: Int? = null,
     val errorMessage: String? = null,
+    @androidx.annotation.StringRes val cleanupMessageRes: Int? = null,
+    val cleanupCount: Int = 0,
 ) {
     val isRunning: Boolean
         get() = if (isUpdateMode) {
@@ -104,6 +107,7 @@ class ImportViewModel @Inject constructor(
     private val importUseCase: PublicLinkImportUseCase,
     private val rootRepository: AppLibraryRootRepository,
     private val musicRepository: MusicRepository,
+    private val duplicateCleaner: ImportDuplicateCleaner,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -208,6 +212,7 @@ class ImportViewModel @Inject constructor(
             selectedFolderId = null,
             errorRes = null,
             errorMessage = null,
+            cleanupMessageRes = null,
         )
         nameLookupJob?.cancel()
         nameLookupJob = null
@@ -280,6 +285,7 @@ class ImportViewModel @Inject constructor(
             isInspecting = true,
             errorRes = null,
             errorMessage = null,
+            cleanupMessageRes = null,
         )
         viewModelScope.launch {
             val preview = resolvePreview(link)
@@ -320,6 +326,24 @@ class ImportViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { importUseCase.cancel(jobId) }
                 .onFailure { error -> setError(error.toErrorRes(), error.message) }
+        }
+    }
+
+    fun cleanDuplicates(folderId: Long, destinationUri: String) {
+        viewModelScope.launch {
+            runCatching { duplicateCleaner.clean(destinationUri) }
+                .onSuccess { removed ->
+                    musicRepository.rescanFolder(folderId)
+                    _uiState.update {
+                        it.copy(
+                            cleanupMessageRes = R.string.import_duplicates_cleaned,
+                            cleanupCount = removed,
+                            errorRes = null,
+                            errorMessage = null,
+                        )
+                    }
+                }
+                .onFailure { error -> setError(R.string.import_duplicates_error, error.message) }
         }
     }
 
