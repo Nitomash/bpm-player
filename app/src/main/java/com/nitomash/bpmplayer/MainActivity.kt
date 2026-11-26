@@ -1,11 +1,7 @@
 package com.nitomash.bpmplayer
 
 import android.content.Intent
-import android.content.pm.verify.domain.DomainVerificationManager
-import android.net.Uri
 import android.os.Bundle
-import android.os.Build
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,6 +15,7 @@ import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.linkimport.ImportActions
 import com.nitomash.bpmplayer.data.music.SidecarSyncManager
 import com.nitomash.bpmplayer.data.player.PlaybackSession
+import com.nitomash.bpmplayer.data.sharing.LinkHandling
 import com.nitomash.bpmplayer.domain.sharing.CollectionShareLink
 import com.nitomash.bpmplayer.ui.BpmPlayerApp
 import com.nitomash.bpmplayer.ui.importlink.ImportNavigation
@@ -66,7 +63,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleIntent(intent)
-        showLinkHandlingHint = !canHandleCollectionLinks()
+        showLinkHandlingHint = !LinkHandling.isAllowed(this)
         val prefs = getSharedPreferences(LINK_HANDLING_PREFS, MODE_PRIVATE)
         startupHintDismissedState = prefs.getBoolean(KEY_STARTUP_HINT_DISMISSED, false)
         importHintDismissedState = prefs.getBoolean(KEY_IMPORT_HINT_DISMISSED, false)
@@ -103,7 +100,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        showLinkHandlingHint = !canHandleCollectionLinks()
+        showLinkHandlingHint = !LinkHandling.isAllowed(this)
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -127,23 +124,8 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, R.string.import_error_unsupported, Toast.LENGTH_LONG).show()
     }
 
-    private fun canHandleCollectionLinks(): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        getSystemService(DomainVerificationManager::class.java)
-            ?.getDomainVerificationUserState(packageName)
-            ?.isLinkHandlingAllowed == true
-    } else {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("${CollectionShareLink.SCHEME}://${CollectionShareLink.HOST}${CollectionShareLink.PATH}"))
-            .addCategory(Intent.CATEGORY_BROWSABLE)
-        packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName == packageName
-    }
-
     private fun openLinkHandlingSettings() {
-        val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS
-        } else {
-            Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-        }
-        startActivity(Intent(action, Uri.parse("package:$packageName")))
+        startActivity(LinkHandling.settingsIntent(this))
     }
 
     private companion object {

@@ -12,12 +12,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -42,7 +44,9 @@ const val SETTINGS_ROUTE = "settings"
 @Composable
 fun SettingsScreen(
     settings: AppSettings?,
+    linkHandlingAllowed: Boolean,
     onDetectorRangeChange: (Double, Double) -> Unit,
+    onOpenLinkHandlingSettings: () -> Unit,
     onDetectorRangeReset: () -> Unit = {},
     onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -116,6 +120,41 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (!linkHandlingAllowed) {
+                        Icon(
+                            imageVector = Icons.Filled.Warning,
+                            contentDescription = stringResource(R.string.settings_link_handling_warning),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.settings_link_handling),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = linkHandlingAllowed,
+                        onCheckedChange = { onOpenLinkHandlingSettings() },
+                    )
+                }
+                if (!linkHandlingAllowed) {
+                    Text(
+                        text = stringResource(R.string.link_handling_hint_message),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    TextButton(onClick = onOpenLinkHandlingSettings) {
+                        Text(stringResource(R.string.link_handling_hint_open_settings))
+                    }
+                }
+            }
             Text(
                 text = stringResource(R.string.settings_detector_section),
                 style = MaterialTheme.typography.titleMedium,

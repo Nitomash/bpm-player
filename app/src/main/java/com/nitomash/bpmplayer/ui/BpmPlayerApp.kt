@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -275,9 +276,15 @@ fun BpmPlayerApp(
                 LaunchedEffect(Unit) { betaIntroViewModel.mark(TesterBeacon.SCREEN_SETTINGS_OPENED) }
                 val settingsViewModel: SettingsViewModel = hiltViewModel()
                 val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+                val linkHandlingAllowed by settingsViewModel.linkHandlingAllowed.collectAsStateWithLifecycle()
+                LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+                    settingsViewModel.refreshLinkHandling()
+                }
                 SettingsScreen(
                     settings = settings,
+                    linkHandlingAllowed = linkHandlingAllowed,
                     onDetectorRangeChange = settingsViewModel::setDetectorRange,
+                    onOpenLinkHandlingSettings = onOpenLinkHandlingSettings,
                     onDetectorRangeReset = settingsViewModel::markDetectorRangeReset,
                     onBack = { if (entry.isForeground() && entry === navController.currentBackStackEntry && entry.savedStateHandle.get<Boolean>("popped") != true) { entry.savedStateHandle["popped"] = true; navController.popBackStack() } },
                 )

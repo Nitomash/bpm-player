@@ -233,6 +233,8 @@
 
     <string name="settings_title">Настройки</string>
     <string name="settings_save">Сохранить</string>
+    <string name="settings_link_handling">Открытие поддерживаемых ссылок</string>
+    <string name="settings_link_handling_warning">Внимание: открытие ссылок отключено</string>
     <string name="settings_detector_section">Определение BPM</string>
     <string name="settings_detector_hint">В этом диапазоне определитель ищет темп</string>
     <string name="settings_min_bpm">От BPM</string>

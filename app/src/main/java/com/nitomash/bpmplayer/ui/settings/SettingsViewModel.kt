@@ -1,15 +1,20 @@
 ﻿package com.nitomash.bpmplayer.ui.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nitomash.bpmplayer.data.settings.AppSettings
 import com.nitomash.bpmplayer.data.settings.SettingsMapper
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
+import com.nitomash.bpmplayer.data.sharing.LinkHandling
 import com.nitomash.bpmplayer.data.testing.TesterBeacon
 import com.nitomash.bpmplayer.data.testing.TesterProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -18,10 +23,18 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
     private val testerProgress: TesterProgress,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings?> = repository.observe()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val _linkHandlingAllowed = MutableStateFlow(LinkHandling.isAllowed(context))
+    val linkHandlingAllowed: StateFlow<Boolean> = _linkHandlingAllowed.asStateFlow()
+
+    fun refreshLinkHandling() {
+        _linkHandlingAllowed.value = LinkHandling.isAllowed(context)
+    }
 
     fun update(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { repository.update(transform) }
