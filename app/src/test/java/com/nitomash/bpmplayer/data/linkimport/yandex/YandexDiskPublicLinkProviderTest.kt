@@ -49,11 +49,27 @@ class YandexDiskPublicLinkProviderTest {
     ) = YandexResource(type, path, name, size, mime, 1_700_000_000_000L, items, null, null)
 
     @Test
-    fun `only yandex hosts are handled`() {
+    fun `yandex disk public links are handled across supported domains`() {
         assertTrue(provider.canHandle("https://disk.yandex.ru/d/abc"))
         assertTrue(provider.canHandle("https://DISK.YANDEX.COM/d/abc"))
         assertTrue(provider.canHandle("https://yadi.sk/d/abc"))
+        assertTrue(provider.canHandle("yadi.sk/i/abc"))
+        assertTrue(provider.canHandle("https://disk.360.yandex.ru/d/abc"))
+        assertTrue(provider.canHandle("https://disk.yandex.net/d/abc"))
+        assertTrue(provider.canHandle("https://disk.360.yandex.com/d/abc"))
+        assertTrue(provider.canHandle("https://disk.yandex.kz/d/abc"))
+        assertTrue(provider.canHandle("https://disk.360.yandex.uz/d/abc"))
+        assertTrue(provider.canHandle("https://disk.yandex.com.tr/d/abc"))
+        assertTrue(provider.canHandle("https://disk.360.yandex.by/d/abc"))
+        assertTrue(provider.canHandle("https://disk.yandex.ru/d/abc/track.mp3"))
+    }
+
+    @Test
+    fun `only yandex public disk paths are handled`() {
         assertFalse(provider.canHandle("https://drive.google.com/file/d/abc"))
+        assertFalse(provider.canHandle("https://disk.yandex.ru/client/disk"))
+        assertFalse(provider.canHandle("https://mail.yandex.ru/d/abc"))
+        assertFalse(provider.canHandle("ftp://disk.yandex.ru/d/abc"))
         assertFalse(provider.canHandle("not a url"))
     }
 

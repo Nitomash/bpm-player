@@ -20,12 +20,12 @@ class YandexDiskPublicLinkProvider @Inject constructor(
     override val id: String = PROVIDER_ID
 
     override fun canHandle(link: String): Boolean {
-        val host = runCatching { URI.create(link.trim()).host?.lowercase() }.getOrNull() ?: return false
-        return host in HOSTS
+        val uri = parsePublicLink(link) ?: return false
+        return uri.path.matches(PUBLIC_PATH) && isYandexDiskHost(uri.host?.lowercase())
     }
 
     override suspend fun inspect(link: String): RemoteItem {
-        val publicKey = link.trim()
+        val publicKey = normalizePublicLink(link)
         val resource = api.resource(publicKey, null)
         val name = resource.name ?: publicKey.substringAfterLast('/')
         val remoteId = YandexResourceId.encode(publicKey, resource.path.orEmpty())
@@ -83,7 +83,20 @@ class YandexDiskPublicLinkProvider @Inject constructor(
     private companion object {
         const val PROVIDER_ID = "yandex_disk"
         const val PAGE_SIZE = 200
-        val HOSTS = setOf("disk.yandex.ru", "disk.yandex.com", "yadi.sk")
+        val PUBLIC_PATH = Regex("^/(?:d|i)/[^/]+(?:/.*)?$")
+        val YANDEX_HOST = Regex("^(?:m|www|disk(?:\\.360)?)\\.yandex\\.(?:ru|com|net|kz|by|uz|com\\.tr)$")
+
+        fun parsePublicLink(link: String): URI? = runCatching {
+            val normalized = normalizePublicLink(link)
+            URI.create(normalized).takeIf { it.scheme == "https" || it.scheme == "http" }
+        }.getOrNull()
+
+        fun normalizePublicLink(link: String): String {
+            val trimmed = link.trim()
+            return if ("://" in trimmed) trimmed else "https://$trimmed"
+        }
+
+        fun isYandexDiskHost(host: String?): Boolean = host == "yadi.sk" || host?.matches(YANDEX_HOST) == true
     }
 }
 
