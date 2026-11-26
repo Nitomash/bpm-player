@@ -27,7 +27,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.cancellable
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -104,6 +106,13 @@ class ImportViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            val folders = musicRepository.getFolders()
+            _uiState.update { it.copy(folders = folders) }
+            musicRepository.observeFolders().collect { folders ->
+                _uiState.update { it.copy(folders = folders) }
+            }
+        }
+        viewModelScope.launch {
             try {
                 val root = rootRepository.getRoot()
                 val folders = musicRepository.getFolders()
@@ -113,7 +122,6 @@ class ImportViewModel @Inject constructor(
                     if (folder == null || folder.sourceLinks.isEmpty()) {
                         _uiState.value = _uiState.value.copy(
                             root = root,
-                            folders = folders,
                             isUpdateMode = true,
                             errorRes = R.string.import_update_empty,
                         )
@@ -122,7 +130,6 @@ class ImportViewModel @Inject constructor(
                     updateFolder = folder
                     _uiState.value = _uiState.value.copy(
                         root = root,
-                        folders = folders,
                         isUpdateMode = true,
                         folderDisplayName = folder.displayName,
                         updateLinks = folder.sourceLinks.map(::UpdateLinkState),
@@ -135,7 +142,6 @@ class ImportViewModel @Inject constructor(
                     if (initialLinks.isNotEmpty()) {
                         _uiState.value = _uiState.value.copy(
                             root = root,
-                            folders = folders,
                             isCollectionMode = true,
                             updateLinks = initialLinks.map(::UpdateLinkState),
                         )
@@ -158,7 +164,6 @@ class ImportViewModel @Inject constructor(
                         ?.id
                     _uiState.value = _uiState.value.copy(
                         root = root,
-                        folders = folders,
                         link = job?.link.orEmpty(),
                         folderName = job?.targetFolderName ?: job?.sourceName.orEmpty(),
                         sourceName = job?.sourceName,
