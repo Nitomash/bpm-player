@@ -1,14 +1,15 @@
 package com.nitomash.bpmplayer.data.linkimport.yandex
 
 import com.nitomash.bpmplayer.data.linkimport.remote.OkHttpRemoteDownload
+import com.nitomash.bpmplayer.domain.linkimport.PublicLinkClassifier
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkException
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkProvider
+import com.nitomash.bpmplayer.domain.linkimport.PublicLinkSource
 import com.nitomash.bpmplayer.domain.linkimport.RemoteDirectory
 import com.nitomash.bpmplayer.domain.linkimport.RemoteDownload
 import com.nitomash.bpmplayer.domain.linkimport.RemoteFile
 import com.nitomash.bpmplayer.domain.linkimport.RemoteItem
 import com.nitomash.bpmplayer.domain.linkimport.RemotePage
-import java.net.URI
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,13 +20,11 @@ class YandexDiskPublicLinkProvider @Inject constructor(
 
     override val id: String = PROVIDER_ID
 
-    override fun canHandle(link: String): Boolean {
-        val uri = parsePublicLink(link) ?: return false
-        return uri.path.matches(PUBLIC_PATH) && isYandexDiskHost(uri.host?.lowercase())
-    }
+    override fun canHandle(link: String): Boolean =
+        PublicLinkClassifier.detect(link) == PublicLinkSource.YANDEX_DISK
 
     override suspend fun inspect(link: String): RemoteItem {
-        val publicKey = normalizePublicLink(link)
+        val publicKey = PublicLinkClassifier.normalize(link)
         val resource = api.resource(publicKey, null)
         val name = resource.name ?: publicKey.substringAfterLast('/')
         val remoteId = YandexResourceId.encode(publicKey, resource.path.orEmpty())
@@ -83,20 +82,6 @@ class YandexDiskPublicLinkProvider @Inject constructor(
     private companion object {
         const val PROVIDER_ID = "yandex_disk"
         const val PAGE_SIZE = 200
-        val PUBLIC_PATH = Regex("^/(?:d|i)/[^/]+(?:/.*)?$")
-        val YANDEX_HOST = Regex("^(?:m|www|disk(?:\\.360)?)\\.yandex\\.(?:ru|com|net|kz|by|uz|com\\.tr)$")
-
-        fun parsePublicLink(link: String): URI? = runCatching {
-            val normalized = normalizePublicLink(link)
-            URI.create(normalized).takeIf { it.scheme == "https" || it.scheme == "http" }
-        }.getOrNull()
-
-        fun normalizePublicLink(link: String): String {
-            val trimmed = link.trim()
-            return if ("://" in trimmed) trimmed else "https://$trimmed"
-        }
-
-        fun isYandexDiskHost(host: String?): Boolean = host == "yadi.sk" || host?.matches(YANDEX_HOST) == true
     }
 }
 

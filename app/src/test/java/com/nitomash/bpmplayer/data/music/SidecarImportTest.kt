@@ -251,4 +251,65 @@ class SidecarImportTest {
     fun `merge sidecar sources with empty list`() {
         assertEquals(emptyList<SidecarTrackRecord>(), mergeSidecarSources(emptyList()))
     }
+
+    @Test
+    fun `later record without bpm does not erase earlier bpm`() {
+        val tracks = listOf(track(10, "a.mp3"))
+        val patches = planImport(
+            tracks,
+            listOf(
+                SidecarTrackRecord(fileName = "a.mp3", bpm = 120.0, source = BpmSource.MANUAL),
+                SidecarTrackRecord(fileName = "a.mp3"),
+            ),
+        )
+        assertEquals(120.0, patches.single().bpm)
+        assertEquals(BpmSource.MANUAL, patches.single().source)
+    }
+
+    @Test
+    fun `significant record after empty record wins`() {
+        val tracks = listOf(track(10, "a.mp3"))
+        val patches = planImport(
+            tracks,
+            listOf(
+                SidecarTrackRecord(fileName = "a.mp3"),
+                SidecarTrackRecord(
+                    fileName = "a.mp3",
+                    bpm = 96.0,
+                    source = BpmSource.TAP,
+                    tags = listOf(SidecarTag("warm", 4)),
+                ),
+            ),
+        )
+        assertEquals(96.0, patches.single().bpm)
+        assertEquals(BpmSource.TAP, patches.single().source)
+        assertEquals(listOf(SidecarTag("warm", 4)), patches.single().tags)
+    }
+
+    @Test
+    fun `empty tags record does not clear existing tags`() {
+        val tracks = listOf(track(10, "a.mp3"))
+        val patches = planImport(
+            tracks,
+            listOf(
+                SidecarTrackRecord(fileName = "a.mp3", tags = listOf(SidecarTag("warm", 4))),
+                SidecarTrackRecord(fileName = "a.mp3", tags = emptyList()),
+            ),
+        )
+        assertEquals(listOf(SidecarTag("warm", 4)), patches.single().tags)
+    }
+
+    @Test
+    fun `blank title and zero duration do not overwrite meaningful values`() {
+        val tracks = listOf(track(10, "a.mp3"))
+        val patches = planImport(
+            tracks,
+            listOf(
+                SidecarTrackRecord(fileName = "a.mp3", title = "Custom", durationMs = 180_000),
+                SidecarTrackRecord(fileName = "a.mp3", title = " ", durationMs = 0),
+            ),
+        )
+        assertEquals("Custom", patches.single().title)
+        assertEquals(180_000L, patches.single().durationMs)
+    }
 }

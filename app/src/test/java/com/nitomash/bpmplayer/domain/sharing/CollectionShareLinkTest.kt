@@ -30,6 +30,26 @@ class CollectionShareLinkTest {
     }
 
     @Test
+    fun `builds links with newly supported yandex domains`() {
+        val link = "https://disk.360.yandex.ru/d/abc"
+
+        val url = CollectionShareLink.build(listOf(link))
+
+        assertTrue(url.contains("?ya="))
+        assertEquals(listOf(link), CollectionShareLink.parse(url))
+    }
+
+    @Test
+    fun `builds links without scheme`() {
+        val link = "yadi.sk/i/abc"
+
+        val url = CollectionShareLink.build(listOf(link))
+
+        assertTrue(url.contains("?ya="))
+        assertEquals(listOf(link), CollectionShareLink.parse(url))
+    }
+
+    @Test
     fun `uses provider specific keys`() {
         val url = CollectionShareLink.build(
             listOf(yandex, "https://drive.google.com/drive/folders/abc"),

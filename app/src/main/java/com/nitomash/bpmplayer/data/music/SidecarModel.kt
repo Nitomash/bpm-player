@@ -33,3 +33,12 @@ fun safeFileName(name: String): String =
 
 fun fileNameOfPath(path: String): String? =
     normalizePath(path).substringAfterLast('/').takeIf { it.isNotEmpty() }
+
+fun SidecarTrackRecord.hasPayload(): Boolean {
+    if (bpm != null || source != null) return true
+    if (!artist.isNullOrBlank()) return true
+    if (durationMs != null && durationMs > 0) return true
+    if (!tags.isNullOrEmpty()) return true
+    val derivedTitle = fileName.substringBeforeLast('.')
+    return !title.isNullOrBlank() && title.trim() != derivedTitle
+}

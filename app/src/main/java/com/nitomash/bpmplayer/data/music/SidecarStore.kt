@@ -57,6 +57,7 @@ class SidecarStore @Inject constructor(
             val baseName = sanitizeFileName(folderName)
             val fileName = "$baseName.$SIDECAR_EXTENSION"
             val tmpName = ".$fileName.tmp"
+            val exported = records.count(SidecarTrackRecord::hasPayload)
             try {
                 scanner.listChildren(treeUri).forEach { (uri, name) ->
                     val isOwnSidecar = name.startsWith("$baseName.") && name.endsWith(".$SIDECAR_EXTENSION")
@@ -87,7 +88,7 @@ class SidecarStore @Inject constructor(
                     DocumentsContract.renameDocument(contentResolver, tmpUri, fileName)
                 }.getOrNull()
                 if (renamed == null) Log.w(TAG, "rename failed for $fileName")
-                Log.i(TAG, "writeSidecar done for $folderName (${records.size} records)")
+                Log.i(TAG, "writeSidecar done for $folderName ($exported records)")
             } catch (e: Exception) {
                 Log.e(TAG, "writeSidecar failed for $folderName", e)
             }

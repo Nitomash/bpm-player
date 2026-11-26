@@ -14,7 +14,7 @@ object SidecarCodec {
     fun encodeTo(records: List<SidecarTrackRecord>, out: Appendable) {
         out.append(SIDECAR_MAGIC)
         out.append('\n')
-        records.forEach { record ->
+        records.filter { it.hasPayload() }.forEach { record ->
             encodeRecordTo(record, out)
             out.append('\n')
         }

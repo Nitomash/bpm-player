@@ -1,5 +1,8 @@
 package com.nitomash.bpmplayer.domain.sharing
 
+import com.nitomash.bpmplayer.domain.linkimport.PublicLinkClassifier
+import com.nitomash.bpmplayer.domain.linkimport.PublicLinkSource
+
 object CollectionShareLink {
 
     const val SCHEME = "https"
@@ -17,8 +20,6 @@ object CollectionShareLink {
 
     private val knownKeys = setOf(KEY_YANDEX, KEY_GOOGLE)
     private val base64Url = Regex("^$BASE64URL_PATTERN$")
-    private val yandexHosts = setOf("disk.yandex.ru", "disk.yandex.com", "yadi.sk")
-    private val googleHosts = setOf("drive.google.com", "docs.google.com")
 
     fun build(links: List<String>): String {
         val normalized = links.map { it.trim() }
@@ -73,12 +74,9 @@ object CollectionShareLink {
         return decoded.map { it.second }
     }
 
-    private fun keyOf(link: String): String {
-        val host = runCatching { java.net.URI.create(link).host?.lowercase() }.getOrNull()
-        return when {
-            host != null && host in yandexHosts -> KEY_YANDEX
-            host != null && host in googleHosts -> KEY_GOOGLE
-            else -> throw IllegalArgumentException("Unsupported provider link")
-        }
+    private fun keyOf(link: String): String = when (PublicLinkClassifier.detect(link)) {
+        PublicLinkSource.YANDEX_DISK -> KEY_YANDEX
+        PublicLinkSource.GOOGLE_DRIVE -> KEY_GOOGLE
+        PublicLinkSource.UNKNOWN -> throw IllegalArgumentException("Unsupported provider link")
     }
 }

@@ -45,10 +45,22 @@ fun planImport(
     val byTrackId = LinkedHashMap<Long, SidecarPatch>()
     records.forEach { record ->
         val track = findUniqueMatch(tracks, record) ?: return@forEach
-        byTrackId[track.id] = buildPatch(track, record)
+        val patch = buildPatch(track, record)
+        val current = byTrackId[track.id]
+        byTrackId[track.id] = if (current == null) patch else mergePatches(current, patch)
     }
     return byTrackId.values.toList()
 }
+
+private fun mergePatches(current: SidecarPatch, next: SidecarPatch): SidecarPatch = SidecarPatch(
+    trackId = current.trackId,
+    title = next.title?.takeIf { it.isNotBlank() } ?: current.title,
+    artist = next.artist?.takeIf { it.isNotBlank() } ?: current.artist,
+    durationMs = next.durationMs?.takeIf { it > 0 } ?: current.durationMs,
+    bpm = next.bpm ?: current.bpm,
+    source = next.source ?: current.source,
+    tags = next.tags?.takeIf { it.isNotEmpty() } ?: current.tags ?: next.tags,
+)
 
 private fun findUniqueMatch(
     tracks: List<TrackEntity>,
@@ -98,7 +110,7 @@ private fun buildPatch(track: TrackEntity, record: SidecarTrackRecord): SidecarP
     trackId = track.id,
     title = record.title,
     artist = record.artist,
-    durationMs = record.durationMs,
+    durationMs = record.durationMs?.takeIf { it > 0 },
     bpm = record.bpm?.takeIf { it in 1.0..999.0 },
     source = record.source,
     tags = record.tags,

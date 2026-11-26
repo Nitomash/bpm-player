@@ -204,4 +204,26 @@ class SidecarCodecTest {
     fun `encodeTo an empty list writes the header only`() {
         assertEquals(SidecarCodec.encodeAll(emptyList()), buildString { SidecarCodec.encodeTo(emptyList(), this) })
     }
+
+    @Test
+    fun `records without payload are skipped in export`() {
+        val empty = SidecarTrackRecord(fileName = "a.mp3", title = "a", artist = "", durationMs = 0)
+        val meaningful = SidecarTrackRecord(fileName = "b.mp3", bpm = 120.0)
+        val decoded = requireNotNull(SidecarCodec.decode(SidecarCodec.encodeAll(listOf(empty, meaningful))))
+        assertEquals(listOf(meaningful), decoded.records)
+    }
+
+    @Test
+    fun `record with only custom title is exported`() {
+        val record = SidecarTrackRecord(fileName = "a.mp3", title = "Custom")
+        val decoded = requireNotNull(SidecarCodec.decode(SidecarCodec.encodeAll(listOf(record))))
+        assertEquals(record, decoded.records.single())
+    }
+
+    @Test
+    fun `record with only tags is exported`() {
+        val record = SidecarTrackRecord(fileName = "a.mp3", tags = listOf(SidecarTag("warm", 4)))
+        val decoded = requireNotNull(SidecarCodec.decode(SidecarCodec.encodeAll(listOf(record))))
+        assertEquals(record, decoded.records.single())
+    }
 }
