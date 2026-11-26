@@ -21,6 +21,7 @@ import com.nitomash.bpmplayer.domain.linkimport.SupportedImportFormats
 import com.nitomash.bpmplayer.domain.sharing.CollectionShareLink
 import com.nitomash.bpmplayer.domain.sharing.CollectionShareLinks
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,6 +67,20 @@ data class ImportUiState(
         } else {
             jobState.isActive()
         }
+
+    val canStart: Boolean
+        get() = !isRunning && !isInspecting && root != null && sourceName != null &&
+            link.isNotBlank() && !jobState.canResume() &&
+            (!isSidecar || selectedFolderId != null)
+
+    val canResume: Boolean
+        get() = !isRunning && !isInspecting && root != null && sourceName != null &&
+            link.isNotBlank() && jobState.canResume()
+
+    val canStartCollection: Boolean
+        get() = !isRunning && !isInspecting && root != null && sourceName != null &&
+            folderName.isNotBlank() && updateLinks.isNotEmpty() &&
+            (!isSidecar || selectedFolderId != null)
 }
 
 private fun ImportJobState?.isActive(): Boolean = when (this) {
@@ -556,7 +571,9 @@ class ImportViewModel @Inject constructor(
         val resolved = result.getOrNull()
         if (resolved == null || resolved.name.isBlank()) {
             val error = result.exceptionOrNull()
-            if (error != null) setError(error.toErrorRes(), error.message)
+            if (error != null && error !is CancellationException) {
+                setError(error.toErrorRes(), error.message)
+            }
             return
         }
         val current = _uiState.value

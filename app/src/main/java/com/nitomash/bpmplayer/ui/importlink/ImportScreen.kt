@@ -259,11 +259,7 @@ fun ImportScreen(
 
                         Button(
                             onClick = viewModel::start,
-                            enabled = !state.isRunning && !state.isInspecting &&
-                                state.link.isNotBlank() && state.root != null &&
-                                (!state.isSidecar || state.selectedFolderId != null) &&
-                                state.jobState !is ImportJobState.Cancelled &&
-                                state.jobState !is ImportJobState.Failed,
+                            enabled = state.canStart,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(stringResource(R.string.import_start))
@@ -316,6 +312,7 @@ fun ImportScreen(
                                     ) {
                                         Button(
                                             onClick = viewModel::start,
+                                            enabled = state.canResume,
                                             modifier = Modifier.fillMaxWidth(),
                                         ) {
                                             Text(stringResource(R.string.import_resume))
@@ -480,9 +477,7 @@ private fun CollectionImportContent(
         }
         Button(
             onClick = onStart,
-            enabled = !state.isRunning && !state.isInspecting &&
-                state.folderName.isNotBlank() && state.root != null &&
-                (!state.isSidecar || state.selectedFolderId != null),
+            enabled = state.canStartCollection,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.import_start))
