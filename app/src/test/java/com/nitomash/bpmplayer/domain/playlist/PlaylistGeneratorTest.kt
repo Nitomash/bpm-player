@@ -305,4 +305,86 @@ class PlaylistGeneratorTest {
         assertTrue(result.first().bpm in 100.0..103.0)
         assertTrue(result.last().bpm in 100.0..103.0)
     }
+
+    @Test
+    fun `tempo alternation keeps selected tracks without duplicates`() {
+        val result = PlaylistGenerator.generate(spread, 80.0, 180.0, 9, PlaylistOrder.TEMPO_ALTERNATION, Random(1))
+        assertEquals(9, result.size)
+        assertEquals(9, result.map { it.trackId }.toSet().size)
+        assertTrue(spread.map { it.trackId }.toSet().containsAll(result.map { it.trackId }))
+    }
+
+    @Test
+    fun `tempo alternation places no adjacent tracks from same tempo group`() {
+        val result = PlaylistGenerator.generate(spread, 80.0, 180.0, 9, PlaylistOrder.TEMPO_ALTERNATION, Random(1))
+        val groups = tempoGroups(result)
+        for (i in 1 until groups.size) {
+            assertTrue(
+                "adjacent tracks ${result[i - 1].bpm} and ${result[i].bpm} share tempo group",
+                groups[i] != groups[i - 1],
+            )
+        }
+    }
+
+    @Test
+    fun `tempo alternation is deterministic for a seeded random`() {
+        val a = PlaylistGenerator.generate(spread, 80.0, 180.0, 9, PlaylistOrder.TEMPO_ALTERNATION, Random(7))
+        val b = PlaylistGenerator.generate(spread, 80.0, 180.0, 9, PlaylistOrder.TEMPO_ALTERNATION, Random(7))
+        assertEquals(a, b)
+    }
+
+    @Test
+    fun `tempo alternation works with small bpm range`() {
+        val narrow = listOf(
+            track(90, 120.0),
+            track(91, 120.5),
+            track(92, 121.0),
+            track(93, 121.5),
+            track(94, 122.0),
+            track(95, 122.5),
+        )
+        val result = PlaylistGenerator.generate(narrow, null, null, 6, PlaylistOrder.TEMPO_ALTERNATION, Random(2))
+        assertEquals(6, result.size)
+        assertEquals(6, result.map { it.trackId }.toSet().size)
+        val groups = tempoGroups(result)
+        for (i in 1 until groups.size) {
+            assertTrue(groups[i] != groups[i - 1])
+        }
+    }
+
+    @Test
+    fun `tempo alternation handles fewer than three tracks`() {
+        val two = listOf(track(1, 100.0), track(2, 120.0))
+        val result = PlaylistGenerator.generate(two, null, null, 2, PlaylistOrder.TEMPO_ALTERNATION, Random(1))
+        assertEquals(2, result.size)
+        assertEquals(two.map { it.trackId }.toSet(), result.map { it.trackId }.toSet())
+    }
+
+    @Test
+    fun `tempo alternation handles single track`() {
+        val result = PlaylistGenerator.generate(library, null, null, 1, PlaylistOrder.TEMPO_ALTERNATION, Random(1))
+        assertEquals(1, result.size)
+    }
+
+    @Test
+    fun `tempo alternation returns empty for empty candidates`() {
+        val result = PlaylistGenerator.generate(emptyList(), null, null, 10, PlaylistOrder.TEMPO_ALTERNATION, Random(1))
+        assertTrue(result.isEmpty())
+    }
+
+    private fun tempoGroups(tracks: List<PlaylistTrack>): List<Int> {
+        val sorted = tracks.sortedBy { it.bpm }
+        val base = sorted.size / 3
+        val remainder = sorted.size % 3
+        val groupById = HashMap<Long, Int>(sorted.size)
+        var index = 0
+        for (group in 0 until 3) {
+            val size = base + if (group < remainder) 1 else 0
+            for (i in index until index + size) {
+                groupById[sorted[i].trackId] = group
+            }
+            index += size
+        }
+        return tracks.map { groupById.getValue(it.trackId) }
+    }
 }

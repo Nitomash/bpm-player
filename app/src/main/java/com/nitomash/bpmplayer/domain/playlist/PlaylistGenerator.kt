@@ -5,6 +5,7 @@ import kotlin.random.Random
 
 enum class PlaylistOrder {
     RANDOM,
+    TEMPO_ALTERNATION,
     ASCENDING,
     DESCENDING,
     TITLE,
@@ -40,6 +41,7 @@ object PlaylistGenerator {
             PlaylistOrder.ASCENDING -> selected.sortedBy { it.bpm }
             PlaylistOrder.DESCENDING -> selected.sortedByDescending { it.bpm }
             PlaylistOrder.TITLE -> selected.sortedBy { it.title.trim().lowercase() }
+            PlaylistOrder.TEMPO_ALTERNATION -> alternateByTempo(selected, random)
         }
     }
 
@@ -108,6 +110,41 @@ object PlaylistGenerator {
         val chosen = if (nearest.size == 1) nearest[0] else nearest.shuffled(random).first()
         pool.remove(chosen)
         return chosen
+    }
+
+    private fun alternateByTempo(tracks: List<PlaylistTrack>, random: Random): List<PlaylistTrack> {
+        if (tracks.size <= 1) return tracks.shuffled(random)
+        val sorted = tracks.sortedBy { it.bpm }
+        val groups = splitIntoTempoGroups(sorted).map { it.shuffled(random).toMutableList() }.toMutableList()
+        val result = ArrayList<PlaylistTrack>(tracks.size)
+        var previousGroup = -1
+        while (result.size < tracks.size) {
+            val candidates = groups.indices.filter { it != previousGroup && groups[it].isNotEmpty() }
+            val chosenGroup = if (candidates.isNotEmpty()) {
+                val maxSize = candidates.maxOf { groups[it].size }
+                val largest = candidates.filter { groups[it].size == maxSize }
+                largest[random.nextInt(largest.size)]
+            } else {
+                groups.indices.first { groups[it].isNotEmpty() }
+            }
+            result.add(groups[chosenGroup].removeAt(groups[chosenGroup].lastIndex))
+            previousGroup = chosenGroup
+        }
+        return result
+    }
+
+    private fun splitIntoTempoGroups(sortedByBpm: List<PlaylistTrack>): List<List<PlaylistTrack>> {
+        val n = sortedByBpm.size
+        val base = n / 3
+        val remainder = n % 3
+        val sizes = IntArray(3) { base + if (it < remainder) 1 else 0 }
+        val groups = ArrayList<List<PlaylistTrack>>(3)
+        var index = 0
+        for (size in sizes) {
+            groups.add(sortedByBpm.subList(index, index + size))
+            index += size
+        }
+        return groups
     }
 
     private fun matchesBpm(bpm: Double, min: Double?, max: Double?): Boolean = when {
