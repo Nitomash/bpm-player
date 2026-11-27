@@ -15,6 +15,7 @@ import com.nitomash.bpmplayer.data.player.GeneratedPlaylistStore
 import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.player.toPlayerTrack
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSorter
+import com.nitomash.bpmplayer.data.settings.GeneratorOrderStore
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import com.nitomash.bpmplayer.data.playlist.PlaylistSummary
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
@@ -48,6 +49,7 @@ class GeneratorViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val playbackSession: PlaybackSession,
     private val generatedPlaylistStore: GeneratedPlaylistStore,
+    private val generatorOrderStore: GeneratorOrderStore,
     private val testerProgress: TesterProgress,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
@@ -73,6 +75,8 @@ class GeneratorViewModel @Inject constructor(
     val hasNext = playbackSession.hasNext
     val shuffleEnabled = playbackSession.shuffleEnabled
 
+    val generatorOrder: StateFlow<PlaylistOrder> = generatorOrderStore.current
+
     init {
         viewModelScope.launch {
             generatedPlaylistStore.current.collect { current ->
@@ -96,6 +100,10 @@ class GeneratorViewModel @Inject constructor(
 
     fun markAdvancedOpened() {
         viewModelScope.launch { testerProgress.mark(TesterBeacon.GENERATOR_ADVANCED_OPENED) }
+    }
+
+    fun saveGeneratorOrder(order: PlaylistOrder) {
+        generatorOrderStore.set(order)
     }
 
     fun generate(

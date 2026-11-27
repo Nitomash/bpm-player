@@ -1,11 +1,9 @@
 package com.nitomash.bpmplayer.ui.playlists
 
-import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
 data class GeneratorInputs(
     val minText: String = "",
     val maxText: String = "",
     val countText: String = "",
-    val order: PlaylistOrder = PlaylistOrder.RANDOM,
     val generationScope: GenerationScope = GenerationScope.FOLDERS,
     val allFolders: Boolean = true,
     val selectedFolderIds: Set<Long> = emptySet(),

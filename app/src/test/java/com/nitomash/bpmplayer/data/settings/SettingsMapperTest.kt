@@ -5,8 +5,10 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.mutablePreferencesOf
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.media3.common.Player
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
+import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -239,6 +241,27 @@ class SettingsMapperTest {
         val settings = SettingsMapper.toSettings(prefs)
         assertTrue(settings.shuffleEnabled)
         assertEquals(Player.REPEAT_MODE_ONE, settings.repeatMode)
+    }
+
+    @Test
+    fun `generator order defaults to random`() {
+        assertEquals(PlaylistOrder.RANDOM, SettingsMapper.toSettings(emptyPreferences()).generatorOrder)
+    }
+
+    @Test
+    fun `generator order is written and read back`() {
+        val prefs = mutablePreferencesOf()
+
+        SettingsMapper.write(prefs, AppSettings(generatorOrder = PlaylistOrder.TEMPO_ALTERNATION))
+
+        assertEquals(PlaylistOrder.TEMPO_ALTERNATION, SettingsMapper.toSettings(prefs).generatorOrder)
+    }
+
+    @Test
+    fun `unknown generator order falls back to random`() {
+        val prefs = mutablePreferencesOf(stringPreferencesKey("generator_order") to "UNKNOWN")
+
+        assertEquals(PlaylistOrder.RANDOM, SettingsMapper.toSettings(prefs).generatorOrder)
     }
 
     @Test

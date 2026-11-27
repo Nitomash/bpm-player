@@ -3,6 +3,7 @@
 import androidx.media3.common.Player
 import com.nitomash.bpmplayer.data.bpm.PcmBpmDetector
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
+import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
 
 data class AppSettings(
     val schemaVersion: Int = SCHEMA_VERSION,
@@ -19,6 +20,7 @@ data class AppSettings(
     val suppressBpmPromptAfterScan: Boolean = false,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val generatorOrder: PlaylistOrder = PlaylistOrder.RANDOM,
     val betaIntroAccepted: Boolean = false,
     val testerBeacons: Set<String> = emptySet(),
 ) {

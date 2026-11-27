@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.nitomash.bpmplayer.data.settings.GeneratorOrderStore
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import com.nitomash.bpmplayer.data.settings.SettingsRepositoryImpl
 import dagger.Module
@@ -12,6 +13,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import javax.inject.Singleton
 
 @Module
@@ -31,4 +34,12 @@ object SettingsModule {
     @Singleton
     fun provideSettingsRepository(dataStore: DataStore<Preferences>): SettingsRepository =
         SettingsRepositoryImpl(dataStore)
+
+    @Provides
+    @Singleton
+    fun provideGeneratorOrderStore(settingsRepository: SettingsRepository): GeneratorOrderStore =
+        GeneratorOrderStore(
+            initialOrder = runBlocking(Dispatchers.IO) { settingsRepository.current().generatorOrder },
+            settingsRepository = settingsRepository,
+        )
 }

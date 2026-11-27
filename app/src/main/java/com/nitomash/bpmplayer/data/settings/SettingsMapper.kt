@@ -6,8 +6,10 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSort
+import com.nitomash.bpmplayer.domain.playlist.PlaylistOrder
 
 object SettingsMapper {
 
@@ -25,6 +27,7 @@ object SettingsMapper {
     private val SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY = booleanPreferencesKey("suppress_bpm_prompt_after_scan")
     private val SHUFFLE_ENABLED_KEY = booleanPreferencesKey("shuffle_enabled")
     private val REPEAT_MODE_KEY = intPreferencesKey("repeat_mode")
+    private val GENERATOR_ORDER_KEY = stringPreferencesKey("generator_order")
     private val BETA_INTRO_ACCEPTED_KEY = booleanPreferencesKey("beta_intro_accepted")
     private val TESTER_BEACONS_KEY = stringSetPreferencesKey("tester_beacons")
 
@@ -64,6 +67,9 @@ object SettingsMapper {
                 ?: defaults.suppressBpmPromptAfterScan,
             shuffleEnabled = prefs[SHUFFLE_ENABLED_KEY] ?: defaults.shuffleEnabled,
             repeatMode = prefs[REPEAT_MODE_KEY] ?: defaults.repeatMode,
+            generatorOrder = prefs[GENERATOR_ORDER_KEY]
+                ?.let { name -> PlaylistOrder.entries.firstOrNull { it.name == name } }
+                ?: defaults.generatorOrder,
             betaIntroAccepted = prefs[BETA_INTRO_ACCEPTED_KEY] ?: defaults.betaIntroAccepted,
             testerBeacons = prefs[TESTER_BEACONS_KEY] ?: defaults.testerBeacons,
         )
@@ -94,6 +100,7 @@ object SettingsMapper {
         prefs[SUPPRESS_BPM_PROMPT_AFTER_SCAN_KEY] = settings.suppressBpmPromptAfterScan
         prefs[SHUFFLE_ENABLED_KEY] = settings.shuffleEnabled
         prefs[REPEAT_MODE_KEY] = settings.repeatMode
+        prefs[GENERATOR_ORDER_KEY] = settings.generatorOrder.name
         prefs[BETA_INTRO_ACCEPTED_KEY] = settings.betaIntroAccepted
         prefs[TESTER_BEACONS_KEY] = settings.testerBeacons
     }

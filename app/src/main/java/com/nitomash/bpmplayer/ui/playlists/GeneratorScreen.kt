@@ -88,15 +88,18 @@ fun GeneratorScreen(
     var minText by remember { mutableStateOf(initialInputs.minText) }
     var maxText by remember { mutableStateOf(initialInputs.maxText) }
     var countText by remember { mutableStateOf(initialInputs.countText) }
-    var order by remember { mutableStateOf(initialInputs.order) }
     var generationScope by remember { mutableStateOf(initialInputs.generationScope) }
     var allFolders by remember { mutableStateOf(initialInputs.allFolders) }
     var selectedFolderIds by remember { mutableStateOf(initialInputs.selectedFolderIds) }
     var allPlaylists by remember { mutableStateOf(initialInputs.allPlaylists) }
     var selectedPlaylistIds by remember { mutableStateOf(initialInputs.selectedPlaylistIds) }
 
+    val folders by viewModel.folders.collectAsStateWithLifecycle()
+    val generationPlaylists by viewModel.playlists.collectAsStateWithLifecycle()
+    val order by viewModel.generatorOrder.collectAsStateWithLifecycle()
+
     LaunchedEffect(
-        minText, maxText, countText, order, generationScope, allFolders,
+        minText, maxText, countText, generationScope, allFolders,
         selectedFolderIds, allPlaylists, selectedPlaylistIds,
     ) {
         GeneratorInputStore.update {
@@ -104,7 +107,6 @@ fun GeneratorScreen(
                 minText = minText,
                 maxText = maxText,
                 countText = countText,
-                order = order,
                 generationScope = generationScope,
                 allFolders = allFolders,
                 selectedFolderIds = selectedFolderIds,
@@ -113,9 +115,6 @@ fun GeneratorScreen(
             )
         }
     }
-
-    val folders by viewModel.folders.collectAsStateWithLifecycle()
-    val generationPlaylists by viewModel.playlists.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -223,7 +222,7 @@ fun GeneratorScreen(
                                 DropdownMenuItem(
                                     text = { Text(stringResource(playlistOrderLabelRes(option))) },
                                     onClick = {
-                                        order = option
+                                        viewModel.saveGeneratorOrder(option)
                                         orderExpanded = false
                                     },
                                 )
