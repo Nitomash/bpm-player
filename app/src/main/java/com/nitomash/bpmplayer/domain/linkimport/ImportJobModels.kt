@@ -52,7 +52,6 @@ sealed interface ImportJobState {
         val downloadedFiles: Int,
         val skippedFiles: Int,
         val upToDateFiles: Int,
-        val duplicateNameFiles: Int,
         val totalFiles: Int,
     ) : ImportJobState
 
@@ -84,7 +83,6 @@ sealed interface ImportOutcome {
         val skippedFiles: Int,
         val importedPlaylists: Int,
         val upToDateFiles: Int = 0,
-        val duplicateNameFiles: Int = 0,
     ) : ImportOutcome
 
     data object Cancelled : ImportOutcome

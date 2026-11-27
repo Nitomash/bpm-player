@@ -10,6 +10,8 @@ import com.nitomash.bpmplayer.data.generation.resolvePlaylistIdsForGeneration
 import com.nitomash.bpmplayer.data.generation.selectTracksByFolders
 import com.nitomash.bpmplayer.data.generation.selectTracksByPlaylists
 import com.nitomash.bpmplayer.data.music.MusicRepository
+import com.nitomash.bpmplayer.data.player.GeneratedPlaylist
+import com.nitomash.bpmplayer.data.player.GeneratedPlaylistStore
 import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.player.toPlayerTrack
 import com.nitomash.bpmplayer.data.playlist.PlaylistListSorter

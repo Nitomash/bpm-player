@@ -14,9 +14,8 @@ import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.nitomash.bpmplayer.R
 import com.nitomash.bpmplayer.data.music.MusicRepository
-import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylist
-import com.nitomash.bpmplayer.ui.playlists.GeneratedPlaylistStore
 import com.nitomash.bpmplayer.data.settings.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -468,7 +467,12 @@ class PlaybackSession @Inject constructor(
             _isGeneratedQueue.value = state.playlistId == null
             currentPlaylistName = state.name
             if (state.playlistId == null) {
-                generatedPlaylistStore.put(GeneratedPlaylist(name = state.name ?: "Сгенерированный плейлист", tracks = entities))
+                generatedPlaylistStore.put(
+                    GeneratedPlaylist(
+                        name = state.name ?: context.getString(R.string.generated_playlist_default_name),
+                        tracks = entities,
+                    ),
+                )
             }
             previewSnapshot = null
             pendingAction = null

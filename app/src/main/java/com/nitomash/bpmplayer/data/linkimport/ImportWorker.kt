@@ -1,13 +1,11 @@
 package com.nitomash.bpmplayer.data.linkimport
 
 import android.content.Context
-import android.net.Uri
 import android.widget.Toast
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.nitomash.bpmplayer.R
-import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobId
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobStatus
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobStore
@@ -28,7 +26,6 @@ class ImportWorker @AssistedInject constructor(
     private val orchestrator: ImportOrchestrator,
     private val jobStore: ImportJobStore,
     private val notifier: ImportNotifier,
-    private val musicRepository: MusicRepository,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -99,13 +96,6 @@ class ImportWorker @AssistedInject constructor(
             }
         } catch (e: CancellationException) {
             withContext(NonCancellable) {
-                val snapshot = jobStore.get(jobId)
-                if (snapshot != null && snapshot.downloadedFiles > 0 &&
-                    snapshot.destinationUri != null
-                ) {
-                    val folder = musicRepository.addFolder(Uri.parse(snapshot.destinationUri))
-                    musicRepository.addSourceLinks(folder.folderId, listOf(link))
-                }
                 jobStore.update(
                     jobId,
                     ImportJobUpdate(status = ImportJobStatus.CANCELLED, clearLink = true),

@@ -9,7 +9,9 @@ import com.nitomash.bpmplayer.data.db.firstTrackOccurrences
 import com.nitomash.bpmplayer.data.db.entity.BpmSource
 import com.nitomash.bpmplayer.data.db.entity.FolderEntity
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -157,18 +159,21 @@ class MusicRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun applySidecarRecords(folderId: Long, records: List<SidecarTrackRecord>) {
-        if (records.isEmpty()) return
-        val tracks = trackDao.getByFolder(folderId)
-        applyPatches(folderId, tracks, planImport(tracks, records))
-    }
+    override suspend fun applySidecarRecords(folderId: Long, records: List<SidecarTrackRecord>) =
+        withContext(Dispatchers.IO) {
+            if (records.isEmpty()) return@withContext
+            val tracks = trackDao.getByFolder(folderId)
+            applyPatches(folderId, tracks, planImport(tracks, records))
+        }
 
     override suspend fun importSidecarFile(folderId: Long, fileUri: Uri): Int {
         val records = sidecarStore.readFileRecords(fileUri) ?: return 0
-        val tracks = trackDao.getByFolder(folderId)
-        val patches = planImport(tracks, records)
-        applyPatches(folderId, tracks, patches)
-        return patches.size
+        return withContext(Dispatchers.IO) {
+            val tracks = trackDao.getByFolder(folderId)
+            val patches = planImport(tracks, records)
+            applyPatches(folderId, tracks, patches)
+            patches.size
+        }
     }
 
     override suspend fun exportSidecarFile(folderId: Long, fileUri: Uri): Boolean {

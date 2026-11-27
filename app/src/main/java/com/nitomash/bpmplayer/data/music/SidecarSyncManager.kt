@@ -3,6 +3,7 @@ package com.nitomash.bpmplayer.data.music
 import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
@@ -44,6 +45,8 @@ class SidecarSyncManager @Inject constructor(
             for (folderId in batch) {
                 try {
                     flushFolder(folderId)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "flush failed for folder $folderId", e)
                 }

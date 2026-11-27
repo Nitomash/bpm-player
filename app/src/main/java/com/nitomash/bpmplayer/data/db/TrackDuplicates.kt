@@ -1,8 +1,11 @@
 package com.nitomash.bpmplayer.data.db
 
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
+import java.text.Normalizer
+import java.util.Locale
 
-fun trackDuplicateKey(fileName: String): String = fileName.trim().lowercase()
+fun trackDuplicateKey(fileName: String): String =
+    Normalizer.normalize(fileName.trim(), Normalizer.Form.NFC).lowercase(Locale.ROOT)
 
 fun firstTrackOccurrences(tracks: List<TrackEntity>): List<TrackEntity> {
     val selected = LinkedHashMap<TrackIdentityKey, TrackEntity>()

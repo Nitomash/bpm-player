@@ -12,7 +12,7 @@ class ImportCountersTest {
         assertEquals(0, counters.downloadedFiles)
         assertEquals(1, counters.invalidFiles)
         assertEquals(1, counters.processedFiles)
-        assertEquals(2, counters.totalSkipped(1))
+        assertEquals(1, counters.skippedFiles)
     }
 
     @Test
@@ -25,7 +25,7 @@ class ImportCountersTest {
         assertEquals(0, counters.invalidFiles)
         assertEquals(2, counters.processedFiles)
         assertEquals(100L, counters.downloadedBytes)
-        assertEquals(3, counters.totalSkipped(3))
+        assertEquals(0, counters.skippedFiles)
     }
 
     @Test
@@ -36,7 +36,7 @@ class ImportCountersTest {
         assertEquals(1, counters.upToDateFiles)
         assertEquals(1, counters.processedFiles)
         assertEquals(0L, counters.downloadedBytes)
-        assertEquals(2, counters.totalSkipped(2))
+        assertEquals(0, counters.skippedFiles)
     }
 
     @Test
@@ -51,6 +51,6 @@ class ImportCountersTest {
         assertEquals(2, counters.invalidFiles)
         assertEquals(4, counters.processedFiles)
         assertEquals(768L, counters.downloadedBytes)
-        assertEquals(5, counters.totalSkipped(3))
+        assertEquals(2, counters.skippedFiles)
     }
 }

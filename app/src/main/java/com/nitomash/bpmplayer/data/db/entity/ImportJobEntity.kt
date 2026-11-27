@@ -40,8 +40,6 @@ data class ImportJobEntity(
     val skippedFiles: Int,
     @ColumnInfo(name = "up_to_date_files")
     val upToDateFiles: Int,
-    @ColumnInfo(name = "duplicate_name_files")
-    val duplicateNameFiles: Int,
     @ColumnInfo(name = "downloaded_bytes")
     val downloadedBytes: Long,
     @ColumnInfo(name = "total_files")

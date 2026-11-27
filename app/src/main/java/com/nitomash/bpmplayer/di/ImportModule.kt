@@ -9,7 +9,6 @@ import com.nitomash.bpmplayer.data.linkimport.XspfPlaylistImportSupport
 import com.nitomash.bpmplayer.data.linkimport.remote.PublicLinkProviderRegistryImpl
 import com.nitomash.bpmplayer.data.linkimport.storage.SafAppLibraryRootRepository
 import com.nitomash.bpmplayer.data.linkimport.storage.SafImportDestination
-import com.nitomash.bpmplayer.data.linkimport.storage.SafImportDuplicateCleaner
 import com.nitomash.bpmplayer.data.linkimport.verification.AndroidDownloadedFileVerifier
 import com.nitomash.bpmplayer.data.linkimport.yandex.YandexDiskApi
 import com.nitomash.bpmplayer.data.linkimport.yandex.YandexDiskApiImpl
@@ -17,7 +16,6 @@ import com.nitomash.bpmplayer.data.linkimport.yandex.YandexDiskPublicLinkProvide
 import com.nitomash.bpmplayer.domain.linkimport.AppLibraryRootRepository
 import com.nitomash.bpmplayer.domain.linkimport.DownloadedFileVerifier
 import com.nitomash.bpmplayer.domain.linkimport.ImportDestination
-import com.nitomash.bpmplayer.domain.linkimport.ImportDuplicateCleaner
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobStore
 import com.nitomash.bpmplayer.domain.linkimport.ImportLimits
 import com.nitomash.bpmplayer.domain.linkimport.ImportPlanBuilder
@@ -67,9 +65,6 @@ abstract class ImportModule {
 
     @Binds
     abstract fun bindPlaylistImport(impl: XspfPlaylistImportSupport): PlaylistImportSupport
-
-    @Binds
-    abstract fun bindDuplicateCleaner(impl: SafImportDuplicateCleaner): ImportDuplicateCleaner
 
     @Binds
     abstract fun bindUseCase(impl: PublicLinkImportUseCaseImpl): PublicLinkImportUseCase

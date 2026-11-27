@@ -1,4 +1,4 @@
-package com.nitomash.bpmplayer.ui.playlists
+package com.nitomash.bpmplayer.data.player
 
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
 import kotlinx.coroutines.flow.MutableStateFlow

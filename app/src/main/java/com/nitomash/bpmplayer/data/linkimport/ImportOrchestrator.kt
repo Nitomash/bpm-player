@@ -5,7 +5,6 @@ import com.nitomash.bpmplayer.data.music.MusicRepository
 import com.nitomash.bpmplayer.domain.linkimport.AppLibraryRootRepository
 import com.nitomash.bpmplayer.domain.linkimport.DownloadedFileVerifier
 import com.nitomash.bpmplayer.domain.linkimport.ImportCounters
-import com.nitomash.bpmplayer.domain.linkimport.ImportDuplicateNames
 import com.nitomash.bpmplayer.domain.linkimport.ImportDestination
 import com.nitomash.bpmplayer.domain.linkimport.ImportEntry
 import com.nitomash.bpmplayer.domain.linkimport.ImportFileKind
@@ -76,7 +75,6 @@ class ImportOrchestrator @Inject constructor(
                 destinationUri = targetDir,
                 totalFiles = plan.files.size,
                 totalBytes = plan.knownTotalBytes,
-                skippedFiles = plan.skippedFiles.size,
             ),
         )
 
@@ -94,12 +92,13 @@ class ImportOrchestrator @Inject constructor(
         var counters = ImportCounters()
         var lastCancelCheckMs = 0L
         val downloadedUris = mutableMapOf<String, String>()
-        val entryCache = mutableMapOf<String, MutableMap<String, ImportEntry>>()
-        suspend fun entriesOf(parent: String): MutableMap<String, ImportEntry> {
+        val entryCache = mutableMapOf<String, MutableMap<String, MutableList<ImportEntry>>>()
+        suspend fun entriesOf(parent: String): MutableMap<String, MutableList<ImportEntry>> {
             entryCache[parent]?.let { return it }
             val entries = destination.listChildren(parent)
-            counters = counters.duplicatesFound(ImportDuplicateNames.extraCount(entries))
-            val indexed = ImportNameKey.index(entries).toMutableMap()
+            val indexed = entries.groupBy { ImportNameKey.of(it.name) }
+                .mapValues { (_, matches) -> matches.toMutableList() }
+                .toMutableMap()
             entryCache[parent] = indexed
             return indexed
         }
@@ -109,7 +108,12 @@ class ImportOrchestrator @Inject constructor(
             val parent = directoryUris[RelativeImportPath.parentOf(file.relativePath).value] ?: targetDir
             val name = RelativeImportPath.nameOf(file.relativePath)
             val remoteSize = file.source.sizeBytes
-            val present = entriesOf(parent)[ImportNameKey.of(name)]
+            val present = entriesOf(parent)[ImportNameKey.of(name)]?.let { matches ->
+                if (matches.size != 1) {
+                    throw PublicLinkException.Protocol("ambiguous local file name: $name")
+                }
+                matches.single()
+            }
             val upToDate = present != null && remoteSize != null && present.size == remoteSize
             if (upToDate) {
                 counters = counters.fileAlreadyPresent()
@@ -119,7 +123,7 @@ class ImportOrchestrator @Inject constructor(
                     ImportJobUpdate(
                         currentPath = file.relativePath.value,
                         downloadedFiles = counters.downloadedFiles,
-                        skippedFiles = counters.totalSkipped(plan.skippedFiles.size),
+                        skippedFiles = counters.skippedFiles,
                         upToDateFiles = counters.upToDateFiles,
                         downloadedBytes = counters.downloadedBytes,
                         totalFiles = plan.files.size,
@@ -165,7 +169,7 @@ class ImportOrchestrator @Inject constructor(
                     counters = counters.fileRejected()
                     jobStore.update(
                         jobId,
-                        ImportJobUpdate(skippedFiles = counters.totalSkipped(plan.skippedFiles.size)),
+                        ImportJobUpdate(skippedFiles = counters.skippedFiles),
                     )
                     onProgress(
                         ImportProgress(
@@ -187,14 +191,16 @@ class ImportOrchestrator @Inject constructor(
                 }
                 finished = true
                 downloadedUris[file.relativePath.value] = part
-                entriesOf(parent)[ImportNameKey.of(name)] = ImportEntry(name, part, file.source.sizeBytes)
+                entriesOf(parent)[ImportNameKey.of(name)] = mutableListOf(
+                    ImportEntry(name, part, file.source.sizeBytes),
+                )
                 counters = counters.fileDownloaded(file.source.sizeBytes)
                 jobStore.update(
                     jobId,
                     ImportJobUpdate(
                         currentPath = file.relativePath.value,
                         downloadedFiles = counters.downloadedFiles,
-                        skippedFiles = counters.totalSkipped(plan.skippedFiles.size),
+                        skippedFiles = counters.skippedFiles,
                         downloadedBytes = counters.downloadedBytes,
                         totalFiles = plan.files.size,
                         totalBytes = plan.knownTotalBytes,
@@ -207,7 +213,7 @@ class ImportOrchestrator @Inject constructor(
             }
         }
 
-        val totalSkipped = counters.totalSkipped(plan.skippedFiles.size)
+        val totalSkipped = counters.skippedFiles
         ensureNotCancelled(jobId)
         jobStore.update(jobId, ImportJobUpdate(status = ImportJobStatus.INDEXING))
         val scanResult = musicRepository.addFolder(Uri.parse(targetDir))
@@ -223,7 +229,6 @@ class ImportOrchestrator @Inject constructor(
                 downloadedFiles = counters.downloadedFiles,
                 skippedFiles = totalSkipped,
                 upToDateFiles = counters.upToDateFiles,
-                duplicateNameFiles = counters.duplicateNameFiles,
                 clearLink = true,
             ),
         )
@@ -234,7 +239,6 @@ class ImportOrchestrator @Inject constructor(
             skippedFiles = totalSkipped,
             importedPlaylists = importedPlaylists,
             upToDateFiles = counters.upToDateFiles,
-            duplicateNameFiles = counters.duplicateNameFiles,
         )
     }
 

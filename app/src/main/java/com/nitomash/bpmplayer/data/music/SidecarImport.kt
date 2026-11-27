@@ -2,6 +2,7 @@ package com.nitomash.bpmplayer.data.music
 
 import com.nitomash.bpmplayer.data.db.entity.BpmSource
 import com.nitomash.bpmplayer.data.db.entity.TrackEntity
+import com.nitomash.bpmplayer.data.db.trackDuplicateKey
 import kotlin.math.abs
 
 data class SidecarSource(
@@ -66,44 +67,17 @@ private fun findUniqueMatch(
     tracks: List<TrackEntity>,
     record: SidecarTrackRecord,
 ): TrackEntity? {
-    val candidates = tracks.filter { sameName(it.fileName, record.fileName) && durationCompatible(it, record) }
-    if (candidates.isEmpty()) return null
-    val legacyPath = record.legacyPath?.let(::normalizePath)
-    if (legacyPath != null) {
-        val byPath = candidates.filter { normalizePath(it.relativePath) == legacyPath }
-        if (byPath.size == 1) return byPath.single()
+    val candidates = tracks.filter {
+        trackDuplicateKey(it.fileName) == trackDuplicateKey(record.fileName) && durationCompatible(it, record)
     }
-    if (candidates.size == 1) return candidates.single()
-    val bestScore = candidates.maxOf { score(it, record) }
-    val best = candidates.filter { score(it, record) == bestScore }
-    return if (best.size == 1) best.single() else null
+    return candidates.singleOrNull()
 }
-
-private fun sameName(trackName: String, recordName: String): Boolean =
-    trackName.equals(recordName, ignoreCase = true)
 
 private fun durationCompatible(track: TrackEntity, record: SidecarTrackRecord): Boolean {
     val trackDuration = track.durationMs
     val recordDuration = record.durationMs
     if (trackDuration <= 0 || recordDuration == null || recordDuration <= 0) return true
     return abs(trackDuration - recordDuration) <= DURATION_TOLERANCE_MS
-}
-
-private fun score(track: TrackEntity, record: SidecarTrackRecord): Int {
-    var value = 0
-    if (track.durationMs > 0 && record.durationMs != null && record.durationMs > 0 &&
-        abs(track.durationMs - record.durationMs) <= DURATION_TOLERANCE_MS
-    ) {
-        value++
-    }
-    if (metaEquals(track.title, record.title)) value++
-    if (metaEquals(track.artist, record.artist)) value++
-    return value
-}
-
-private fun metaEquals(trackValue: String, recordValue: String?): Boolean {
-    if (recordValue.isNullOrBlank() || trackValue.isBlank()) return false
-    return trackValue.trim().equals(recordValue.trim(), ignoreCase = true)
 }
 
 private fun buildPatch(track: TrackEntity, record: SidecarTrackRecord): SidecarPatch = SidecarPatch(
@@ -129,4 +103,4 @@ fun trackToRecord(
     tags = tags.takeIf { it.isNotEmpty() },
 )
 
-private const val DURATION_TOLERANCE_MS = 2000L
+private const val DURATION_TOLERANCE_MS = 2_000L

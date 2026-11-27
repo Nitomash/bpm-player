@@ -45,26 +45,25 @@ class SidecarImportTest {
     }
 
     @Test
-    fun `legacy path hint disambiguates duplicate file names`() {
-        val tracks = listOf(track(10, "a/01.mp3"), track(11, "b/01.mp3"))
+    fun `legacy path does not affect unique name matching`() {
+        val tracks = listOf(track(10, "a/01.mp3"))
         val records = listOf(SidecarTrackRecord(fileName = "01.mp3", legacyPath = "b/01.mp3", bpm = 120.0))
-        val patch = planImport(tracks, records).single()
-        assertEquals(11, patch.trackId)
+        assertEquals(10, planImport(tracks, records).single().trackId)
     }
 
     @Test
     fun `duration disambiguates duplicate file names`() {
-        val tracks = listOf(
-            track(10, "a/01.mp3").copy(durationMs = 180_000),
-            track(11, "b/01.mp3").copy(durationMs = 240_000),
-        )
+        val tracks = listOf(track(10, "a/01.mp3"), track(11, "b/01.mp3"))
+        val tracksWithDuration = tracks.mapIndexed { index, track ->
+            track.copy(durationMs = if (index == 0) 180_000 else 240_000)
+        }
         val records = listOf(SidecarTrackRecord(fileName = "01.mp3", durationMs = 240_000, bpm = 120.0))
-        val patch = planImport(tracks, records).single()
+        val patch = planImport(tracksWithDuration, records).single()
         assertEquals(11, patch.trackId)
     }
 
     @Test
-    fun `ambiguous duplicate file names without hints are ignored`() {
+    fun `ambiguous duplicate file names are ignored`() {
         val tracks = listOf(track(10, "a/01.mp3"), track(11, "b/01.mp3"))
         val records = listOf(SidecarTrackRecord(fileName = "01.mp3", bpm = 120.0))
         assertTrue(planImport(tracks, records).isEmpty())
@@ -78,14 +77,18 @@ class SidecarImportTest {
     }
 
     @Test
-    fun `title and artist disambiguate duplicate file names`() {
-        val tracks = listOf(
-            track(10, "a/01.mp3").copy(title = "Alpha", artist = "X"),
-            track(11, "b/01.mp3").copy(title = "Beta", artist = "Y"),
-        )
+    fun `title and artist do not affect matching`() {
+        val tracks = listOf(track(10, "01.mp3").copy(title = "Alpha", artist = "X"))
         val records = listOf(SidecarTrackRecord(fileName = "01.mp3", title = "Beta", artist = "Y", bpm = 120.0))
         val patch = planImport(tracks, records).single()
-        assertEquals(11, patch.trackId)
+        assertEquals(10, patch.trackId)
+    }
+
+    @Test
+    fun `duration tolerance accepts close match`() {
+        val tracks = listOf(track(10, "01.mp3").copy(durationMs = 180_000))
+        val records = listOf(SidecarTrackRecord(fileName = "01.mp3", durationMs = 181_999, bpm = 120.0))
+        assertEquals(10, planImport(tracks, records).single().trackId)
     }
 
     @Test
@@ -311,5 +314,12 @@ class SidecarImportTest {
         )
         assertEquals("Custom", patches.single().title)
         assertEquals(180_000L, patches.single().durationMs)
+    }
+
+    @Test
+    fun `matching uses the same name key as the database`() {
+        val tracks = listOf(track(10, "Track.MP3"))
+        val records = listOf(SidecarTrackRecord(fileName = "  track.mp3  ", bpm = 120.0))
+        assertEquals(10, planImport(tracks, records).single().trackId)
     }
 }

@@ -59,7 +59,6 @@ import com.nitomash.bpmplayer.data.db.entity.FolderEntity
 import com.nitomash.bpmplayer.domain.linkimport.ImportJobState
 import com.nitomash.bpmplayer.domain.sharing.CollectionShareLinks
 import com.nitomash.bpmplayer.ui.common.CompactOutlinedTextField
-import com.nitomash.bpmplayer.ui.common.ConfirmDialog
 import com.nitomash.bpmplayer.ui.common.LoadingPlaceholder
 
 const val IMPORT_ROUTE = "import"
@@ -95,7 +94,6 @@ fun ImportScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var cleanupTarget by remember { mutableStateOf<ImportJobState.Completed?>(null) }
     val notificationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {}
@@ -129,19 +127,6 @@ fun ImportScreen(
                     Text(stringResource(R.string.link_handling_hint_later))
                 }
             },
-        )
-    }
-
-    cleanupTarget?.let { target ->
-        ConfirmDialog(
-            title = stringResource(R.string.import_duplicates_clean_title),
-            text = stringResource(R.string.import_duplicates_clean_message, target.duplicateNameFiles),
-            confirmLabel = stringResource(R.string.action_delete_confirm),
-            onConfirm = {
-                viewModel.cleanDuplicates(target.folderId, target.destinationUri)
-                cleanupTarget = null
-            },
-            onDismiss = { cleanupTarget = null },
         )
     }
 
@@ -314,21 +299,7 @@ fun ImportScreen(
                                         )
                                     }
                                     val jobState = state.jobState
-                                    if (jobState != null) {
-                                        JobStateContent(
-                                            state = jobState,
-                                            onCleanDuplicates = if (jobState is ImportJobState.Completed &&
-                                                jobState.duplicateNameFiles > 0
-                                            ) {
-                                                { cleanupTarget = jobState }
-                                            } else {
-                                                null
-                                            },
-                                        )
-                                    }
-                                    state.cleanupMessageRes?.let { messageRes ->
-                                        Text(stringResource(messageRes, state.cleanupCount))
-                                    }
+                                    if (jobState != null) JobStateContent(jobState)
                                     if (state.isRunning) {
                                         TextButton(onClick = viewModel::cancel) {
                                             Text(
@@ -562,10 +533,7 @@ private fun UpdateControls(
 }
 
 @Composable
-private fun JobStateContent(
-    state: ImportJobState,
-    onCleanDuplicates: (() -> Unit)? = null,
-) {
+private fun JobStateContent(state: ImportJobState) {
     when (state) {
         ImportJobState.Queued -> Text(stringResource(R.string.import_state_queued))
         is ImportJobState.Planning -> Text(stringResource(R.string.import_state_planning))
@@ -589,12 +557,6 @@ private fun JobStateContent(
             Text(stringResource(R.string.import_state_completed, state.downloadedFiles))
             Text(stringResource(R.string.import_state_skipped, state.skippedFiles))
             Text(stringResource(R.string.import_state_up_to_date, state.upToDateFiles))
-            Text(stringResource(R.string.import_state_duplicates, state.duplicateNameFiles))
-            if (onCleanDuplicates != null) {
-                TextButton(onClick = onCleanDuplicates) {
-                    Text(stringResource(R.string.import_duplicates_clean))
-                }
-            }
         }
 
         is ImportJobState.Cancelled -> Text(stringResource(R.string.import_state_cancelled))

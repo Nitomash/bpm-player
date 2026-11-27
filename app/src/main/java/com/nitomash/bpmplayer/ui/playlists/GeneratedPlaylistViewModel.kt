@@ -2,10 +2,14 @@ package com.nitomash.bpmplayer.ui.playlists
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nitomash.bpmplayer.R
+import com.nitomash.bpmplayer.data.player.GeneratedPlaylist
+import com.nitomash.bpmplayer.data.player.GeneratedPlaylistStore
 import com.nitomash.bpmplayer.data.player.PlaybackSession
 import com.nitomash.bpmplayer.data.player.toPlayerTrack
 import com.nitomash.bpmplayer.data.playlist.PlaylistRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +22,7 @@ class GeneratedPlaylistViewModel @Inject constructor(
     private val store: GeneratedPlaylistStore,
     private val playbackSession: PlaybackSession,
     private val playlistRepository: PlaylistRepository,
+    @ApplicationContext private val context: android.content.Context,
 ) : ViewModel() {
     val playlist: StateFlow<GeneratedPlaylist?> = store.current
     val currentTrackId = playbackSession.currentTrackId
@@ -44,7 +49,7 @@ class GeneratedPlaylistViewModel @Inject constructor(
         val playlist = store.current.value ?: return
         if (playlist.savedPlaylistId != null) return
         viewModelScope.launch {
-            val name = playlist.name.ifBlank { "Сгенерированный плейлист" }
+            val name = playlist.name.ifBlank { context.getString(R.string.generated_playlist_default_name) }
             val id = playlistRepository.create(name)
             playlistRepository.addTracks(id, playlist.tracks.map { it.id })
             store.markSaved(id)

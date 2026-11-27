@@ -27,6 +27,7 @@ import com.nitomash.bpmplayer.domain.linkimport.ImportSourceKind
 import com.nitomash.bpmplayer.domain.linkimport.PlannedDirectory
 import com.nitomash.bpmplayer.domain.linkimport.PlannedFile
 import com.nitomash.bpmplayer.domain.linkimport.PlaylistImportSupport
+import com.nitomash.bpmplayer.domain.linkimport.PublicLinkException
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkProvider
 import com.nitomash.bpmplayer.domain.linkimport.PublicLinkProviderRegistry
 import com.nitomash.bpmplayer.domain.linkimport.RelativeImportPath
@@ -35,6 +36,8 @@ import com.nitomash.bpmplayer.domain.linkimport.RemoteDownload
 import com.nitomash.bpmplayer.domain.linkimport.RemoteFile
 import com.nitomash.bpmplayer.domain.linkimport.RemoteItem
 import com.nitomash.bpmplayer.domain.linkimport.RemotePage
+import com.nitomash.bpmplayer.domain.linkimport.SkipReason
+import com.nitomash.bpmplayer.domain.linkimport.SkippedRemoteFile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
@@ -222,7 +225,11 @@ class ImportOrchestratorTest {
             skippedFiles = emptyList(),
         )
 
-    private fun runImport(destination: FakeDestination, plan: ImportPlan): ImportOutcome.Success {
+    private fun runImport(
+        destination: FakeDestination,
+        plan: ImportPlan,
+        jobStore: FakeJobStore = FakeJobStore(),
+    ): ImportOutcome.Success {
         val provider = FakeProvider().apply { root = RemoteDirectory("fake", "root", "Collection") }
         val orchestrator = ImportOrchestrator(
             roots = FakeRoots(),
@@ -232,7 +239,7 @@ class ImportOrchestratorTest {
             verifier = FakeVerifier(),
             musicRepository = FakeMusicRepository(),
             playlistImport = FakePlaylistImport(),
-            jobStore = FakeJobStore(),
+            jobStore = jobStore,
             limits = ImportLimits(),
         )
         return runBlocking {
@@ -256,7 +263,6 @@ class ImportOrchestratorTest {
 
         assertEquals(1, outcome.upToDateFiles)
         assertEquals(0, outcome.downloadedFiles)
-        assertEquals(0, outcome.duplicateNameFiles)
         assertTrue(destination.createdFiles.isEmpty())
         assertTrue(destination.renamed.isEmpty())
         assertTrue(destination.deleted.isEmpty())
@@ -278,12 +284,11 @@ class ImportOrchestratorTest {
 
         assertEquals(1, outcome.upToDateFiles)
         assertEquals(0, outcome.downloadedFiles)
-        assertEquals(0, outcome.duplicateNameFiles)
         assertTrue(destination.createdDirectories.isEmpty())
     }
 
     @Test
-    fun `both name forms on disk are kept`() {
+    fun `ambiguous canonical local names fail without replacing either file`() {
         val decomposed = "The Mari\u0301as - Hush.mp3"
         val composed = "The Marías - Hush.mp3"
         val destination = FakeDestination().apply {
@@ -291,11 +296,9 @@ class ImportOrchestratorTest {
             add("tree:target", decomposed, size = 100L)
         }
 
-        val outcome = runImport(destination, plan(file(decomposed, 100L)))
+        val error = runCatching { runImport(destination, plan(file(decomposed, 100L))) }.exceptionOrNull()
 
-        assertEquals(1, outcome.upToDateFiles)
-        assertEquals(0, outcome.downloadedFiles)
-        assertEquals(1, outcome.duplicateNameFiles)
+        assertTrue(error is PublicLinkException.Protocol)
         assertTrue(destination.deleted.isEmpty())
         assertEquals(2, destination.nodes["tree:target"]!!.size)
     }
@@ -310,8 +313,28 @@ class ImportOrchestratorTest {
 
         assertEquals(1, outcome.downloadedFiles)
         assertEquals(0, outcome.upToDateFiles)
-        assertEquals(0, outcome.duplicateNameFiles)
         assertEquals(1, destination.deleted.size)
         assertEquals(listOf(decomposed), destination.nodes["tree:target"]!!.map { it.name })
+    }
+
+    @Test
+    fun `unsupported files are absent from skipped and total counts`() {
+        val destination = FakeDestination().apply { add("tree:target", "track.mp3", size = 100L) }
+        val skipped = SkippedRemoteFile(
+            RelativeImportPath.of("cover.jpg")!!,
+            SkipReason.UNSUPPORTED_FORMAT,
+        )
+        val store = FakeJobStore()
+
+        val outcome = runImport(
+            destination,
+            plan(file("track.mp3", 100L)).copy(skippedFiles = listOf(skipped)),
+            store,
+        )
+
+        assertEquals(1, outcome.upToDateFiles)
+        assertEquals(0, outcome.skippedFiles)
+        assertEquals(1, store.updates.first { it.totalFiles != null }.totalFiles)
+        assertEquals(0, store.updates.last { it.skippedFiles != null }.skippedFiles)
     }
 }

@@ -12,6 +12,14 @@ class TrackDuplicatesTest {
     }
 
     @Test
+    fun `duplicate key normalizes unicode names`() {
+        assertEquals(
+            trackDuplicateKey("The Marías.mp3"),
+            trackDuplicateKey("The Mari\u0301as.mp3"),
+        )
+    }
+
+    @Test
     fun `keeps track with lexicographically first relative path`() {
         val tracks = listOf(
             track(id = 1, path = "Z/Track.mp3", fileName = "track.mp3"),

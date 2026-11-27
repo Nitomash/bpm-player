@@ -39,7 +39,6 @@ data class ImportJobUpdate(
     val downloadedFiles: Int? = null,
     val skippedFiles: Int? = null,
     val upToDateFiles: Int? = null,
-    val duplicateNameFiles: Int? = null,
     val errorMessage: String? = null,
     val clearLink: Boolean = false,
 )
@@ -61,5 +60,4 @@ data class ImportJobSnapshot(
     val skippedFiles: Int,
     val errorMessage: String?,
     val upToDateFiles: Int = 0,
-    val duplicateNameFiles: Int = 0,
 )

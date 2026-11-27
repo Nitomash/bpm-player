@@ -36,7 +36,7 @@ import com.nitomash.bpmplayer.data.db.entity.TrackTagEntity
         PlaylistOrderEntity::class,
         ImportJobEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -153,6 +153,58 @@ abstract class BpmDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE import_jobs ADD COLUMN duplicate_name_files INTEGER NOT NULL DEFAULT 0",
                 )
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE import_jobs_new (" +
+                        "id TEXT NOT NULL PRIMARY KEY, " +
+                        "source_link TEXT, " +
+                        "provider_id TEXT, " +
+                        "target_folder_name TEXT, " +
+                        "destination_uri TEXT, " +
+                        "folder_id INTEGER NOT NULL, " +
+                        "status TEXT NOT NULL, " +
+                        "source_name TEXT, " +
+                        "current_path TEXT, " +
+                        "created_at_ms INTEGER NOT NULL, " +
+                        "updated_at_ms INTEGER NOT NULL, " +
+                        "downloaded_files INTEGER NOT NULL, " +
+                        "skipped_files INTEGER NOT NULL, " +
+                        "up_to_date_files INTEGER NOT NULL, " +
+                        "downloaded_bytes INTEGER NOT NULL, " +
+                        "total_files INTEGER NOT NULL, " +
+                        "total_bytes INTEGER, " +
+                        "error_message TEXT)",
+                )
+                db.execSQL(
+                    "INSERT INTO import_jobs_new (" +
+                        "id, source_link, provider_id, target_folder_name, destination_uri, folder_id, " +
+                        "status, source_name, current_path, created_at_ms, updated_at_ms, downloaded_files, " +
+                        "skipped_files, up_to_date_files, downloaded_bytes, total_files, total_bytes, error_message) " +
+                        "SELECT id, source_link, provider_id, target_folder_name, destination_uri, folder_id, " +
+                        "status, source_name, current_path, created_at_ms, updated_at_ms, downloaded_files, " +
+                        "skipped_files, up_to_date_files, downloaded_bytes, total_files, total_bytes, error_message " +
+                        "FROM import_jobs",
+                )
+                db.execSQL("DROP TABLE import_jobs")
+                db.execSQL("ALTER TABLE import_jobs_new RENAME TO import_jobs")
+                db.execSQL("CREATE INDEX index_import_jobs_status ON import_jobs(status)")
+                db.execSQL("CREATE INDEX index_import_jobs_created_at_ms ON import_jobs(created_at_ms)")
+                db.query("SELECT id, file_name FROM tracks").use { cursor ->
+                    val idIndex = cursor.getColumnIndexOrThrow("id")
+                    val nameIndex = cursor.getColumnIndexOrThrow("file_name")
+                    db.compileStatement("UPDATE tracks SET duplicate_key = ? WHERE id = ?").use { statement ->
+                        while (cursor.moveToNext()) {
+                            statement.bindString(1, trackDuplicateKey(cursor.getString(nameIndex)))
+                            statement.bindLong(2, cursor.getLong(idIndex))
+                            statement.executeUpdateDelete()
+                            statement.clearBindings()
+                        }
+                    }
+                }
             }
         }
     }
